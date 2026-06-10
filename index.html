@@ -27,7 +27,8 @@
   html, body { height:100%; overflow:hidden; }
   body {
     font-family:'Outfit', sans-serif;
-    background: var(--bg-deep);
+    /* gradient instead of flat colour: forced-dark browsers (Samsung) recolor solids but skip gradients */
+    background-image: linear-gradient(var(--bg-deep), var(--bg-deep));
     color: var(--ink);
     touch-action: manipulation;
     user-select:none; -webkit-user-select:none;
@@ -43,8 +44,8 @@
       linear-gradient(170deg, var(--bg-mid) 0%, var(--bg-deep) 70%);
   }
   .orb { position:fixed; border-radius:50%; filter:blur(70px); opacity:.32; z-index:-1; pointer-events:none; }
-  .orb.a { width:46vw; height:46vw; background:#7c5cad; top:-12vw; right:-10vw; animation:drift 19s ease-in-out infinite alternate; }
-  .orb.b { width:38vw; height:38vw; background:#3d6ea5; bottom:6vh; left:-14vw; animation:drift 24s ease-in-out infinite alternate-reverse; }
+  .orb.a { width:46vw; height:46vw; background-image:linear-gradient(#7c5cad,#7c5cad); top:-12vw; right:-10vw; animation:drift 19s ease-in-out infinite alternate; }
+  .orb.b { width:38vw; height:38vw; background-image:linear-gradient(#3d6ea5,#3d6ea5); bottom:6vh; left:-14vw; animation:drift 24s ease-in-out infinite alternate-reverse; }
   @keyframes drift { from{transform:translateY(0) scale(1)} to{transform:translateY(26px) scale(1.07)} }
   body::after { content:""; position:fixed; inset:0; z-index:50; pointer-events:none; opacity:.05;
     background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='0.6'/%3E%3C/svg%3E"); }
@@ -93,7 +94,7 @@
     opacity:.5; pointer-events:none; z-index:5; }
 
   .seg { position:absolute; left:0; right:0; height:25%;
-    transition: opacity .32s ease, transform .32s ease, background-color .32s ease;
+    transition: opacity .32s ease, transform .32s ease;
     transform-origin:bottom; }
   .seg.empty { opacity:0; transform:scaleY(.4); }
   .seg::before { content:""; position:absolute; inset:0 0 auto 0; height:3px;
@@ -118,7 +119,7 @@
   .win-card h2 { font-family:'Fraunces', serif; font-weight:650; font-size:2rem; margin-bottom:6px; }
   .win-card p { color:var(--ink-dim); font-weight:300; font-size:.9rem; margin-bottom:24px; }
   .next-btn { font-family:'Outfit', sans-serif; font-weight:600; font-size:1rem; letter-spacing:.04em;
-    color:#1d1530; background:var(--accent); border:none; border-radius:16px;
+    color:#1d1530; background-image:linear-gradient(var(--accent),var(--accent)); border:none; border-radius:16px;
     padding:15px 36px; cursor:pointer; transition:transform .15s ease;
     box-shadow:0 10px 24px -8px rgba(240,179,94,.5); }
   .next-btn:active { transform:scale(.94); }
@@ -319,7 +320,8 @@ function paint(){
     const segs = el.querySelectorAll('.seg');
     segs.forEach((seg,s)=>{
       if(s < t.length){
-        seg.style.backgroundColor = PALETTE[t[s]];
+        // one-colour gradient: identical look, but immune to forced-dark recolouring
+        seg.style.backgroundImage = `linear-gradient(${PALETTE[t[s]]}, ${PALETTE[t[s]]})`;
         seg.classList.remove('empty');
         seg.classList.toggle('topless', s===0 || t[s]===t[s-1]);
       } else seg.classList.add('empty');
@@ -378,8 +380,9 @@ function confetti(){
   for(let k=0;k<60;k++){
     const p=document.createElement('div'); p.className='confetti';
     const sz=4+Math.random()*7;
+    const cc = PALETTE[Math.floor(Math.random()*PALETTE.length)];
     p.style.cssText = `left:${Math.random()*100}vw;width:${sz}px;height:${sz*1.4}px;`+
-      `background:${PALETTE[Math.floor(Math.random()*PALETTE.length)]};`+
+      `background-image:linear-gradient(${cc},${cc});`+
       `animation-duration:${2.2+Math.random()*2.4}s;animation-delay:${Math.random()*.7}s;`;
     document.body.appendChild(p);
     setTimeout(()=>p.remove(),6000);
