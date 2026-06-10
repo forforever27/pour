@@ -243,8 +243,10 @@ function findSolution(tubes){
           if(src.length===run) continue;                       // pointless tube swap
           usedEmpty=true; moves.push([i,j,2]);
         } else if(dst[dst.length-1]===c && dst.length<CAP){
-          // prioritise pours that finish a colour or empty the source run fully
-          moves.push([i,j, dst.length+run>=CAP?0:1]);
+          // prefer whole-run pours; splitting a run (run > space) is a last resort
+          const space = CAP - dst.length;
+          const s = run <= space ? (dst.length + run === CAP ? 0 : 1) : 3;
+          moves.push([i,j,s]);
         }
       }
     }
