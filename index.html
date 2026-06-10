@@ -19,6 +19,7 @@
     --ink-dim: #9a8fb8;
     --glass: rgba(255,255,255,.055);
     --glass-edge: rgba(255,255,255,.16);
+    --panel: #2b2342; /* opaque button/panel fill — translucent glass breaks under Samsung forced dark */
     --accent: #f0b35e;
     --tube-w: clamp(44px, 12.5vw, 60px);
     --tube-h: clamp(150px, 24vh, 210px);
@@ -60,10 +61,11 @@
   .meta .moves { font-size:.72rem; font-weight:300; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-dim); }
   .controls { display:flex; gap:8px; }
   .icon-btn { width:44px; height:44px; border-radius:14px; border:1px solid var(--glass-edge);
-    background:var(--glass); color:var(--ink); font-size:1.05rem; cursor:pointer;
+    background-color:transparent; background-image:linear-gradient(var(--panel),var(--panel));
+    color:var(--ink); font-size:1.05rem; cursor:pointer;
     display:flex; align-items:center; justify-content:center;
-    transition:transform .15s ease, background .2s; backdrop-filter:blur(4px); }
-  .icon-btn:active { transform:scale(.92); background:rgba(255,255,255,.12); }
+    transition:transform .15s ease; }
+  .icon-btn:active { transform:scale(.92); }
   .icon-btn:disabled { opacity:.3; }
   .icon-btn svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
 
@@ -109,9 +111,10 @@
   .actions { display:flex; justify-content:center; gap:12px; padding: 2px 0 clamp(12px,2vh,20px); }
   .pill { display:flex; align-items:center; gap:7px; height:42px; padding:0 20px;
     border-radius:99px; border:1px solid var(--glass-edge);
-    background-image:linear-gradient(var(--glass),var(--glass));
+    background-color:transparent; /* never let the default white button face show */
+    background-image:linear-gradient(var(--panel),var(--panel));
     color:var(--ink); font-family:'Outfit',sans-serif; font-weight:400; font-size:.85rem;
-    letter-spacing:.06em; cursor:pointer; backdrop-filter:blur(4px);
+    letter-spacing:.06em; cursor:pointer;
     transition:transform .15s ease; }
   .pill:active { transform:scale(.93); }
   .pill svg { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
@@ -127,14 +130,14 @@
     opacity:0; pointer-events:none; transition:opacity .4s ease; }
   #win.show { opacity:1; pointer-events:auto; }
   .win-card { text-align:center; padding:40px 44px; border-radius:28px;
-    background:linear-gradient(160deg, rgba(255,255,255,.1), rgba(255,255,255,.03));
+    background-image:linear-gradient(160deg, #342b52, #251e3d);
     border:1px solid var(--glass-edge);
     transform:translateY(16px) scale(.96); transition:transform .45s cubic-bezier(.3,1.4,.5,1); }
   #win.show .win-card { transform:none; }
   .win-card h2 { font-family:'Fraunces', serif; font-weight:650; font-size:2rem; margin-bottom:6px; }
   .win-card p { color:var(--ink-dim); font-weight:300; font-size:.9rem; margin-bottom:24px; }
   .next-btn { font-family:'Outfit', sans-serif; font-weight:600; font-size:1rem; letter-spacing:.04em;
-    color:#1d1530; background-image:linear-gradient(var(--accent),var(--accent)); border:none; border-radius:16px;
+    color:#1d1530; background-color:transparent; background-image:linear-gradient(var(--accent),var(--accent)); border:none; border-radius:16px;
     padding:15px 36px; cursor:pointer; transition:transform .15s ease;
     box-shadow:0 10px 24px -8px rgba(240,179,94,.5); }
   .next-btn:active { transform:scale(.94); }
