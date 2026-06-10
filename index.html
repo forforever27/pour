@@ -287,7 +287,8 @@ function levelConfig(lv){
   const unit = lv < 50 ? 4 : lv < 65 ? 5 : 6;
   const big = lv >= 80;
   const bigFill = big ? Math.min(2*unit - 2, 8 + Math.floor((lv-80)/30)) : 0;
-  return { colours, unit, big, bigFill };
+  const smallEmpties = big ? (lv >= 90 ? 0 : 1) : 2;  // 90+: the big tube is ALL the spare room you get
+  return { colours, unit, big, bigFill, smallEmpties };
 }
 function generate(level){
   const cfg = levelConfig(level);
@@ -314,8 +315,9 @@ function generate(level){
         while(normal[idx % cfg.colours].length >= cfg.unit) idx++;
         normal[idx % cfg.colours].push(u); idx++;
       }
-      tubes = [...normal, [], bigT];              // [colour tubes..., empty, big centre]
-      capsA = [...normal.map(()=>cfg.unit), cfg.unit, cfg.unit*2];
+      const empties = Array.from({length: cfg.smallEmpties}, ()=>[]);
+      tubes = [...normal, ...empties, bigT];      // [colour tubes..., empties..., big centre]
+      capsA = [...normal.map(()=>cfg.unit), ...empties.map(()=>cfg.unit), cfg.unit*2];
     }
     if(tubes.some(t=>t.length===cfg.unit&&t.length>0&&isUniform(t))) continue; // no freebies
     if(solvable(tubes, capsA, cfg.unit)) return { tubes, caps: capsA, unit: cfg.unit, big: cfg.big };
@@ -393,13 +395,15 @@ function buildBoard(){
       }
     });
   } else {
-    // [5 tubes] [big centre tube] [5 tubes]
+    // [half the small tubes] [big centre tube] [other half]
+    const nSmall = tubes.length - 1;               // big tube is always last
+    const half = Math.ceil(nSmall/2);
     const L = document.createElement('div'); L.className = 'side';
     const R = document.createElement('div'); R.className = 'side';
-    for(let i=0;i<5;i++) L.appendChild(makeTube(i));
-    for(let i=5;i<10;i++) R.appendChild(makeTube(i));
+    for(let i=0;i<half;i++) L.appendChild(makeTube(i));
+    for(let i=half;i<nSmall;i++) R.appendChild(makeTube(i));
     board.appendChild(L);
-    board.appendChild(makeTube(10));
+    board.appendChild(makeTube(nSmall));
     board.appendChild(R);
   }
   paint();
