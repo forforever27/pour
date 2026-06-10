@@ -78,6 +78,14 @@
     gap: clamp(10px,3vw,20px) clamp(8px,2.6vw,18px); max-width:480px; }
   .row-gap { width:100%; height:0; }
 
+  /* level 80+: [side of 5] [big centre tube] [side of 5] */
+  #board.has-big { flex-wrap:nowrap; --tube-w: clamp(38px, 10.2vw, 52px); }
+  #board.has-big .side { display:flex; flex-wrap:wrap; justify-content:center;
+    gap: clamp(10px,3vw,20px) clamp(8px,2.2vw,16px);
+    width: calc(var(--tube-w)*3 + clamp(8px,2.2vw,16px)*2 + 2px); }
+  .tube.big { width: calc(var(--tube-w)*1.25);
+    height: calc(var(--tube-h)*2 + clamp(10px,3vw,20px)); }
+
   .tube { position:relative; width:var(--tube-w); height:var(--tube-h);
     background:none; border:none; cursor:pointer; padding:0;
     transition: transform .28s cubic-bezier(.34,1.4,.5,1); }
@@ -198,7 +206,9 @@
 
 <script>
 'use strict';
-const CAP = 4;
+let UNIT = 4;   // units per colour — a colour is "sorted" when all UNIT pieces sit together
+let caps = [];  // per-tube capacity (the big centre tube holds UNIT*2)
+let BIG = false;
 const PALETTE = [
   '#e8896b', // coral clay
   '#f0c45e', // honey
@@ -219,10 +229,10 @@ function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a
 function topRun(t){ if(!t.length) return 0; const c=t[t.length-1]; let n=0;
   for(let i=t.length-1;i>=0&&t[i]===c;i--)n++; return n; }
 function isUniform(t){ return t.every(c=>c===t[0]); }
-function findSolution(tubes){
-  const seen = new Set(); let nodes = 0; const LIMIT = 120000;
+function findSolution(tubes, capsArr, unit){
+  const seen = new Set(); let nodes = 0; const LIMIT = 200000;
   const key = t => t.map(x=>x.join(',')).sort().join('|');
-  function done(t){ return t.every(tu=>tu.length===0||(tu.length===CAP&&isUniform(tu))); }
+  function done(t){ return t.every(tu=>tu.length===0||(tu.length===unit&&isUniform(tu))); }
   function dfs(t, path){
     if(done(t)) return path;
     if(++nodes > LIMIT) return null;
@@ -232,20 +242,20 @@ function findSolution(tubes){
     const moves = [];
     for(let i=0;i<t.length;i++){
       const src=t[i]; if(!src.length) continue;
-      if(src.length===CAP&&isUniform(src)) continue;          // already complete
+      if(src.length===unit&&isUniform(src)) continue;          // already complete
       const run=topRun(src), c=src[src.length-1];
-      let usedEmpty=false;
+      const emptySeen = {};                                     // empties of equal size are equivalent
       for(let j=0;j<t.length;j++){
         if(i===j) continue;
-        const dst=t[j];
+        const dst=t[j], space=capsArr[j]-dst.length;
+        if(space<=0) continue;
         if(!dst.length){
-          if(usedEmpty) continue;                              // all empties equivalent
+          if(emptySeen[capsArr[j]]) continue;
           if(src.length===run) continue;                       // pointless tube swap
-          usedEmpty=true; moves.push([i,j,2]);
-        } else if(dst[dst.length-1]===c && dst.length<CAP){
+          emptySeen[capsArr[j]]=1; moves.push([i,j,2]);
+        } else if(dst[dst.length-1]===c){
           // prefer whole-run pours; splitting a run (run > space) is a last resort
-          const space = CAP - dst.length;
-          const s = run <= space ? (dst.length + run === CAP ? 0 : 1) : 3;
+          const s = run <= space ? (dst.length + run === unit ? 0 : 1) : 3;
           moves.push([i,j,s]);
         }
       }
@@ -254,7 +264,7 @@ function findSolution(tubes){
     for(const [i,j] of moves){
       const nt = t.map(x=>x.slice());
       const c = nt[i][nt[i].length-1];
-      let amt = Math.min(topRun(nt[i]), CAP-nt[j].length);
+      let amt = Math.min(topRun(nt[i]), capsArr[j]-nt[j].length);
       while(amt--){ nt[i].pop(); nt[j].push(c); }
       const r = dfs(nt, path.concat([[i,j]]));
       if(r) return r;
@@ -263,25 +273,52 @@ function findSolution(tubes){
   }
   return dfs(tubes.map(t=>t.slice()), []);
 }
-function solvable(tubes){ return findSolution(tubes) !== null; }
+function solvable(tubes, capsArr, unit){ return findSolution(tubes, capsArr, unit) !== null; }
 
 /* ---------- generator ---------- */
-function colorsForLevel(lv){ return Math.min(PALETTE.length, 3 + Math.floor((lv-1)/3)); }
+/* difficulty curve:
+   1–49   classic, 4 layers per colour, ramping 3→9 colours
+   50–64  taller tubes, 5 layers per colour
+   65–79  taller again, 6 layers
+   80+    the big centre tube: double height, pre-filled with a mixed stack
+          to dig out, and only ONE normal empty tube. Stack deepens over time. */
+function levelConfig(lv){
+  const colours = Math.min(PALETTE.length, 3 + Math.floor((lv-1)/3));
+  const unit = lv < 50 ? 4 : lv < 65 ? 5 : 6;
+  const big = lv >= 80;
+  const bigFill = big ? Math.min(2*unit - 2, 8 + Math.floor((lv-80)/30)) : 0;
+  return { colours, unit, big, bigFill };
+}
 function generate(level){
-  const nColors = colorsForLevel(level);
-  for(let attempt=0; attempt<40; attempt++){
+  const cfg = levelConfig(level);
+  for(let attempt=0; attempt<120; attempt++){
     const rng = mulberry32(level*2654435761 + attempt*97);
     // shuffle a colour map too, so palettes vary level to level
     const order = [...Array(PALETTE.length).keys()];
     for(let i=order.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));[order[i],order[j]]=[order[j],order[i]];}
     const pool = [];
-    for(let c=0;c<nColors;c++) for(let k=0;k<CAP;k++) pool.push(order[c]);
+    for(let c=0;c<cfg.colours;c++) for(let k=0;k<cfg.unit;k++) pool.push(order[c]);
     for(let i=pool.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));[pool[i],pool[j]]=[pool[j],pool[i]];}
-    const tubes = [];
-    for(let c=0;c<nColors;c++) tubes.push(pool.slice(c*CAP,(c+1)*CAP));
-    tubes.push([],[]);
-    if(tubes.some(t=>t.length===CAP&&isUniform(t))) continue;   // no freebies
-    if(solvable(tubes)) return tubes;
+    let tubes, capsA;
+    if(!cfg.big){
+      tubes = [];
+      for(let c=0;c<cfg.colours;c++) tubes.push(pool.slice(c*cfg.unit,(c+1)*cfg.unit));
+      tubes.push([],[]);
+      capsA = tubes.map(()=>cfg.unit);
+    } else {
+      const bigT = pool.slice(0, cfg.bigFill);
+      const rest = pool.slice(cfg.bigFill);
+      const normal = Array.from({length: cfg.colours}, ()=>[]);
+      let idx = 0;
+      for(const u of rest){
+        while(normal[idx % cfg.colours].length >= cfg.unit) idx++;
+        normal[idx % cfg.colours].push(u); idx++;
+      }
+      tubes = [...normal, [], bigT];              // [colour tubes..., empty, big centre]
+      capsA = [...normal.map(()=>cfg.unit), cfg.unit, cfg.unit*2];
+    }
+    if(tubes.some(t=>t.length===cfg.unit&&t.length>0&&isUniform(t))) continue; // no freebies
+    if(solvable(tubes, capsA, cfg.unit)) return { tubes, caps: capsA, unit: cfg.unit, big: cfg.big };
   }
   // fallback (vanishingly rare): an easy verified layout
   return generate(1);
@@ -326,30 +363,50 @@ function renderSoundIcon(){
 }
 
 /* ---------- rendering ---------- */
+let tubeEls = [];
+function makeTube(i){
+  const b = document.createElement('button');
+  b.className = 'tube' + (caps[i] > UNIT ? ' big' : '');
+  b.dataset.i = i; b.setAttribute('aria-label','Tube '+(i+1));
+  const g = document.createElement('div'); g.className = 'glass';
+  for(let s=0;s<caps[i];s++){
+    const seg = document.createElement('div');
+    seg.className = 'seg empty';
+    seg.style.height = (100/caps[i])+'%';
+    seg.style.bottom = (s*100/caps[i])+'%';
+    g.appendChild(seg);
+  }
+  b.appendChild(g);
+  b.addEventListener('pointerdown', ()=>tap(i));
+  tubeEls[i] = b;
+  return b;
+}
 function buildBoard(){
-  board.innerHTML = '';
-  tubes.forEach((_,i)=>{
-    const b = document.createElement('button');
-    b.className = 'tube'; b.dataset.i = i; b.setAttribute('aria-label','Tube '+(i+1));
-    const g = document.createElement('div'); g.className = 'glass';
-    for(let s=0;s<CAP;s++){
-      const seg = document.createElement('div');
-      seg.className = 'seg empty'; seg.style.bottom = (s*25)+'%';
-      g.appendChild(seg);
-    }
-    b.appendChild(g);
-    b.addEventListener('pointerdown', ()=>tap(i));
-    board.appendChild(b);
-    // wrap into two visual rows
-    if(i === Math.ceil(tubes.length/2)-1){
-      const gap=document.createElement('div'); gap.className='row-gap'; board.appendChild(gap);
-    }
-  });
+  board.innerHTML = ''; tubeEls = [];
+  board.classList.toggle('has-big', BIG);
+  if(!BIG){
+    tubes.forEach((_,i)=>{
+      board.appendChild(makeTube(i));
+      // wrap into two visual rows
+      if(i === Math.ceil(tubes.length/2)-1){
+        const gap=document.createElement('div'); gap.className='row-gap'; board.appendChild(gap);
+      }
+    });
+  } else {
+    // [5 tubes] [big centre tube] [5 tubes]
+    const L = document.createElement('div'); L.className = 'side';
+    const R = document.createElement('div'); R.className = 'side';
+    for(let i=0;i<5;i++) L.appendChild(makeTube(i));
+    for(let i=5;i<10;i++) R.appendChild(makeTube(i));
+    board.appendChild(L);
+    board.appendChild(makeTube(10));
+    board.appendChild(R);
+  }
   paint();
 }
 function paint(){
-  document.querySelectorAll('.tube').forEach((el,i)=>{
-    const t = tubes[i];
+  tubes.forEach((t,i)=>{
+    const el = tubeEls[i];
     const segs = el.querySelectorAll('.seg');
     segs.forEach((seg,s)=>{
       if(s < t.length){
@@ -360,7 +417,7 @@ function paint(){
       } else seg.classList.add('empty');
     });
     el.classList.toggle('lift', i===selected);
-    el.classList.toggle('done', t.length===CAP && isUniform(t));
+    el.classList.toggle('done', t.length===UNIT && isUniform(t));
   });
   lvlLabel.textContent = 'Level ' + level;
   movesLabel.textContent = moves + (moves===1?' move':' moves');
@@ -370,12 +427,12 @@ function paint(){
 /* ---------- game logic ---------- */
 function canPour(i,j){
   const src=tubes[i], dst=tubes[j];
-  if(!src.length || dst.length>=CAP) return false;
+  if(!src.length || dst.length>=caps[j]) return false;
   return !dst.length || dst[dst.length-1]===src[src.length-1];
 }
 function tap(i){
   if(busy || winEl.classList.contains('show')) return;
-  const el = board.querySelectorAll('.tube')[i];
+  const el = tubeEls[i];
   if(selected===-1){
     if(tubes[i].length){ selected=i; note(520,.08,.05); paint(); }
     return;
@@ -392,7 +449,7 @@ function tap(i){
 function pour(i,j,el){
   history.push({t:tubes.map(x=>x.slice()), m:moves});
   const c = tubes[i][tubes[i].length-1];
-  let amt = Math.min(topRun(tubes[i]), CAP-tubes[j].length);
+  let amt = Math.min(topRun(tubes[i]), caps[j]-tubes[j].length);
   while(amt--){ tubes[i].pop(); tubes[j].push(c); }
   moves++; selected = -1; busy = true;
   el.classList.add('recv');
@@ -401,7 +458,7 @@ function pour(i,j,el){
   setTimeout(()=>{ el.classList.remove('recv'); busy=false; checkWin(); }, 340);
 }
 function checkWin(){
-  const won = tubes.every(t=>t.length===0||(t.length===CAP&&isUniform(t)));
+  const won = tubes.every(t=>t.length===0||(t.length===UNIT&&isUniform(t)));
   if(!won) return;
   winSound(); buzz([30,60,30]);
   document.getElementById('winTitle').textContent = WIN_WORDS[level % WIN_WORDS.length];
@@ -422,7 +479,9 @@ function confetti(){
   }
 }
 function loadLevel(){
-  tubes = generate(level); history=[]; moves=0; selected=-1;
+  const g = generate(level);
+  tubes = g.tubes; caps = g.caps; UNIT = g.unit; BIG = g.big;
+  history=[]; moves=0; selected=-1;
   winEl.classList.remove('show');
   localStorage.setItem('pour.level', level);
   buildBoard();
@@ -455,15 +514,14 @@ document.getElementById('nextBtn').addEventListener('click', ()=>{
 });
 document.getElementById('hintBtn').addEventListener('click', ()=>{
   if(busy || winEl.classList.contains('show')) return;
-  const sol = findSolution(tubes);
+  const sol = findSolution(tubes, caps, UNIT);
   if(sol === null){ toast('Stuck — undo a few moves ↩'); buzz(25); return; }
   if(!sol.length) return;
   const [i,j] = sol[0];
   selected = -1; paint();
-  const els = board.querySelectorAll('.tube');
-  els[i].classList.add('lift'); els[j].classList.add('hint-dst');
+  tubeEls[i].classList.add('lift'); tubeEls[j].classList.add('hint-dst');
   note(620,.1,.05);
-  setTimeout(()=>{ els[i].classList.remove('lift'); els[j].classList.remove('hint-dst'); paint(); }, 1600);
+  setTimeout(()=>{ tubeEls[i].classList.remove('lift'); tubeEls[j].classList.remove('hint-dst'); paint(); }, 1600);
 });
 document.getElementById('skipBtn').addEventListener('click', ()=>{
   if(busy) return;
