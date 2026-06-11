@@ -199,6 +199,9 @@
     <div class="moves" id="progLabel">0/26 letters</div>
   </div>
   <div class="controls">
+    <button class="icon-btn" id="undoBtn" aria-label="Undo" title="Undo">
+      <svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg>
+    </button>
     <button class="icon-btn" id="soundBtn" aria-label="Toggle sound" title="Sound"></button>
   </div>
 </header>
@@ -264,6 +267,7 @@ let numLetter = [];       // number -> letter (solution, derived)
 let assigned = {};        // number -> letter (player's view, includes starters)
 let starters = new Set(); // numbers revealed at the start
 let sel = 0;              // selected number, 0 = none
+let undoStack = [];       // snapshots of `assigned`, newest last
 let soundOn = localStorage.getItem('codeword.sound') !== 'off';
 
 const boardEl = document.getElementById('board');
@@ -273,6 +277,7 @@ const winEl = document.getElementById('win');
 const lvlLabel = document.getElementById('lvlLabel');
 const progLabel = document.getElementById('progLabel');
 const soundBtn = document.getElementById('soundBtn');
+const undoBtn = document.getElementById('undoBtn');
 
 /* ---------- audio ---------- */
 let actx = null;
@@ -340,6 +345,7 @@ function setupLevel(lv, savedAssign){
     if(!starters.has(n) && /^[A-Z]$/.test(savedAssign[k])) assigned[n] = savedAssign[k];
   }
   sel = 0;
+  undoStack = [];
   buildBoard();
   paint();
 }
@@ -431,9 +437,14 @@ function paint(){
   }
   lvlLabel.textContent = 'Level ' + level;
   progLabel.textContent = count + '/26 letters';
+  undoBtn.disabled = !undoStack.length;
 }
 
 /* ---------- game logic ---------- */
+function pushUndo(){
+  undoStack.push({...assigned});
+  if(undoStack.length > 200) undoStack.shift();
+}
 function deny(){
   buzz(20);
   if(sel && stripEls[sel]){ stripEls[sel].classList.add('deny'); setTimeout(()=>stripEls[sel].classList.remove('deny'),320); }
@@ -444,6 +455,8 @@ function inputLetter(ch){
   if(starters.has(sel)){ deny(); toast('That one was given'); return; }
   const holder = Object.keys(assigned).find(n => assigned[n]===ch);
   if(holder && +holder !== sel){ deny(); toast(ch + ' is already number ' + holder); return; }
+  if(assigned[sel] === ch) return;
+  pushUndo();
   assigned[sel] = ch;
   note(330,.08,.06);
   save(); paint(); checkWin();
@@ -453,6 +466,7 @@ function eraseSel(){
   if(!sel) return;
   if(starters.has(sel)){ deny(); toast('That one was given'); return; }
   if(!assigned[sel]) return;
+  pushUndo();
   delete assigned[sel];
   note(260,.08,.05);
   save(); paint();
@@ -466,6 +480,7 @@ function hint(){
     if(!open.length) return;
     n = open[(Math.random()*open.length)|0];
   }
+  pushUndo();
   // if the right letter is parked on a wrong number, free it first
   const holder = Object.keys(assigned).find(x => assigned[x]===numLetter[n]);
   if(holder && +holder!==n && !starters.has(+holder)) delete assigned[holder];
@@ -509,6 +524,12 @@ function toast(msg){
 }
 
 /* ---------- controls ---------- */
+undoBtn.addEventListener('click', ()=>{
+  if(!undoStack.length || winEl.classList.contains('show')) return;
+  assigned = undoStack.pop();
+  note(330,.1,.06);
+  save(); paint();
+});
 soundBtn.addEventListener('click', ()=>{
   soundOn=!soundOn;
   localStorage.setItem('codeword.sound', soundOn?'on':'off');
