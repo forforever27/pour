@@ -191,7 +191,7 @@ function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a
 const WORLD = 1500;
 const CAMP_R0 = 185;                              // fence upgrades expand the ring
 const CAMP = { x:750, y:750, r:CAMP_R0 };
-const TREES = 64, TREE_HP = 3, TREE_REGROW = 16;
+const TREES = 130, TREE_HP = 3, TREE_REGROW = 16;
 const FENCE_BASE = 500;
 const woodPrice = lv => 2 + lv;                  // storehouse adds +1
 const MEAT_PRICE = 8;
@@ -299,12 +299,12 @@ function genWorld(lv){
   while(trees.length < TREES){
     const gx = 110 + rng()*(WORLD-220), gy = 110 + rng()*(WORLD-220);
     if(Math.hypot(gx-CAMP.x, gy-CAMP.y) < CAMP.r+110) continue;
-    const n = 2 + (rng()*4|0);
+    const n = 5 + (rng()*5|0);
     for(let k=0;k<n && trees.length<TREES;k++){
-      const x = gx + (rng()-.5)*160, y = gy + (rng()-.5)*160;
+      const x = gx + (rng()-.5)*200, y = gy + (rng()-.5)*200;
       if(x<70||y<70||x>WORLD-70||y>WORLD-70) continue;
       if(Math.hypot(x-CAMP.x,y-CAMP.y) < CAMP.r+90) continue;
-      if(trees.some(t=>Math.hypot(t.x-x,t.y-y)<48)) continue;
+      if(trees.some(t=>Math.hypot(t.x-x,t.y-y)<36)) continue;
       trees.push({ id:id++, x, y, hp:TREE_HP, regrow:0, shake:0, grow:1, s:.85+rng()*.5 });
     }
   }
