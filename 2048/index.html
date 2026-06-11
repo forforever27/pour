@@ -166,6 +166,7 @@
     <h2 id="overTitle">Out of moves.</h2>
     <p id="overSub">Score 0</p>
     <button class="next-btn" id="againBtn">Again →</button>
+    <button class="over-alt" id="undoAlt" style="display:none">↩ undo last move</button>
     <button class="over-alt" id="keepBtn" style="display:none">keep going</button>
   </div>
 </div>
@@ -231,7 +232,8 @@ function renderSoundIcon(){
 /* ---------- persistence: 2048.* keys, this device only ---------- */
 function save(){
   try {
-    localStorage.setItem('2048.state', JSON.stringify({ b: grid.map(t=>t?t.v:0), s: score, w: won }));
+    // the undo snapshot is saved too, so "undo last move" still works after a reload
+    localStorage.setItem('2048.state', JSON.stringify({ b: grid.map(t=>t?t.v:0), s: score, w: won, u: undoState }));
     localStorage.setItem('2048.best', best);
   } catch(e){}
 }
@@ -243,6 +245,7 @@ function restore(){
     if(!Array.isArray(st.b) || st.b.length!==16 || !st.b.some(v=>v)) return false;
     grid = st.b.map(v => v ? {id:nextId++, v} : null);
     score = st.s||0; won = !!st.w;
+    if(st.u && Array.isArray(st.u.b) && st.u.b.length===16) undoState = { b: st.u.b, s: st.u.s||0 };
     return true;
   } catch(e){ return false; }
 }
@@ -397,6 +400,7 @@ function move(dir){
         document.getElementById('overTitle').textContent = '2048.';
         document.getElementById('overSub').textContent = 'The night is yours · score ' + (score+gained);
         document.getElementById('keepBtn').style.display = 'block';
+        document.getElementById('undoAlt').style.display = 'none';
         setTimeout(()=>overEl.classList.add('show'), 600);
       }
     }
@@ -406,15 +410,16 @@ function move(dir){
     spawn();
     save(); paintHud();
     busy = false;
-    if(!canMove()){
-      over = true; save();
-      document.getElementById('overTitle').textContent = 'Out of moves.';
-      document.getElementById('overSub').textContent = 'Score ' + score + (score>=best ? ' · new best ✦' : ' · best ' + best);
-      document.getElementById('keepBtn').style.display = 'none';
-      buzz(40);
-      setTimeout(()=>overEl.classList.add('show'), 350);
-    }
+    if(!canMove()){ buzz(40); showGameOver(); }
   }, 140);
+}
+function showGameOver(){
+  over = true; save();
+  document.getElementById('overTitle').textContent = 'Out of moves.';
+  document.getElementById('overSub').textContent = 'Score ' + score + (score>=best ? ' · new best ✦' : ' · best ' + best);
+  document.getElementById('keepBtn').style.display = 'none';
+  document.getElementById('undoAlt').style.display = undoState ? 'block' : 'none';
+  setTimeout(()=>overEl.classList.add('show'), 350);
 }
 function confetti(){
   for(let k=0;k<60;k++){
@@ -444,7 +449,7 @@ function toast(msg){
 }
 
 /* ---------- controls ---------- */
-undoBtn.addEventListener('click', ()=>{
+function doUndo(){
   if(!undoState || busy) return;
   grid = undoState.b.map(v => v ? {id:nextId++, v} : null);
   score = undoState.s;
@@ -452,7 +457,9 @@ undoBtn.addEventListener('click', ()=>{
   overEl.classList.remove('show');
   note(330,.1,.06);
   save(); fullRender();
-});
+}
+undoBtn.addEventListener('click', doUndo);
+document.getElementById('undoAlt').addEventListener('click', doUndo);
 soundBtn.addEventListener('click', ()=>{
   soundOn=!soundOn;
   localStorage.setItem('2048.sound', soundOn?'on':'off');
@@ -482,7 +489,7 @@ buildSlots();
 renderSoundIcon();
 if(restore()){
   fullRender();
-  if(!canMove()){ over = true; }
+  if(!canMove()) showGameOver();   // reopened on a dead board — offer the undo rescue too
 } else {
   newGame();
 }
