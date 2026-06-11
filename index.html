@@ -133,6 +133,64 @@
     <span class="prog fresh" id="sudokuProg">new</span>
     <span class="go">›</span>
   </a>
+
+  <a class="card" href="codeword/">
+    <div class="art">
+      <svg viewBox="0 0 36 36" fill="none">
+        <rect x="4" y="4" width="28" height="28" rx="4" stroke="rgba(255,255,255,.35)" stroke-width="1.5"/>
+        <path d="M13.3 4v28 M22.6 4v28 M4 13.3h28 M4 22.6h28" stroke="rgba(255,255,255,.18)" stroke-width="1.2"/>
+        <text x="8.7"  y="11.8" font-family="Georgia,serif" font-size="6.4" fill="#f2edf7" text-anchor="middle">A</text>
+        <text x="27.4" y="11.4" font-family="Arial,sans-serif" font-size="5" fill="#9a8fb8" text-anchor="middle">7</text>
+        <text x="18"   y="21"   font-family="Georgia,serif" font-size="6.4" fill="#f0b35e" text-anchor="middle">K</text>
+        <text x="8.9"  y="30"   font-family="Arial,sans-serif" font-size="5" fill="#9a8fb8" text-anchor="middle">19</text>
+        <text x="27.3" y="30.4" font-family="Georgia,serif" font-size="6.4" fill="#e08bb1" text-anchor="middle">E</text>
+      </svg>
+    </div>
+    <div class="info">
+      <h2>codeword<em>.</em></h2>
+      <p>every number hides a letter</p>
+    </div>
+    <span class="prog fresh" id="codewordProg">new</span>
+    <span class="go">›</span>
+  </a>
+
+  <a class="card" href="2048/">
+    <div class="art">
+      <svg viewBox="0 0 36 36" fill="none">
+        <rect x="4"  y="4"  width="13" height="13" rx="3" fill="#efe3c4"/>
+        <rect x="19" y="4"  width="13" height="13" rx="3" fill="#f0c45e"/>
+        <rect x="4"  y="19" width="13" height="13" rx="3" fill="#e8896b"/>
+        <rect x="19" y="19" width="13" height="13" rx="3" fill="#e08bb1"/>
+        <text x="10.5" y="13"   font-family="Georgia,serif" font-size="7.5" fill="#1d1530" text-anchor="middle">2</text>
+        <text x="25.5" y="13"   font-family="Georgia,serif" font-size="7.5" fill="#1d1530" text-anchor="middle">4</text>
+        <text x="10.5" y="28"   font-family="Georgia,serif" font-size="7.5" fill="#1d1530" text-anchor="middle">8</text>
+        <text x="25.5" y="28.2" font-family="Georgia,serif" font-size="6.5" fill="#1d1530" text-anchor="middle">16</text>
+      </svg>
+    </div>
+    <div class="info">
+      <h2>2048<em>.</em></h2>
+      <p>slide, merge, double</p>
+    </div>
+    <span class="prog fresh" id="g2048Prog">new</span>
+    <span class="go">›</span>
+  </a>
+
+  <a class="card" href="drop/">
+    <div class="art">
+      <svg viewBox="0 0 36 36" fill="none">
+        <circle cx="11" cy="25" r="7.5" fill="#a489d4"/>
+        <circle cx="25" cy="26" r="5.5" fill="#e8896b"/>
+        <circle cx="20" cy="12" r="4"   fill="#efe3c4"/>
+        <path d="M20 4v3" stroke="rgba(255,255,255,.35)" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="1 3"/>
+      </svg>
+    </div>
+    <div class="info">
+      <h2>drop<em>.</em></h2>
+      <p>merge the little moons</p>
+    </div>
+    <span class="prog fresh" id="dropProg">new</span>
+    <span class="go">›</span>
+  </a>
 </main>
 
 <footer>progress is saved on this device, per game</footer>
@@ -157,6 +215,30 @@ try {
     el.classList.remove('fresh');
   } else if (localStorage.getItem('sudoku.state')) {
     el.textContent = 'in progress';
+    el.classList.remove('fresh');
+  }
+} catch(e) {}
+try {
+  const lv = parseInt(localStorage.getItem('codeword.level') || '1', 10);
+  if (lv > 1) {
+    const el = document.getElementById('codewordProg');
+    el.textContent = 'level ' + lv;
+    el.classList.remove('fresh');
+  }
+} catch(e) {}
+try {
+  const b = parseInt(localStorage.getItem('2048.best') || '0', 10);
+  if (b > 0) {
+    const el = document.getElementById('g2048Prog');
+    el.textContent = 'best ' + b;
+    el.classList.remove('fresh');
+  }
+} catch(e) {}
+try {
+  const b = parseInt(localStorage.getItem('drop.best') || '0', 10);
+  if (b > 0) {
+    const el = document.getElementById('dropProg');
+    el.textContent = 'best ' + b;
     el.classList.remove('fresh');
   }
 } catch(e) {}

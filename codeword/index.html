@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#191527">
+<meta name="color-scheme" content="only light">
+<title>Codeword — crack the letter code</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650&family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    /* the game defines its own night palette — block browser auto-dark/forced dark from recoloring it */
+    color-scheme: only light;
+    --bg-deep: #14101f;
+    --bg-mid: #1f1833;
+    --ink: #f2edf7;
+    --ink-dim: #9a8fb8;
+    --glass: rgba(255,255,255,.055);
+    --glass-edge: rgba(255,255,255,.16);
+    --panel: #2b2342;
+    --accent: #f0b35e;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { height:100%; overflow:hidden; }
+  body {
+    font-family:'Outfit', sans-serif;
+    background-image: linear-gradient(var(--bg-deep), var(--bg-deep));
+    color: var(--ink);
+    touch-action: manipulation;
+    user-select:none; -webkit-user-select:none;
+    display:flex; flex-direction:column;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+
+  /* ---- atmosphere ---- */
+  .sky { position:fixed; inset:0; z-index:-2;
+    background:
+      radial-gradient(120% 90% at 80% -10%, #3a2b55 0%, transparent 55%),
+      radial-gradient(90% 70% at 10% 110%, #232a4d 0%, transparent 60%),
+      linear-gradient(170deg, var(--bg-mid) 0%, var(--bg-deep) 70%);
+  }
+  .orb { position:fixed; border-radius:50%; filter:blur(70px); opacity:.32; z-index:-1; pointer-events:none; }
+  .orb.a { width:46vw; height:46vw; background-image:linear-gradient(#7c5cad,#7c5cad); top:-12vw; right:-10vw; animation:drift 19s ease-in-out infinite alternate; }
+  .orb.b { width:38vw; height:38vw; background-image:linear-gradient(#3d6ea5,#3d6ea5); bottom:6vh; left:-14vw; animation:drift 24s ease-in-out infinite alternate-reverse; }
+  @keyframes drift { from{transform:translateY(0) scale(1)} to{transform:translateY(26px) scale(1.07)} }
+  body::after { content:""; position:fixed; inset:0; z-index:50; pointer-events:none; opacity:.05;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='0.6'/%3E%3C/svg%3E"); }
+
+  /* ---- header ---- */
+  header { display:flex; align-items:center; justify-content:space-between;
+    padding: clamp(8px,1.6vh,16px) 20px 2px; }
+  .brand { font-family:'Fraunces', serif; font-weight:650; font-size:1.35rem; letter-spacing:.01em;
+    color:inherit; text-decoration:none; }
+  .brand em { font-style:normal; color:var(--accent); }
+  .brand .back { color:var(--ink-dim); font-weight:500; margin-right:1px; }
+  .meta { text-align:center; }
+  .meta .lvl { font-family:'Fraunces', serif; font-weight:650; font-size:1.3rem; line-height:1.1; }
+  .meta .moves { font-size:.72rem; font-weight:300; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-dim); }
+  .controls { display:flex; gap:8px; }
+  .icon-btn { width:44px; height:44px; border-radius:14px; border:1px solid var(--glass-edge);
+    background-color:transparent; background-image:linear-gradient(var(--panel),var(--panel));
+    color:var(--ink); font-size:1.05rem; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    transition:transform .15s ease; }
+  .icon-btn:active { transform:scale(.92); }
+  .icon-btn svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+
+  .tagline { text-align:center; font-size:.7rem; font-weight:300; letter-spacing:.2em;
+    text-transform:uppercase; color:var(--ink-dim); padding:0; }
+
+  /* ---- board ---- */
+  main { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    padding:4px 8px; min-height:0; gap:8px; }
+  #board { width:min(96vw, 44vh, 430px); aspect-ratio:1/1;
+    display:grid; grid-template-columns:repeat(13,1fr); grid-template-rows:repeat(13,1fr);
+    border-radius:12px; overflow:hidden;
+    background:var(--glass);
+    border:1.5px solid var(--glass-edge);
+    box-shadow: 0 14px 28px -12px rgba(0,0,0,.55); }
+  .cell { position:relative; border:none; background:none; padding:0; cursor:pointer;
+    border-right:1px solid rgba(255,255,255,.07); border-bottom:1px solid rgba(255,255,255,.07);
+    font-family:'Fraunces', serif; font-weight:650;
+    font-size:clamp(10px, min(3.4vw, 1.7vh), 17px);
+    color:var(--ink);
+    display:flex; align-items:flex-end; justify-content:center;
+    padding-bottom:6%; }
+  .cell.blk { background-image:linear-gradient(rgba(10,7,18,.55), rgba(10,7,18,.55)); cursor:default; }
+  .cell .n { position:absolute; top:1px; left:2px; font-family:'Outfit',sans-serif; font-weight:400;
+    font-size:clamp(6px, min(1.8vw, .95vh), 9px); color:var(--ink-dim); line-height:1; }
+  .cell.sel { background-image:linear-gradient(rgba(240,179,94,.3), rgba(240,179,94,.3)); }
+  .cell.sel .n { color:#1d1530; font-weight:600; }
+  .cell.user { color:var(--accent); }
+  .cell.deny { animation:shake .3s ease; }
+  @keyframes shake { 25%{transform:translateX(-3px)} 75%{transform:translateX(3px)} }
+
+  /* ---- 1–26 key strip ---- */
+  #strip { display:grid; grid-template-columns:repeat(13,1fr); gap:3px;
+    width:min(96vw, 430px); }
+  .kcell { height:clamp(26px, 3.6vh, 32px); border-radius:7px; border:1px solid var(--glass-edge);
+    background-color:transparent; background-image:linear-gradient(var(--panel),var(--panel));
+    color:var(--ink); cursor:pointer; padding:0;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; line-height:1; }
+  .kcell .kn { font-family:'Outfit',sans-serif; font-weight:300; font-size:.5rem; color:var(--ink-dim); }
+  .kcell .kl { font-family:'Fraunces',serif; font-weight:650; font-size:.72rem; min-height:.72rem; }
+  .kcell.sel { border-color:var(--accent); }
+  .kcell.sel .kn { color:var(--accent); }
+  .kcell .kl:empty::before { content:'·'; color:rgba(255,255,255,.18); }
+  .kcell.user .kl { color:var(--accent); }
+
+  /* ---- keyboard ---- */
+  #kb { display:flex; flex-direction:column; gap:5px; width:min(96vw, 430px); }
+  #kb .row { display:flex; gap:5px; justify-content:center; }
+  .key { flex:1; max-width:48px; height:clamp(38px, 5vh, 46px); border-radius:10px; border:1px solid var(--glass-edge);
+    background-color:transparent; background-image:linear-gradient(var(--panel),var(--panel));
+    color:var(--ink); cursor:pointer; padding:0; position:relative;
+    font-family:'Fraunces', serif; font-weight:650; font-size:1rem;
+    display:flex; align-items:center; justify-content:center;
+    transition:transform .12s ease; }
+  .key:active { transform:scale(.88); }
+  .key.out { opacity:.3; }
+  .key .kb-n { position:absolute; bottom:2px; right:4px; font-family:'Outfit',sans-serif;
+    font-weight:400; font-size:.5rem; color:var(--accent); }
+  .key svg { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+
+  .actions { display:flex; justify-content:center; gap:10px; padding: 6px 0 clamp(10px,1.6vh,16px); }
+  .pill { display:flex; align-items:center; gap:7px; height:40px; padding:0 18px;
+    border-radius:99px; border:1px solid var(--glass-edge);
+    background-color:transparent;
+    background-image:linear-gradient(var(--panel),var(--panel));
+    color:var(--ink); font-family:'Outfit',sans-serif; font-weight:400; font-size:.85rem;
+    letter-spacing:.06em; cursor:pointer;
+    transition:transform .15s ease; }
+  .pill:active { transform:scale(.93); }
+  .pill svg { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+
+  /* ---- win overlay ---- */
+  #win { position:fixed; inset:0; z-index:60; display:flex; align-items:center; justify-content:center;
+    background:rgba(16,12,26,.72); backdrop-filter:blur(8px);
+    opacity:0; pointer-events:none; transition:opacity .4s ease; }
+  #win.show { opacity:1; pointer-events:auto; }
+  .win-card { text-align:center; padding:40px 44px; border-radius:28px;
+    background-image:linear-gradient(160deg, #342b52, #251e3d);
+    border:1px solid var(--glass-edge);
+    transform:translateY(16px) scale(.96); transition:transform .45s cubic-bezier(.3,1.4,.5,1); }
+  #win.show .win-card { transform:none; }
+  .win-card h2 { font-family:'Fraunces', serif; font-weight:650; font-size:2rem; margin-bottom:6px; }
+  .win-card p { color:var(--ink-dim); font-weight:300; font-size:.9rem; margin-bottom:24px; }
+  .next-btn { font-family:'Outfit', sans-serif; font-weight:600; font-size:1rem; letter-spacing:.04em;
+    color:#1d1530; background-color:transparent; background-image:linear-gradient(var(--accent),var(--accent)); border:none; border-radius:16px;
+    padding:15px 36px; cursor:pointer; transition:transform .15s ease;
+    box-shadow:0 10px 24px -8px rgba(240,179,94,.5); }
+  .next-btn:active { transform:scale(.94); }
+
+  /* ---- level select ---- */
+  #levels { position:fixed; inset:0; z-index:62; display:flex; align-items:center; justify-content:center;
+    background:rgba(16,12,26,.72); backdrop-filter:blur(8px);
+    opacity:0; pointer-events:none; transition:opacity .35s ease; }
+  #levels.show { opacity:1; pointer-events:auto; }
+  .levels-card { width:min(86vw,360px); max-height:72vh; display:flex; flex-direction:column;
+    border-radius:24px; padding:20px 18px;
+    background-image:linear-gradient(160deg,#342b52,#251e3d); border:1px solid var(--glass-edge);
+    transform:translateY(14px) scale(.97); transition:transform .4s cubic-bezier(.3,1.4,.5,1); }
+  #levels.show .levels-card { transform:none; }
+  .levels-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
+  .levels-head h2 { font-family:'Fraunces',serif; font-weight:650; font-size:1.3rem; }
+  #levelGrid { overflow-y:auto; display:grid; grid-template-columns:repeat(5,1fr); gap:9px; padding:2px;
+    overscroll-behavior:contain; }
+  .lvl-chip { height:48px; border-radius:14px; border:1px solid var(--glass-edge);
+    background-color:transparent; background-image:linear-gradient(var(--panel),var(--panel));
+    color:var(--ink); font-family:'Outfit',sans-serif; font-size:.9rem; cursor:pointer;
+    transition:transform .12s ease; }
+  .lvl-chip:active { transform:scale(.92); }
+  .lvl-chip.done { border-color:rgba(240,179,94,.45); color:var(--accent); }
+  .lvl-chip.now { border-color:var(--accent);
+    background-image:linear-gradient(var(--accent),var(--accent)); color:#1d1530; font-weight:600; }
+  .lvl-chip.lock { opacity:.32; }
+  .lvl-chip.playing { outline:2px solid rgba(255,255,255,.45); outline-offset:2px; }
+
+  .confetti { position:fixed; top:-12px; border-radius:3px; z-index:55; pointer-events:none;
+    animation:fall linear forwards; }
+  @keyframes fall { to { transform: translateY(110vh) rotate(660deg); opacity:.7; } }
+
+  #toast { position:fixed; bottom:calc(24px + env(safe-area-inset-bottom)); left:50%;
+    transform:translate(-50%, 60px); z-index:70; padding:10px 20px; border-radius:99px;
+    background:rgba(255,255,255,.12); border:1px solid var(--glass-edge); backdrop-filter:blur(8px);
+    font-size:.8rem; font-weight:300; letter-spacing:.05em; opacity:0; transition:.35s ease; pointer-events:none; }
+  #toast.show { opacity:1; transform:translate(-50%,0); }
+</style>
+</head>
+<body>
+<div class="sky"></div><div class="orb a"></div><div class="orb b"></div>
+
+<header>
+  <a class="brand" href="../" aria-label="All games"><span class="back">‹</span> codeword<em>.</em></a>
+  <div class="meta">
+    <div class="lvl" id="lvlLabel">Level 1</div>
+    <div class="moves" id="progLabel">0/26 letters</div>
+  </div>
+  <div class="controls">
+    <button class="icon-btn" id="soundBtn" aria-label="Toggle sound" title="Sound"></button>
+  </div>
+</header>
+<div class="tagline">every number is a letter · crack the code</div>
+
+<main>
+  <div id="board" aria-label="Codeword grid"></div>
+  <div id="strip" aria-label="Letter key"></div>
+  <div id="kb" aria-label="Keyboard"></div>
+</main>
+
+<nav class="actions">
+  <button class="pill" id="hintBtn" aria-label="Reveal one letter">
+    <svg viewBox="0 0 24 24"><path d="M9 18h6m-5 3h4"/><path d="M12 3a6 6 0 0 1 3.5 10.9c-.8.6-1.5 1.2-1.5 2.1h-4c0-.9-.7-1.5-1.5-2.1A6 6 0 0 1 12 3z"/></svg>
+    Hint
+  </button>
+  <button class="pill" id="levelsBtn" aria-label="All levels">
+    <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>
+    Levels
+  </button>
+</nav>
+
+<div id="levels" role="dialog" aria-label="Level select">
+  <div class="levels-card">
+    <div class="levels-head">
+      <h2>Levels</h2>
+      <button class="icon-btn" id="levelsClose" aria-label="Close">
+        <svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div id="levelGrid"></div>
+  </div>
+</div>
+
+<div id="win" role="dialog" aria-label="Puzzle solved">
+  <div class="win-card">
+    <h2 id="winTitle">Decoded.</h2>
+    <p id="winSub">The code is cracked</p>
+    <button class="next-btn" id="nextBtn">Next level →</button>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+'use strict';
+/* pre-generated 13x13 grids (tools/gen_codeword.py) — every grid uses all 26 letters,
+   '#' is a block. The number code is re-seeded per level, so grids replay fresh. */
+const GRIDS = ["BENEFIT#KNOWN/O#E#O#W#I#B#E/AFTERNOON#JAW/R###E###G#E##/DELIVERED#CUP/##O#E#E#O#T#I/ALGORITHM#SHE/X#O###R######/ESSENTIAL#ZOO/####O#E#A#O#F/SQUAD#VAN#NUT/O#S#E#E#C#E#E/NEEDS#DYE#SIN","ELVIS#DEBORAH/N#O#P#I#O#O#I/JAW#REMIX#BUS/O###I########/YUKON#FARMERS/##E#G#L#O#L#A/SKI#SQUAD#INN/T#T#######Z#D/ASH#NECESSARY/D###A#Y#T#B##/ICY#INCORRECT/U#E#L#L#I#T#I/MET#SLEEP#HOP","JAW#HUM#BURKE/O#A#E#E#U#E#X/KEVIN#RUG#MOP/E#E###I###O#E/SUSPECT#DEVON/####L###A#A#S/WIT#FUZZY#LIE/R#R###O######/IRAQI#ORLEANS/T#C#T###Y#D#U/ELK#ERA#CROPS/R#E#M#S#O#P#A/SIDES#HAS#TIN","VOW#OFF#QUEUE/A#E#C#L#U#C#G/THEREBY#ALONG/##K#A###R#M##/JASON#ATTEMPT/I#####R#E#E#H/MESSENGER#RYE/M#O#B#U###C#F/YEW#BLEND#EAT/########O####/BED#SHOPZILLA/O#E#I#I#E#I#C/XANAX#LONGEST","JUICE#STARTER/A#N#X#E#W#W#U/WOK#TRAVELING/####R###S#K#B/CAP#AUTHORITY/U#E###A#M####/ERA#ZIP#ENDIF/####O#####E#A/IDAHO#SKI#BIN/R#G###T#N#O##/AMENDMENT#RAN/Q#N#E#V#R#A#O/INTENSE#OTHER","JUMPING#STRAP/A#A#V#U#L#E#O/WOK#OUT#IRAQI/##E#R###D#L#N/CASEY#PIE#MET/A#####E#S###E/THIRD#ASH#BED/##N#R###O#A##/DODGE#POWERED/I#E#S#I###B#A/FOX#SIZES#ART/F#E#E#Z#K#R#E/SAD#SWAZILAND","JAW#VOW#QUEEN/O#O#E#R#U#N#O/YUKON#AXE#COW/####E#P#S#L##/BAG#ZIP#TROUT/R#A#U#E###S#A/INSTEAD#MOUTH/N###L###E#R#O/GERMANY#THERE/##E###A######/SAFER#CLASSIC/I#E#I#H#R#K#U/NOR#DETECTIVE","DOWNLOADS#JAW/I#I#A#B#L#E#A/PANTYHOSE#TOY/######U#E###N/EXHIBIT#PRIZE/X#A#A#####R##/CAR#STAFF#ASK/H#D#I#R#L#Q#I/ARC#COMMUNIST/N#O###E######/GIVES#NURSERY/E#E#E#I#Y#R#A/SIR#TRADEMARK","VOW#BATTERIES/E#A#E#A#X#D#K/TUG#DEN#IRAQI/##E#####S#H##/JUSTICE#THONG/A###N#L#E###Y/NODES#KINGDOM/E#U#P###C#I##/THEREFORE#POP/####C#F#####I/HABITAT#LOPEZ/A#U#O#E#O#A#Z/YES#RUN#WANNA","VALID#PERFECT/O#E#R#E#A#R#Y/WAX#IRAQI#RIP/##U#N###S#O#E/HIS#KIN#EUROS/U#####A######/TOURISM#JEWEL/##T#C#E#O#E#I/DAISY#SOB#DUD/E#L###P######/CLIMB#AGO#AGE/O#Z#U#C#W#I#G/RYE#SHELL#DOG","VOW#AGAIN#ARC/E#A#P#U#U#N#U/TYLER#DEN#ITS/##K#I#I###M#T/MYSQL#TUB#AGO/O#######L#L#M/ORCHESTRA#SKI/R#A#R#U#C###Z/EXPLAIN#KNIFE/##T###I#J#N##/BOUND#SPA#DIE/O#R#O#I#C#I#L/ALE#TRACKBACK","VOW#AGING#OFF/E#I#L#L#U#W#I/NOT#EEL#MILAN/E###########A/ZIP#KARMA#BUN/U#U#E#E#P#U#C/EBB#VISTA#SKI/L#L#I#P#R###N/ALIGNMENT#JOG/##S###C###E##/ASH#BETTY#SEA/X#E#O#E#A#U#L/END#AID#MYSQL","VOW#SKY#GRACE/A#I#P#O#E#C#X/NET#EQUAL#TEA/####C#######C/RYE#ITEMS#JOT/E#D#F#N#U#I##/HAITI#DAMAGED/A#T#E#######R/BROADBAND#LIE/##R###U#O#A#S/TWISTED#ZONES/W#A#I#I#E#C#E/ORLANDO#NEEDS","EXPECTS#MYSQL/R#I#L#K#A#C#A/ARGUE#INJURED/####A###O#E##/VOLUNTEER#WOK/E#A#U#B#####I/NOD#PUB#COHEN/E#E#####A#O##/ZONES#ROBERTS/U###H#U#I#I#U/ELF#ORGANIZED/L#U#W#B#E#O#A/AARON#YET#NUN","MIAMI#SUBJECT/O#N#S#E#O#L#I/PETER#WAX#KIN/##I#A########/SEQUENCES#ZIP/U#U#L#U#K#O#R/PREDICT#IVORY/P############/LEAVE#GABRIEL/I#N#N#I#R#S#O/EIGHT#FLY#LOT/R#E#E#T#A#A#U/SOLARIS#NAMES","FRANK#JAW#POD/E#X#E#O#I#U#Y/EYE#VEGETABLE/####I#####L##/ROMANIA#THIRD/E#O###P#E#S#A/SUBLIME#COHEN/E###N###H###N/TORONTO#NEWLY/##A###L#I#R##/LOPEZ#INQUIRE/A#I#I#V#U#S#V/PAD#PIECE#TIE","VOW#LAD#MUSIC/A#I#O#U#Y#P#A/NOTEBOOKS#ARM/####B###Q#N#P/OIL#YAM#LIKES/C#O###I######/CUP#LEXINGTON/A#E#I###O#A#A/SIZED#JAR#RAP/I#####A######/OFTEN#CAP#HIM/N#W#U#O#I#U#A/SHOWN#BETWEEN","VOW#QUALIFIED/O#I#A#N#T#V#A/YAK#TRANSPORT/E#I#A#H###R#E/UPPER#ENJOYED/R#E###I#A####/WED#CAMBRIDGE/E#I#H#####I#X/BOATING#LOGIC/####C#L#A###I/ZOO#APARTMENT/I#U#G#S#E#E#E/PATIO#SIX#LAD","CLEAN#JAW#OWN/R#C#I#U#O#F#O/EGO#LEG#REFER/A#N#####K####/TWO#EXCESSIVE/E#M#A#O###R#X/SKI#TUMOR#APT/##C###I#E#Q#R/GAS#RECOGNIZE/R###A###A###M/OFTEN#GARBAGE/V#I#C#E#D#G#L/EYE#HAM#STORY","VOW#AUTOS#JUG/E#A#R#E#E#A#U/TAX#CHRONICLE/######R#S#K#S/OWN#PROVIDERS/F#O#L#R#T#T##/FERRARI#ISSUE/####Z#S#V###N/YET#AIM#EQUAL/U#O#######R#A/KINDA#TOOLBAR/O#E#G#E#A#A#G/NERVE#ARRANGE","LOCKS#JAW#SIN/O#U#H#U#O#T#E/TASTE#INK#YOU/##T###C###L#T/PROVIDERS#EAR/E#M#R###H###A/GUITARS#AWFUL/##Z#Q#O#F#U##/AXE#ILL#THROW/R#####D#####A/ION#SKI#EBONY/S#O#E#E#L#A#N/END#WORKFORCE","WAX#IRAQI#CUB/O#A#N#R#D#O#R/RINGS#EXECUTE/K#A#U###A#P#A/FOX#LIVESTOCK/O###I#E###N##/ROBIN#NET#SUN/C#E###E#Y###I/EVERY#ZIP#ALL/####O#U#I#L##/JOT#USE#CLIMB/O#A#T#L#A#E#U/BAR#HEADLINES","MAJOR#DEFENSE/O#A#E#Y#L#U#G/VOW#FREQUENCY/E###U#######P/MAILS#CRICKET/E#L#E#A#N#I##/NIL#DEREK#THE/T###########X/SHOPZILLA#ASH/##R#O#A#M#A#I/HOG#NOBLE#RUB/A#A#E#O#N#O#I/SENDS#RID#NET","BROTHER#MARKS/R#R#O#A#E#E#P/AUDIT#WAX#ARE/I#E#####I#L#A/NOR#CIVIC#INK/####U#E#A#Z#E/JACOB#GIN#EAR/O#U###A######/YET#HAS#GLENN/####O###I#X#A/EQUAL#OFFICES/L#S#D#N#T#E#T/FOE#SEEDS#LAY","WOK#JUDGE#NUT/E#I#O#E#X#A#H/BETTY#VAT#USE/C#####E#R#G#O/AMONG#LEATHER/M#Z#O#O#C#T#E/SHOWN#PIT#YAM/##N#N#E######/OPERA#RAN#HAM/F#######O#I#Y/TIE#TAB#BONES/E#R#E#O#L#D#Q/NIAGARA#EQUAL","JAW#BIN#DYING/E#O#U#A#O#R#U/TAKES#SIN#ARM/######H#O#Q##/ELF#DIVERSITY/G#A#E#I#####E/GOT#MOLECULES/####A#L#A#I#T/EXPENSE#PIECE/U#L#D#######R/REALISTIC#SAD/O#Z#N#W#A#A#A/SEA#GEOGRAPHY","IGNORED#SWIFT/N#E#O#R#I#R#R/JAW#CRY#PLAZA/U#S#K#E###Q#V/RIP#YORKSHIRE/E#A#####I###L/DEPTH#TEXTILE/##E#I#A###T#R/CERAMIC#CLASS/A#####T#L#L##/BASIS#INITIAL/L#K#E#C#M#A#E/EXIST#SOB#NET","PUBLICITY#VOW/U#O#N#R#A#A#A/BLACKJACK#NET/######Q#####C/EAT#ELIZABETH/X#H#L###L#N##/CUE#KNOWLEDGE/E#R###U#####M/PLATFORMS#RAP/T#P#A###T#E#E/INITIALLY#HER/O#S#L#I#L#A#O/NUT#SEPTEMBER","CHAMBER#PANEL/A#R#A#A#A#A#A/SCIENTIST#VOW/E#Z#G#S#I#A#Y/STOCK#EGO#LIE/##N#O#######R/BLACKJACK#HIS/E#####N#I#U##/EQUALLY#DEBUT/##L#O#B#####R/ASTRONOMY#FOE/C#R#S#D#E#A#E/TRAGEDY#TAXES","LICKING#JACOB/I#O#N#R#E#O#O/VOLUNTEER#WAX/E#O###A#U####/STRENGTHS#HIT/T#E#E#E#A#E#E/ODD#CORAL#RUN/C###E###E####/KEEPS#GYM#PEA/##Q#S#E###L#M/FLU#ION#BLAME/U#A#T#R#A#Z#N/RALLY#ENGLAND","WOK#AMINO#TAB/H#E#I#C#P#H#R/IVY#MAYBE#USE/C#######N#M#A/HAZARDOUS#BUD/##O#A#X###N##/JANET#ITS#AGO/O#E###D#T#I#L/BASIC#EQUALLY/####L###D###M/TWIKI#WOE#TAP/U#O#F#E#N#E#U/BENEFIT#TUNES","VOW#JAM#FAVOR/I#A#U#I#L#O#E/SIX#GRADUATED/I#####M###E##/THE#BUILD#DIP/##Q#A###I###A/FOUND#ICE#SIR/A#I#L#S###C#A/REPLY#ROUTING/##M###A#L#E#R/ARENA#ESTONIA/S#N#C#L#R#C#P/KIT#ELIZABETH","PROSPECTS#WOK/I#U#O#A#U#A#N/GIG#TOP#MARDI/##H#########G/JOT#SAP#DEPTH/O###K#L#R#H#T/ITS#IRAQI#YES/N#P###N#V#S##/STAFF#SPECIAL/####U#####C#A/HORIZON#BUILT/U#I#Z#A#O#A#E/EMPTY#PHOENIX","MONTHLY#THROW/A#E#O#I#E#U#A/JAW#LIE#XANAX/O#C#L#L#T####/READY#DUB#ARC/##S#W###O#G#O/INTRO#ZOO#OWL/N#L#O#I#K###L/SPEED#PASSIVE/U#########R#A/RED#WHO#CRAIG/E#I#O#F#A#Q#U/DODGE#FAR#ICE","VOW#MAJOR#GAS/E#A#A#U#E#A#P/TELLING#ALPHA/##K#L###C####/BUS#MERCHANTS/U###A#A#E#A#I/DOZEN#YES#MIX/##I#######E##/AMPLIFIER#DUG/B###R#D#A###A/ORE#AMENDMENT/U#G#Q#A#A#E#E/TUG#ILL#ROLLS","JAW#WONDERFUL/E#H#O#U#X#E#O/RYE#KIN#CRAIG/U#A#####E#T##/SET#ITS#ROUGH/A###N#K#P#R#A/LAB#QUILT#IVY/E#O#U#####N#E/MIX#ICY#SIGNS/####R#U#I####/FEW#INK#ZONES/I#H#E#O#E#A#A/THOUSANDS#PAD","CARTRIDGE#VOW/O#A#Y#U#L#E#A/MAYBE#BRISTOL/P#######Z###K/USE#JUG#ACRES/T#V#A#O#B#I##/EYE#POT#EMPTY/####A###T###E/MOB#NORTHWEST/Y#A###A###X##/SESSION#FOTOS/Q#I#V#C#A#R#P/LUCKY#HUNGARY","WOK#BIT#PLAZA/A#I#O#O#I#S#R/XANAX#KIN#HER/##G###E#####A/YES#JENNY#CRY/E###A###E#R##/SHEER#CUTTING/T#L###L###T#E/EFFECTIVE#ILL/R###R#N#Q#C##/DUE#ART#UTILS/A#L#I#O#A#S#O/YAM#GENTLEMAN","JERRY#WOK#ELM/O#E#A#A#N#M#E/BLANK#SKI#ILL/##L###H#F#L#I/CHILD#ICE#YES/H#Z#E#N#####S/OVERNIGHT#SEA/I###S###O#H##/ROW#EMPLOYERS/##E###A#L###Q/UNIPROTKB#YOU/S#R#I#H#O#E#A/ENDED#SIX#WED","VOW#QUALIFIED/I#O#U#X#N#T#I/NOR#ICE#VISTA/Y#K#Z###O###M/LOPEZ#ORLANDO/##L#E#R#V#A#N/JEANS#BLESSED/O#C###I###T##/GREAT#THE#YAM/####R###Q###A/DRY#AGO#UNITS/E#E#N#W#A#N#O/NOW#STEAL#KIN","CZECH#VOW#HOW/A#C#O#I#A#I#A/ROOTS#SKY#NOR/##M#T#T#N#D##/HIM#SPA#EQUAL/I#E#########E/EARTH#BEIJING/R#C#A#E#C#M##/AMEND#DYE#POT/R#########L#A/CHIEF#SEA#INN/H#N#O#H#R#E#K/YAK#EXERCISES","FIFTEEN#EBONY/L#L#G#O#N#W#O/YOUNGER#HINDU/########A###N/WAX#LICENSING/O#A#I#R#C#D##/KIN#ERA#IMAGE/##A###I#N#H#Y/SIX#HOG#GNOME/T###O########/EQUAL#ZIP#JIG/V#S#L#O#R#A#U/EVERYBODY#RAT","SCHEDULED#WOK/I#U#O#E#U#O#I/REGULATED#NOT/####L#####D##/CUP#ARC#MPEGS/Z#E#R#O#A#R#E/EVANS#HER#FAX/C#####E#I#U#U/HOUSTON#JULIA/##S#R###U###L/SHE#INDIA#SKI/U#R#A#U#N#I#T/MYSQL#BOA#TRY","VIEWS#REFUSED/O#L#I#U#A#I#O/WOK#XANAX#TAG/#############/ROSES#JAM#PIT/E#H#L#O#A#L#H/PRIZE#BET#AGE/O#P#E###E#N#R/RUM#POLAR#SPA/T#E###O#N###P/INN#HOW#IRAQI/N#T#U#E#T#R#S/GAS#BAR#YACHT","SPINE#VOW#JOB/P#N#S#A#A#O#L/AUDIT#TUG#TWO/##E#A###E###O/TEXTBOOKS#SUM/W###L#U###K#B/IRAQI#REALIZE/C#I#S###L###R/EARTH#EEL#FIG/######X#E#U##/ILL#CHANGELOG/T#I#A#M#E#L#A/SHEEP#SAD#YES","JAW#PARAGRAPH/E#A#O#A#E#I#E/FINDS#NATURAL/F#N#I#######P/EXACT#MOB#HIS/R###I#O#U#E##/SKY#OLD#TIRED/O#E#N#E#####E/NUT#SALVATION/######L#P#R#M/BAT#SKI#PLAZA/A#A#E#N#L#Q#R/RIP#ANGRY#INK","TYPES#MONTHLY/I#L#H#A#E#A#O/PIANO#JAW#YOU/##Z#W#O#L###N/QUARTERLY#EGG/U###I#####L#E/ISLAM#BET#FAR/C#I#E#E#I####/KID#SEVEN#EGO/######E###L#Z/AXE#PORTFOLIO/I#L#U#L#U#I#N/RIM#BUYER#SHE","VOW#JOB#OWNER/I#O#E#I#M#I#A/TAR#LODGE#LAY/A#K#S###G####/LAPTOPS#ALPHA/##L#F#Q###L#U/SPA#THUMB#AND/T#C###A#E#I#I/AXE#ODD#CONST/Y###Z###A#T##/INK#OFF#UNION/N#I#N#L#S#F#O/GENRE#USE#FAR","JAW#SOCKS#DIP/E#A#K#H#A#A#R/TEXTILE#GAMMA/######V#####I/ARC#BUYER#FUR/W#H#R###E#O#I/ERA#ARUBA#EYE/##R#Z#S#D####/VAMPIRE#SQUAD/S###L#####P#I/NUN#ICE#PIPES/E#A#A#N#I#E#C/TIP#NOD#TURNS","DEALS#WOK#JOT/U#X#Y#A#I#O#H/OVERNIGHT#YOU/####D#######M/AMPLIFIER#EBB/L#E#C#T#O#E##/PLAZA#EQUALLY/H###T#M#N###O/ADDRESSED#FLU/##R#######A#N/THOSE#ONGOING/A#P#R#N#E#R#E/BUS#AGE#LAYER","JAW#VAT#CUBIC/A#E#E#H#O#I#L/CUB#RYE#MONTE/K#L#S#T#P#G#V/EROTICA#LEONE/T#G#O###E###L/SUSAN#FIX#SPA/######R###H#N/ZOO#THERE#OLD/O#F#I#E#Q#P##/NUT#MAD#UPPER/E#E#E#O#A#E#A/SUN#SIMILARLY","BRING#VOW#JUG/A#R#E#A#A#A#A/SPA#LINUX#MUD/E#Q#########G/DRINK#FORTUNE/####E#I#U#S#T/CRAZY#NUMBERS/U#M##########/TOP#DISCUSSED/##L#U#E#N#M#R/ERA#TERRITORY/E#N#C#U#T#K#E/LID#HAM#SHEER","JAPAN#ADOPTED/A#O#E#X#R#I#A/WOK#RYE#GUEST/##E#V###A###E/COMBO#FIN#HIS/O#O#U#E#I#A##/MINISTERS#ZOO/P#######M#A#D/LOTUS#INSURED/E#H#H#R###D##/TWO#IDAHO#OWE/E#N#P#Q#I#U#A/DOG#SKI#LASER","CITIZEN#EMPTY/I#O#I#U#A#E#A/VOW#PUN#REALM/I#E##########/CAR#SKY#SAFER/####E#E#H#L#A/OLYMPUS#EXACT/B#E#T#T#F#S##/JESSE#ELF#HIS/E###M#R#I###A/CUP#BAD#EQUAL/T#I#E#A#L#S#E/SAG#RAY#DREAM","CLEANUP#MOTEL/A#L#O#A#I#U#E/ROVER#WAX#LOT/##I#F###T#S##/DISCO#YOU#ARC/U###L#A#R###E/BANGKOK#EQUAL/##O#######T#E/JAW#GEL#CLIMB/O#H#R#A#Y#L#R/ICELAND#CHINA/N#R#P#E#L#Z#T/STEPHANIE#EVE","RACKS#JAW#ADD/I#R#C#U#O#S#E/DIEGO#INK#HIS/G#A#P#C#####I/EXTREMELY#PIG/##E#####E#U#N/BUS#INVISIBLE/E###N#A#####R/GAS#FIT#LINKS/##I#A###I#O##/DOZEN#YAK#DEN/Y#E#T#O#E#E#U/END#SQUAD#SON","WAX#GIBRALTAR/O#A#I#A#L#R#U/KIN#FAR#EQUAL/##A#T#####T#E/LEXUS#MOB#HAS/I#####A#I####/VAT#CARLO#GYM/E#U#U#I#G#I#U/RIGHT#JAR#GAS/P#####U#A###T/ORB#PEA#PIZZA/O#U#I#N#H#I#N/LEGENDARY#PEG","AGAIN#WOK#ASH/R#R#I#A#I#M#I/COMPLEX#TUBES/##########I##/JOY#ZIP#SHELF/U#E#O#R#O#N#A/DISCOVERY#TAR/G#####S######/EPISODE#HOSTS/##R#P#N#I#W#H/TEA#EAT#NOISE/A#Q#N#L#D#N#E/NAILS#YOUNGER","JAW#INPUT#ELM/A#H#R#A#H#I#Y/CRY#AIR#EDGES/K###Q#A#F#H#Q/SOLVING#TOTAL/O#A###R######/NUT#TEA#DOZEN/##E#A#P#E#O#O/MIXER#HUB#OUT/U#######O####/SIR#HAZARDOUS/I#Y#E#I#A#W#O/CLEANUP#HONEY","JULIA#VOW#HIS/A#E#B#A#O#Y#P/REGISTRAR#DIE/####E#I#L#R#A/OFTEN#END#ASK/P#R#C#T###U##/EVE#EGYPT#LAB/R#A#####A#I#I/AFTER#MEXICAN/T#M#E#Y######/ICE#HAS#SIZED/N#N#A#Q#K#O#Y/GET#BALTIMORE"];
+const N = 13;
+const ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+const WIN_WORDS = ['Decoded.','Cracked.','Unlocked.','Deciphered.','Solved.','Brilliant.'];
+const PALETTE = ['#e8896b','#f0c45e','#8fbf7f','#5fb8a8','#7aa8e0','#a489d4','#e08bb1','#c9d16b','#efe3c4'];
+
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;}}
+
+/* ---------- state ---------- */
+let progress = 1, level = 1;
+try { progress = parseInt(localStorage.getItem('codeword.level')||'1',10) || 1; } catch(e){}
+level = progress;
+let gridLetters = [];     // 169 entries: 'A'-'Z' or null for blocks
+let code = {};            // letter -> number 1..26 (the solution)
+let numLetter = [];       // number -> letter (solution, derived)
+let assigned = {};        // number -> letter (player's view, includes starters)
+let starters = new Set(); // numbers revealed at the start
+let sel = 0;              // selected number, 0 = none
+let soundOn = localStorage.getItem('codeword.sound') !== 'off';
+
+const boardEl = document.getElementById('board');
+const stripEl = document.getElementById('strip');
+const kbEl = document.getElementById('kb');
+const winEl = document.getElementById('win');
+const lvlLabel = document.getElementById('lvlLabel');
+const progLabel = document.getElementById('progLabel');
+const soundBtn = document.getElementById('soundBtn');
+
+/* ---------- audio ---------- */
+let actx = null;
+function note(freq, dur=.18, vol=.12, type='sine'){
+  if(!soundOn) return;
+  try{
+    actx = actx || new (window.AudioContext||window.webkitAudioContext)();
+    if(actx.state==='suspended') actx.resume();
+    const o=actx.createOscillator(), g=actx.createGain();
+    o.type=type; o.frequency.setValueAtTime(freq, actx.currentTime);
+    o.frequency.exponentialRampToValueAtTime(freq*1.35, actx.currentTime+dur);
+    g.gain.setValueAtTime(vol, actx.currentTime);
+    g.gain.exponentialRampToValueAtTime(.0001, actx.currentTime+dur);
+    o.connect(g).connect(actx.destination);
+    o.start(); o.stop(actx.currentTime+dur);
+  }catch(e){}
+}
+function winSound(){ [392,494,587,784].forEach((f,i)=>setTimeout(()=>note(f,.3,.1),i*120)); }
+function buzz(ms){ if(navigator.vibrate) navigator.vibrate(ms); }
+function renderSoundIcon(){
+  soundBtn.innerHTML = soundOn
+    ? '<svg viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg>'
+    : '<svg viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="m16 9 5 5m0-5-5 5"/></svg>';
+}
+
+/* ---------- persistence: codeword.* keys, this device only ---------- */
+function save(){
+  try {
+    const a = {};
+    for(const n in assigned) if(!starters.has(+n)) a[n] = assigned[n];
+    localStorage.setItem('codeword.state', JSON.stringify({ lv: level, a }));
+    localStorage.setItem('codeword.level', progress);
+  } catch(e){}
+}
+function clearSave(){ try { localStorage.removeItem('codeword.state'); } catch(e){} }
+
+/* ---------- level setup ---------- */
+function setupLevel(lv, savedAssign){
+  level = lv;
+  const rows = GRIDS[(lv-1) % GRIDS.length].split('/');
+  gridLetters = [];
+  for(const row of rows) for(const ch of row) gridLetters.push(ch==='#' ? null : ch);
+
+  // seeded code: same level always maps the same numbers to the same letters
+  const rng = mulberry32(lv*2654435761 + 13);
+  const perm = [...ALPHA];
+  for(let i=perm.length-1;i>0;i--){ const j=(rng()*(i+1))|0; [perm[i],perm[j]]=[perm[j],perm[i]]; }
+  code = {}; numLetter = Array(27).fill(null);
+  perm.forEach((ch,i)=>{ code[ch] = i+1; numLetter[i+1] = ch; });
+
+  // starters: reveal a frequent letter and a mid-frequency one (3 for early levels)
+  const freq = {};
+  for(const ch of gridLetters) if(ch) freq[ch] = (freq[ch]||0)+1;
+  const byFreq = [...ALPHA].sort((a,b)=>(freq[b]||0)-(freq[a]||0));
+  const nStart = lv <= 5 ? 3 : 2;
+  starters = new Set();
+  starters.add(code[byFreq[(rng()*3)|0]]);
+  while(starters.size < nStart){
+    starters.add(code[byFreq[8 + ((rng()*10)|0)]]);
+  }
+  assigned = {};
+  for(const n of starters) assigned[n] = numLetter[n];
+  if(savedAssign) for(const k in savedAssign){
+    const n = +k;
+    if(!starters.has(n) && /^[A-Z]$/.test(savedAssign[k])) assigned[n] = savedAssign[k];
+  }
+  sel = 0;
+  buildBoard();
+  paint();
+}
+
+/* ---------- rendering ---------- */
+let cellEls = [], stripEls = [], keyEls = {};
+function buildBoard(){
+  boardEl.innerHTML = ''; cellEls = [];
+  for(let i=0;i<N*N;i++){
+    const b = document.createElement('button');
+    const ch = gridLetters[i];
+    if(!ch){
+      b.className = 'cell blk'; b.tabIndex = -1; b.setAttribute('aria-hidden','true');
+    } else {
+      b.className = 'cell';
+      const num = code[ch];
+      b.innerHTML = '<span class="n">'+num+'</span>';
+      b.addEventListener('pointerdown', ()=>{ sel = num; note(520,.05,.03); paint(); });
+    }
+    cellEls.push(b);
+    boardEl.appendChild(b);
+  }
+  if(!stripEls.length){
+    for(let n=1;n<=26;n++){
+      const k = document.createElement('button');
+      k.className = 'kcell';
+      k.innerHTML = '<span class="kn">'+n+'</span><span class="kl"></span>';
+      k.addEventListener('pointerdown', ()=>{ sel = n; note(520,.05,.03); paint(); });
+      stripEls[n] = k;
+      stripEl.appendChild(k);
+    }
+    const rows = ['ABCDEFGHI','JKLMNOPQR','STUVWXYZ'];
+    rows.forEach((row,ri)=>{
+      const div = document.createElement('div');
+      div.className = 'row';
+      for(const ch of row){
+        const k = document.createElement('button');
+        k.className = 'key';
+        k.textContent = ch;
+        k.setAttribute('aria-label','Letter '+ch);
+        k.addEventListener('pointerdown', ()=>inputLetter(ch));
+        keyEls[ch] = k;
+        div.appendChild(k);
+      }
+      if(ri===2){
+        const del = document.createElement('button');
+        del.className = 'key';
+        del.setAttribute('aria-label','Erase');
+        del.innerHTML = '<svg viewBox="0 0 24 24"><path d="M9 6 3.5 11.5a.7.7 0 0 0 0 1L9 18h11a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1z"/><path d="m12 10 4 4m0-4-4 4"/></svg>';
+        del.addEventListener('pointerdown', eraseSel);
+        div.appendChild(del);
+      }
+      kbEl.appendChild(div);
+    });
+  }
+}
+function paint(){
+  const usedLetters = {};
+  for(const n in assigned) usedLetters[assigned[n]] = +n;
+  let count = 0;
+  for(const n in assigned) count++;
+
+  for(let i=0;i<N*N;i++){
+    const ch = gridLetters[i];
+    if(!ch) continue;
+    const el = cellEls[i], num = code[ch];
+    const shown = assigned[num] || '';
+    // letter lives after the number span
+    if(el.childNodes.length > 1) el.removeChild(el.lastChild);
+    el.appendChild(document.createTextNode(shown));
+    el.classList.toggle('sel', num===sel);
+    el.classList.toggle('user', !!shown && !starters.has(num));
+  }
+  for(let n=1;n<=26;n++){
+    const k = stripEls[n];
+    k.querySelector('.kl').textContent = assigned[n] || '';
+    k.classList.toggle('sel', n===sel);
+    k.classList.toggle('user', !!assigned[n] && !starters.has(n));
+  }
+  for(const ch of ALPHA){
+    const k = keyEls[ch];
+    const at = usedLetters[ch];
+    k.classList.toggle('out', !!at);
+    let badge = k.querySelector('.kb-n');
+    if(at){
+      if(!badge){ badge = document.createElement('span'); badge.className='kb-n'; k.appendChild(badge); }
+      badge.textContent = at;
+    } else if(badge) badge.remove();
+  }
+  lvlLabel.textContent = 'Level ' + level;
+  progLabel.textContent = count + '/26 letters';
+}
+
+/* ---------- game logic ---------- */
+function deny(){
+  buzz(20);
+  if(sel && stripEls[sel]){ stripEls[sel].classList.add('deny'); setTimeout(()=>stripEls[sel].classList.remove('deny'),320); }
+}
+function inputLetter(ch){
+  if(winEl.classList.contains('show')) return;
+  if(!sel){ toast('Tap a numbered square first'); return; }
+  if(starters.has(sel)){ deny(); toast('That one was given'); return; }
+  const holder = Object.keys(assigned).find(n => assigned[n]===ch);
+  if(holder && +holder !== sel){ deny(); toast(ch + ' is already number ' + holder); return; }
+  assigned[sel] = ch;
+  note(330,.08,.06);
+  save(); paint(); checkWin();
+}
+function eraseSel(){
+  if(winEl.classList.contains('show')) return;
+  if(!sel) return;
+  if(starters.has(sel)){ deny(); toast('That one was given'); return; }
+  if(!assigned[sel]) return;
+  delete assigned[sel];
+  note(260,.08,.05);
+  save(); paint();
+}
+function hint(){
+  if(winEl.classList.contains('show')) return;
+  let n = sel;
+  if(!n || assigned[n]===numLetter[n]){
+    const open = [];
+    for(let k=1;k<=26;k++) if(assigned[k]!==numLetter[k]) open.push(k);
+    if(!open.length) return;
+    n = open[(Math.random()*open.length)|0];
+  }
+  // if the right letter is parked on a wrong number, free it first
+  const holder = Object.keys(assigned).find(x => assigned[x]===numLetter[n]);
+  if(holder && +holder!==n && !starters.has(+holder)) delete assigned[holder];
+  assigned[n] = numLetter[n];
+  sel = n;
+  note(620,.1,.05);
+  save(); paint(); checkWin();
+}
+function checkWin(){
+  for(let n=1;n<=26;n++) if(assigned[n]!==numLetter[n]){
+    // gently flag a full-but-wrong grid
+    if(Object.keys(assigned).length===26) toast('All placed — something is miswired ✦');
+    return;
+  }
+  progress = Math.max(progress, level+1);
+  clearSave();
+  try { localStorage.setItem('codeword.level', progress); } catch(e){}
+  sel = 0; paint();
+  winSound(); buzz([30,60,30]);
+  document.getElementById('winTitle').textContent = WIN_WORDS[level % WIN_WORDS.length];
+  document.getElementById('winSub').textContent = 'Level ' + level + ' · the code is cracked';
+  confetti();
+  setTimeout(()=>winEl.classList.add('show'), 500);
+}
+function confetti(){
+  for(let k=0;k<60;k++){
+    const p=document.createElement('div'); p.className='confetti';
+    const sz=4+Math.random()*7;
+    const cc = PALETTE[(Math.random()*PALETTE.length)|0];
+    p.style.cssText = `left:${Math.random()*100}vw;width:${sz}px;height:${sz*1.4}px;`+
+      `background-image:linear-gradient(${cc},${cc});`+
+      `animation-duration:${2.2+Math.random()*2.4}s;animation-delay:${Math.random()*.7}s;`;
+    document.body.appendChild(p);
+    setTimeout(()=>p.remove(),6000);
+  }
+}
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),1800);
+}
+
+/* ---------- controls ---------- */
+soundBtn.addEventListener('click', ()=>{
+  soundOn=!soundOn;
+  localStorage.setItem('codeword.sound', soundOn?'on':'off');
+  renderSoundIcon(); if(soundOn) note(520,.1,.07);
+});
+document.getElementById('hintBtn').addEventListener('click', hint);
+document.getElementById('nextBtn').addEventListener('click', ()=>{
+  winEl.classList.remove('show');
+  setupLevel(level+1, null);
+  save();
+});
+document.addEventListener('keydown', e=>{
+  const ch = e.key.toUpperCase();
+  if(/^[A-Z]$/.test(ch) && ch.length===1 && e.key.length===1) inputLetter(ch);
+  else if(e.key==='Backspace' || e.key==='Delete') eraseSel();
+});
+
+/* ---- level select ---- */
+const levelsEl = document.getElementById('levels');
+const levelGrid = document.getElementById('levelGrid');
+function openLevels(){
+  levelGrid.innerHTML = '';
+  const maxShown = Math.max(progress + 12, 25);
+  for(let n=1; n<=maxShown; n++){
+    const b = document.createElement('button');
+    b.className = 'lvl-chip ' + (n < progress ? 'done' : n === progress ? 'now' : 'lock');
+    if(n === level) b.classList.add('playing');
+    b.textContent = n;
+    b.setAttribute('aria-label', 'Level '+n + (n > progress ? ' (locked)' : ''));
+    if(n <= progress){
+      b.addEventListener('click', ()=>{ clearSave(); setupLevel(n, null); save(); closeLevels(); note(480,.08,.05); });
+    } else {
+      b.addEventListener('click', ()=>{ toast('Finish level '+progress+' to unlock'); buzz(20); });
+    }
+    levelGrid.appendChild(b);
+  }
+  levelsEl.classList.add('show');
+  const now = levelGrid.querySelector('.now');
+  if(now) now.scrollIntoView({block:'center'});
+}
+function closeLevels(){ levelsEl.classList.remove('show'); }
+document.getElementById('levelsBtn').addEventListener('click', openLevels);
+document.getElementById('levelsClose').addEventListener('click', closeLevels);
+levelsEl.addEventListener('click', e=>{ if(e.target === levelsEl) closeLevels(); });
+
+/* ---------- boot ---------- */
+renderSoundIcon();
+let savedA = null, savedLv = progress;
+try {
+  const raw = localStorage.getItem('codeword.state');
+  if(raw){
+    const st = JSON.parse(raw);
+    if(st && st.lv >= 1 && st.lv <= progress){ savedLv = st.lv; savedA = st.a || null; }
+  }
+} catch(e){}
+setupLevel(savedLv, savedA);
+</script>
+</body>
+</html>
