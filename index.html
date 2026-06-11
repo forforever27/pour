@@ -175,6 +175,26 @@
     <span class="go">›</span>
   </a>
 
+  <a class="card" href="ember/">
+    <div class="art">
+      <svg viewBox="0 0 36 36" fill="none">
+        <path d="M7 30 L13 14 L19 30 Z" fill="#35644f"/>
+        <path d="M13 9 L9 19 L17 19 Z" fill="#3f7d62"/>
+        <circle cx="26" cy="25" r="6" fill="#f0b35e"/>
+        <circle cx="26" cy="25" r="3" fill="#fff3c4"/>
+        <path d="M24 31h4" stroke="#4a3b2c" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="29" cy="9" r="1.2" fill="rgba(235,240,255,.8)"/>
+        <circle cx="23" cy="13" r="1" fill="rgba(235,240,255,.6)"/>
+      </svg>
+    </div>
+    <div class="info">
+      <h2>ember<em>.</em></h2>
+      <p>chop, build, survive the nights</p>
+    </div>
+    <span class="prog fresh" id="emberProg">new</span>
+    <span class="go">›</span>
+  </a>
+
   <a class="card" href="drop/">
     <div class="art">
       <svg viewBox="0 0 36 36" fill="none">
@@ -231,6 +251,17 @@ try {
   if (b > 0) {
     const el = document.getElementById('g2048Prog');
     el.textContent = 'best ' + b;
+    el.classList.remove('fresh');
+  }
+} catch(e) {}
+try {
+  const lv = parseInt(localStorage.getItem('ember.level') || '1', 10);
+  const el = document.getElementById('emberProg');
+  if (lv > 1) {
+    el.textContent = 'level ' + lv;
+    el.classList.remove('fresh');
+  } else if (localStorage.getItem('ember.run')) {
+    el.textContent = 'in progress';
     el.classList.remove('fresh');
   }
 } catch(e) {}

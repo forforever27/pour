@@ -1,0 +1,1031 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#191527">
+<meta name="color-scheme" content="only light">
+<title>Ember — survive the long night</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650&family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: only light;
+    --bg-deep: #14101f;
+    --bg-mid: #1f1833;
+    --ink: #f2edf7;
+    --ink-dim: #9a8fb8;
+    --glass: rgba(255,255,255,.055);
+    --glass-edge: rgba(255,255,255,.16);
+    --panel: #2b2342;
+    --accent: #f0b35e;
+    --coral: #e8896b;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { height:100%; overflow:hidden; }
+  body {
+    font-family:'Outfit', sans-serif;
+    background-image: linear-gradient(var(--bg-deep), var(--bg-deep));
+    color: var(--ink);
+    touch-action: manipulation;
+    user-select:none; -webkit-user-select:none;
+    display:flex; flex-direction:column;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  .sky { position:fixed; inset:0; z-index:-2;
+    background:
+      radial-gradient(120% 90% at 80% -10%, #3a2b55 0%, transparent 55%),
+      radial-gradient(90% 70% at 10% 110%, #232a4d 0%, transparent 60%),
+      linear-gradient(170deg, var(--bg-mid) 0%, var(--bg-deep) 70%);
+  }
+  body::after { content:""; position:fixed; inset:0; z-index:50; pointer-events:none; opacity:.05;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='0.6'/%3E%3C/svg%3E"); }
+
+  /* ---- header ---- */
+  header { display:flex; align-items:center; justify-content:space-between;
+    padding: clamp(8px,1.6vh,16px) 16px 4px; }
+  .brand { font-family:'Fraunces', serif; font-weight:650; font-size:1.3rem; letter-spacing:.01em;
+    color:inherit; text-decoration:none; }
+  .brand em { font-style:normal; color:var(--accent); }
+  .brand .back { color:var(--ink-dim); font-weight:500; margin-right:1px; }
+  .meta { text-align:center; }
+  .meta .lvl { font-family:'Fraunces', serif; font-weight:650; font-size:1.15rem; line-height:1.1; }
+  .meta .moves { font-size:.68rem; font-weight:300; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-dim); }
+  .controls { display:flex; gap:8px; }
+  .icon-btn { width:42px; height:42px; border-radius:13px; border:1px solid var(--glass-edge);
+    background-color:transparent; background-image:linear-gradient(var(--panel),var(--panel));
+    color:var(--ink); cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    transition:transform .15s ease; }
+  .icon-btn:active { transform:scale(.92); }
+  .icon-btn svg { width:19px; height:19px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+
+  /* ---- status bars ---- */
+  #hud { display:flex; align-items:center; gap:8px; padding:4px 14px 6px; }
+  .bar { flex:1; height:14px; border-radius:99px; border:1px solid var(--glass-edge);
+    background-image:linear-gradient(rgba(0,0,0,.35),rgba(0,0,0,.35)); overflow:hidden; position:relative; }
+  .bar i { position:absolute; inset:0; border-radius:99px; transition:width .25s ease; }
+  #hpBar i { background-image:linear-gradient(#8fbf7f,#8fbf7f); }
+  #fireBar i { background-image:linear-gradient(#f0b35e,#e8896b); }
+  .bar b { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    font-size:.58rem; font-weight:600; letter-spacing:.08em; color:#10131c; }
+  .res { font-size:.72rem; font-weight:400; letter-spacing:.04em; color:var(--ink);
+    padding:3px 10px; border-radius:99px; border:1px solid var(--glass-edge);
+    background-image:linear-gradient(var(--panel),var(--panel)); white-space:nowrap; }
+  .res em { font-style:normal; color:var(--accent); font-weight:600; }
+  .res.w em { color:#c9a06b; }
+
+  /* ---- canvas ---- */
+  main { flex:1; min-height:0; padding:2px 8px 4px; display:flex; }
+  #wrap { position:relative; flex:1; }
+  canvas#cv { position:absolute; inset:0; width:100%; height:100%;
+    border-radius:16px; border:1.5px solid var(--glass-edge);
+    background:#181226;
+    box-shadow:0 14px 28px -12px rgba(0,0,0,.55);
+    touch-action:none; }
+
+  /* ---- action buttons ---- */
+  .actions { display:flex; justify-content:center; gap:10px; padding:8px 0 clamp(10px,1.6vh,16px); }
+  .pill { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px;
+    height:48px; padding:0 18px;
+    border-radius:16px; border:1px solid var(--glass-edge);
+    background-color:transparent;
+    background-image:linear-gradient(var(--panel),var(--panel));
+    color:var(--ink); font-family:'Outfit',sans-serif; font-weight:600; font-size:.85rem;
+    letter-spacing:.04em; cursor:pointer;
+    transition:transform .15s ease; }
+  .pill:active { transform:scale(.93); }
+  .pill small { font-weight:300; font-size:.62rem; color:var(--ink-dim); letter-spacing:.06em; }
+  .pill:disabled { opacity:.4; }
+  .pill.warn { border-color:rgba(232,137,107,.5); }
+
+  /* ---- overlays ---- */
+  .ov { position:fixed; inset:0; z-index:60; display:flex; align-items:center; justify-content:center;
+    background:rgba(16,12,26,.78); backdrop-filter:blur(8px);
+    opacity:0; pointer-events:none; transition:opacity .35s ease; }
+  .ov.show { opacity:1; pointer-events:auto; }
+  .card { width:min(88vw,360px); max-height:80vh; overflow-y:auto; text-align:center;
+    padding:28px 24px; border-radius:28px;
+    background-image:linear-gradient(160deg, #342b52, #251e3d);
+    border:1px solid var(--glass-edge);
+    transform:translateY(16px) scale(.96); transition:transform .4s cubic-bezier(.3,1.4,.5,1);
+    overscroll-behavior:contain; }
+  .ov.show .card { transform:none; }
+  .card h2 { font-family:'Fraunces', serif; font-weight:650; font-size:1.7rem; margin-bottom:4px; }
+  .card .sub { color:var(--ink-dim); font-weight:300; font-size:.85rem; margin-bottom:18px; }
+  .next-btn { font-family:'Outfit', sans-serif; font-weight:600; font-size:1rem; letter-spacing:.04em;
+    color:#1d1530; background-color:transparent; background-image:linear-gradient(var(--accent),var(--accent));
+    border:none; border-radius:16px; width:100%;
+    padding:14px 30px; cursor:pointer; transition:transform .15s ease;
+    box-shadow:0 10px 24px -8px rgba(240,179,94,.5); }
+  .next-btn:active { transform:scale(.96); }
+  .alt-btn { display:block; margin:12px auto 0; background:none; border:none; cursor:pointer;
+    color:var(--ink-dim); font-family:'Outfit',sans-serif; font-weight:300; font-size:.8rem;
+    letter-spacing:.06em; text-decoration:underline; text-underline-offset:3px; }
+
+  /* shop rows */
+  .shop-row { display:flex; align-items:center; justify-content:space-between; gap:8px;
+    padding:10px 12px; margin-bottom:8px; border-radius:14px; border:1px solid var(--glass-edge);
+    background-image:linear-gradient(var(--panel),var(--panel)); text-align:left; }
+  .shop-row .nm { font-weight:600; font-size:.85rem; }
+  .shop-row .ds { display:block; font-weight:300; font-size:.68rem; color:var(--ink-dim); margin-top:1px; }
+  .buy { flex:none; border:1px solid rgba(240,179,94,.5); border-radius:99px; padding:7px 14px;
+    background-image:linear-gradient(var(--panel),var(--panel)); color:var(--accent);
+    font-family:'Outfit',sans-serif; font-weight:600; font-size:.72rem; letter-spacing:.04em; cursor:pointer;
+    transition:transform .12s ease; white-space:nowrap; }
+  .buy:active { transform:scale(.92); }
+  .buy:disabled { opacity:.35; }
+
+  /* level chips */
+  #levelGrid { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; margin:10px 0 4px;
+    max-height:34vh; overflow-y:auto; padding:2px; overscroll-behavior:contain; }
+  .lvl-chip { height:46px; border-radius:13px; border:1px solid var(--glass-edge);
+    background-color:transparent; background-image:linear-gradient(var(--panel),var(--panel));
+    color:var(--ink); font-family:'Outfit',sans-serif; font-size:.9rem; cursor:pointer;
+    transition:transform .12s ease; }
+  .lvl-chip:active { transform:scale(.92); }
+  .lvl-chip.done { border-color:rgba(240,179,94,.45); color:var(--accent); }
+  .lvl-chip.now { border-color:var(--accent);
+    background-image:linear-gradient(var(--accent),var(--accent)); color:#1d1530; font-weight:600; }
+  .lvl-chip.lock { opacity:.32; }
+
+  #toast { position:fixed; bottom:calc(86px + env(safe-area-inset-bottom)); left:50%;
+    transform:translate(-50%, 60px); z-index:70; padding:10px 20px; border-radius:99px;
+    background:rgba(255,255,255,.12); border:1px solid var(--glass-edge); backdrop-filter:blur(8px);
+    font-size:.8rem; font-weight:300; letter-spacing:.05em; opacity:0; transition:.35s ease; pointer-events:none; }
+  #toast.show { opacity:1; transform:translate(-50%,0); }
+</style>
+</head>
+<body>
+<div class="sky"></div>
+
+<header>
+  <a class="brand" href="../" aria-label="All games"><span class="back">‹</span> ember<em>.</em></a>
+  <div class="meta">
+    <div class="lvl" id="phaseLabel">Day 1</div>
+    <div class="moves" id="phaseSub">&nbsp;</div>
+  </div>
+  <div class="controls">
+    <button class="icon-btn" id="menuBtn" aria-label="Levels">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>
+    </button>
+    <button class="icon-btn" id="soundBtn" aria-label="Toggle sound"></button>
+  </div>
+</header>
+
+<div id="hud">
+  <div class="bar" id="hpBar" title="Your health"><i></i><b>YOU</b></div>
+  <div class="bar" id="fireBar" title="Campfire"><i></i><b>FIRE</b></div>
+  <span class="res w">wood <em id="woodLbl">0</em></span>
+  <span class="res">gold <em id="goldLbl">0</em></span>
+</div>
+
+<main><div id="wrap"><canvas id="cv"></canvas></div></main>
+
+<nav class="actions">
+  <button class="pill" id="buildBtn">Build tower<small id="buildCost">15 wood · 20 gold</small></button>
+  <button class="pill" id="shopBtn">Campfire<small>sell · repair · upgrade</small></button>
+</nav>
+
+<!-- menu / level select -->
+<div class="ov" id="menu" role="dialog" aria-label="Ember menu">
+  <div class="card">
+    <h2>ember<em style="font-style:normal;color:var(--accent)">.</em></h2>
+    <p class="sub">chop · fight · build · survive the nights</p>
+    <button class="next-btn" id="continueBtn" style="display:none">Continue →</button>
+    <div id="levelGrid"></div>
+    <p class="sub" style="margin:10px 0 0">gold and upgrades stay with you forever<br>each level is a new frozen map with more nights</p>
+  </div>
+</div>
+
+<!-- campfire shop -->
+<div class="ov" id="shop" role="dialog" aria-label="Campfire">
+  <div class="card">
+    <h2>Campfire</h2>
+    <p class="sub" id="shopRes">wood 0 · gold 0</p>
+    <div id="shopRows"></div>
+    <button class="alt-btn" id="shopClose">back to the cold</button>
+  </div>
+</div>
+
+<!-- win -->
+<div class="ov" id="win" role="dialog" aria-label="Level survived">
+  <div class="card">
+    <h2 id="winTitle">Dawn.</h2>
+    <p class="sub" id="winSub">You survived</p>
+    <button class="next-btn" id="nextBtn">Next level →</button>
+    <button class="alt-btn" id="winMenu">all levels</button>
+  </div>
+</div>
+
+<!-- fail -->
+<div class="ov" id="fail" role="dialog" aria-label="The fire went out">
+  <div class="card">
+    <h2>The fire went out.</h2>
+    <p class="sub" id="failSub">The cold takes the camp — but your gold and upgrades are safe.</p>
+    <button class="next-btn" id="retryBtn">Try again →</button>
+    <button class="alt-btn" id="failMenu">all levels</button>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+'use strict';
+const TAU = Math.PI*2;
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;}}
+
+/* ---------- balance ---------- */
+const WORLD = 1500;
+const DAY_LEN = 40;                       // seconds of daylight
+const nightsFor = lv => Math.min(2 + lv, 7);
+const TREES = 52, STONES = 12;
+const TREE_HP = 4, STONE_HP = 3;
+const SELL_RATE = 2;                      // gold per wood
+const TOWER = { wood:15, gold:20, hp:140, range:190, rate:.8 };
+const FIRE_MAX = 300;
+const monStats = (lv, night) => ({
+  hp: Math.round(24 * (1 + .28*(night-1)) * (1 + .22*(lv-1))),
+  dmg: 6 + night + 2*(lv-1),
+  spd: 52 + 3*night + 2*lv + Math.random()*14,
+  gold: 3 + night + 2*(lv-1)
+});
+const spawnCount = (lv, night) => 5 + 3*night + 3*(lv-1);
+const UPGRADES = [
+  { id:'axe', name:'Sharper axe',  ds:n=>`+${n+1} wood per chop`,            base:30 },
+  { id:'atk', name:'Keener blade', ds:n=>`${Math.round(12*Math.pow(1.4,n+1))} damage a swing`, base:35 },
+  { id:'hp',  name:'Thick furs',   ds:n=>`${100+25*(n+1)} max health`,        base:30 },
+  { id:'spd', name:'Snow boots',   ds:n=>`${Math.round(100*(Math.pow(1.08,n+1)))}% speed`,     base:25 },
+  { id:'twr', name:'Tower oil',    ds:n=>`towers hit ${Math.round(10*Math.pow(1.35,n+1))}`,    base:40 },
+];
+const upCost = (u, n) => Math.round(u.base * Math.pow(1.6, n));
+
+/* ---------- persistent state (ember.*) ---------- */
+let progress = 1, meta = { gold: 0, up: { axe:0, atk:0, hp:0, spd:0, twr:0 } };
+let soundOn = localStorage.getItem('ember.sound') !== 'off';
+try { progress = parseInt(localStorage.getItem('ember.level')||'1',10) || 1; } catch(e){}
+try {
+  const m = JSON.parse(localStorage.getItem('ember.meta')||'null');
+  if(m && m.up) meta = { gold: m.gold|0, up: { axe:m.up.axe|0, atk:m.up.atk|0, hp:m.up.hp|0, spd:m.up.spd|0, twr:m.up.twr|0 } };
+} catch(e){}
+function saveMeta(){ try {
+  localStorage.setItem('ember.meta', JSON.stringify(meta));
+  localStorage.setItem('ember.level', progress);
+} catch(e){} }
+
+/* ---------- run state ---------- */
+let mode = 'menu';          // menu | play | win | fail
+let paused = false;
+let level = 1, night = 1, phase = 'day', phaseT = DAY_LEN;
+let wood = 0;
+let spawnLeft = 0, spawnT = 0;
+let player, fire, trees = [], stones = [], towers = [], monsters = [], arrows = [], texts = [], parts = [], snow = [];
+let cam = { x:0, y:0 };
+let towerCostMul = 1;
+
+const maxHp = () => 100 + 25*meta.up.hp;
+const pDmg  = () => Math.round(12*Math.pow(1.4, meta.up.atk));
+const pSpd  = () => 150*Math.pow(1.08, meta.up.spd);
+const tDmg  = () => Math.round(10*Math.pow(1.35, meta.up.twr));
+const woodPerChop = () => 1 + meta.up.axe;
+const towerWood = () => Math.round(TOWER.wood*towerCostMul);
+const towerGold = () => Math.round(TOWER.gold*towerCostMul);
+
+/* ---------- world generation: level number is the seed ---------- */
+function genWorld(lv){
+  const rng = mulberry32(lv*2654435761 + 99);
+  trees = []; stones = []; towers = []; monsters = []; arrows = []; texts = []; parts = [];
+  const cx = WORLD/2, cy = WORLD/2;
+  fire = { x:cx, y:cy, hp:FIRE_MAX, maxHp:FIRE_MAX, flick:0 };
+  player = { x:cx, y:cy+70, hp:maxHp(), dir:0, swing:0, chopCd:0, atkCd:0, down:0, hurtT:0 };
+  let id = 0;
+  while(trees.length < TREES){
+    // clustered pines
+    const gx = 120 + rng()*(WORLD-240), gy = 120 + rng()*(WORLD-240);
+    if(Math.hypot(gx-cx, gy-cy) < 180) continue;
+    const n = 2 + (rng()*4|0);
+    for(let k=0;k<n && trees.length<TREES;k++){
+      const x = gx + (rng()-.5)*150, y = gy + (rng()-.5)*150;
+      if(x<70||y<70||x>WORLD-70||y>WORLD-70) continue;
+      if(Math.hypot(x-cx,y-cy) < 160) continue;
+      if(trees.some(t=>Math.hypot(t.x-x,t.y-y)<46)) continue;
+      trees.push({ id:id++, x, y, hp:TREE_HP, shake:0, s:.85+rng()*.5 });
+    }
+  }
+  while(stones.length < STONES){
+    const x = 100 + rng()*(WORLD-200), y = 100 + rng()*(WORLD-200);
+    if(Math.hypot(x-cx,y-cy) < 200) continue;
+    if(stones.some(s=>Math.hypot(s.x-x,s.y-y)<70) || trees.some(t=>Math.hypot(t.x-x,t.y-y)<50)) continue;
+    stones.push({ id:id++, x, y, hp:STONE_HP, shake:0 });
+  }
+  snow = Array.from({length:60}, ()=>({ x:Math.random()*WORLD, y:Math.random()*WORLD, v:14+Math.random()*22, drift:Math.random()*2-1 }));
+  towerCostMul = 1;
+  makeGround(lv);
+}
+
+/* pre-rendered ground so the big map draws cheap */
+let ground = null;
+function makeGround(lv){
+  const rng = mulberry32(lv*7919 + 3);
+  ground = document.createElement('canvas');
+  ground.width = ground.height = WORLD;
+  const g = ground.getContext('2d');
+  g.fillStyle = '#1b1430'; g.fillRect(0,0,WORLD,WORLD);
+  for(let k=0;k<260;k++){                        // snow drifts
+    const x = rng()*WORLD, y = rng()*WORLD, r = 30+rng()*120;
+    const gr = g.createRadialGradient(x,y,0,x,y,r);
+    const a = .03+rng()*.05;
+    gr.addColorStop(0, `rgba(220,228,255,${a})`);
+    gr.addColorStop(1, 'rgba(220,228,255,0)');
+    g.fillStyle = gr;
+    g.beginPath(); g.arc(x,y,r,0,TAU); g.fill();
+  }
+  g.strokeStyle = 'rgba(154,143,184,.14)'; g.lineWidth = 14;  // frozen rim
+  g.strokeRect(7,7,WORLD-14,WORLD-14);
+}
+
+/* ---------- dawn checkpoint (ember.run) ---------- */
+function saveRun(){
+  try {
+    localStorage.setItem('ember.run', JSON.stringify({
+      lv: level, night, wood, fireHp: fire.hp,
+      trees: trees.filter(t=>t.hp<TREE_HP).map(t=>[t.id,t.hp]),
+      stones: stones.filter(s=>s.hp<STONE_HP).map(s=>[s.id,s.hp]),
+      towers: towers.map(t=>[Math.round(t.x),Math.round(t.y),Math.round(t.hp)]),
+      tcm: towerCostMul
+    }));
+  } catch(e){}
+}
+function clearRun(){ try { localStorage.removeItem('ember.run'); } catch(e){} }
+function loadRun(){
+  try {
+    const r = JSON.parse(localStorage.getItem('ember.run')||'null');
+    if(!r || !r.lv || r.lv > progress) return null;
+    return r;
+  } catch(e){ return null; }
+}
+
+/* ---------- audio ---------- */
+let actx = null;
+function note(freq, dur=.15, vol=.1, type='sine'){
+  if(!soundOn) return;
+  try{
+    actx = actx || new (window.AudioContext||window.webkitAudioContext)();
+    if(actx.state==='suspended') actx.resume();
+    const o=actx.createOscillator(), g=actx.createGain();
+    o.type=type; o.frequency.setValueAtTime(freq, actx.currentTime);
+    o.frequency.exponentialRampToValueAtTime(Math.max(40,freq*1.25), actx.currentTime+dur);
+    g.gain.setValueAtTime(vol, actx.currentTime);
+    g.gain.exponentialRampToValueAtTime(.0001, actx.currentTime+dur);
+    o.connect(g).connect(actx.destination);
+    o.start(); o.stop(actx.currentTime+dur);
+  }catch(e){}
+}
+const chopS = ()=>note(160+Math.random()*30,.07,.07,'triangle');
+const hitS  = ()=>note(120,.08,.08,'square');
+const coinS = ()=>note(740,.1,.06);
+const hornS = ()=>{ note(98,.7,.1,'sawtooth'); setTimeout(()=>note(92,.9,.09,'sawtooth'),350); };
+const winS  = ()=>[392,494,587,784].forEach((f,i)=>setTimeout(()=>note(f,.3,.1),i*120));
+function buzz(ms){ if(navigator.vibrate) navigator.vibrate(ms); }
+const soundBtn = document.getElementById('soundBtn');
+function renderSoundIcon(){
+  soundBtn.innerHTML = soundOn
+    ? '<svg viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg>'
+    : '<svg viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="m16 9 5 5m0-5-5 5"/></svg>';
+}
+
+/* ---------- canvas ---------- */
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const wrap = document.getElementById('wrap');
+let VW = 0, VH = 0;
+let light = null, lctx = null;
+function resize(){
+  const r = wrap.getBoundingClientRect();
+  const dpr = Math.min(window.devicePixelRatio||1, 2);
+  VW = r.width; VH = r.height;
+  cv.width = VW*dpr; cv.height = VH*dpr;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  light = document.createElement('canvas');
+  light.width = VW; light.height = VH;
+  lctx = light.getContext('2d');
+}
+window.addEventListener('resize', resize);
+
+/* ---------- input: drag = walk that way ---------- */
+const joy = { on:false, ox:0, oy:0, dx:0, dy:0 };
+const keys = {};
+cv.addEventListener('pointerdown', e=>{
+  const r = cv.getBoundingClientRect();
+  joy.on = true; joy.ox = e.clientX-r.left; joy.oy = e.clientY-r.top; joy.dx = 0; joy.dy = 0;
+  try { cv.setPointerCapture(e.pointerId); } catch(err){}
+});
+cv.addEventListener('pointermove', e=>{
+  if(!joy.on) return;
+  const r = cv.getBoundingClientRect();
+  let dx = (e.clientX-r.left)-joy.ox, dy = (e.clientY-r.top)-joy.oy;
+  const d = Math.hypot(dx,dy);
+  if(d > 46){ dx = dx/d*46; dy = dy/d*46; }
+  joy.dx = dx/46; joy.dy = dy/46;
+});
+const joyEnd = ()=>{ joy.on = false; joy.dx = 0; joy.dy = 0; };
+cv.addEventListener('pointerup', joyEnd);
+cv.addEventListener('pointercancel', joyEnd);
+document.addEventListener('keydown', e=>{
+  keys[e.key.toLowerCase()] = true;
+  if(e.key==='b' || e.key==='B') tryBuild();
+  if(e.key==='e' || e.key==='E') openShop();
+});
+document.addEventListener('keyup', e=>{ keys[e.key.toLowerCase()] = false; });
+function inputVec(){
+  let x = joy.dx, y = joy.dy;
+  if(keys['w']||keys['arrowup']) y -= 1;
+  if(keys['s']||keys['arrowdown']) y += 1;
+  if(keys['a']||keys['arrowleft']) x -= 1;
+  if(keys['d']||keys['arrowright']) x += 1;
+  const d = Math.hypot(x,y);
+  return d > 1 ? [x/d, y/d] : [x, y];
+}
+
+/* ---------- helpers ---------- */
+function addText(x, y, str, col){ texts.push({x, y, str, col, life:1}); }
+function puff(x, y, col, n=6, sp=70){
+  for(let k=0;k<n;k++){
+    const a = Math.random()*TAU, v = sp*(.4+Math.random());
+    parts.push({x, y, vx:Math.cos(a)*v, vy:Math.sin(a)*v-30, col, life:.5+Math.random()*.3, sz:2+Math.random()*3});
+  }
+}
+function earn(g, x, y){
+  meta.gold += g; saveMeta();
+  if(x!==undefined) addText(x, y, '+'+g+'g', '#f0b35e');
+  coinS();
+}
+
+/* ---------- phase flow ---------- */
+function startLevel(lv, resume){
+  level = lv; mode = 'play'; paused = false;
+  genWorld(lv);
+  if(resume){
+    night = resume.night; wood = resume.wood|0; fire.hp = resume.fireHp;
+    towerCostMul = resume.tcm || 1;
+    for(const [tid,hp] of resume.trees||[]){ const t = trees.find(t=>t.id===tid); if(t) t.hp = hp; }
+    for(const [sid,hp] of resume.stones||[]){ const s = stones.find(s=>s.id===sid); if(s) s.hp = hp; }
+    for(const [x,y,hp] of resume.towers||[]) towers.push({x, y, hp, maxHp:TOWER.hp, cd:0, flash:0});
+  } else {
+    night = 1; wood = 0;
+    clearRun();
+  }
+  phase = 'day'; phaseT = DAY_LEN; spawnLeft = 0;
+  document.getElementById('menu').classList.remove('show');
+  document.getElementById('win').classList.remove('show');
+  document.getElementById('fail').classList.remove('show');
+  toast(resume ? 'Welcome back — night '+night+' awaits' : 'Chop wood by walking to a pine. Night comes soon.');
+}
+function startNight(){
+  phase = 'night';
+  spawnLeft = spawnCount(level, night);
+  spawnT = 0;
+  hornS(); buzz([40,80,40]);
+  toast('Night '+night+' — they come for the fire');
+}
+function endNight(){
+  if(night >= nightsFor(level)){ winLevel(); return; }
+  night++;
+  phase = 'day'; phaseT = DAY_LEN;
+  player.hp = Math.min(maxHp(), player.hp + maxHp()*.35);
+  saveRun(); saveMeta();
+  note(523,.3,.08);
+  toast('Dawn — progress saved · night '+night+' of '+nightsFor(level)+' tonight');
+}
+function winLevel(){
+  mode = 'win';
+  const bonus = 40 + 30*level;
+  meta.gold += bonus;
+  progress = Math.max(progress, level+1);
+  clearRun(); saveMeta();
+  winS(); buzz([30,60,30]);
+  document.getElementById('winTitle').textContent = 'Dawn.';
+  document.getElementById('winSub').textContent =
+    'Level '+level+' survived · +'+bonus+' gold · the fire still burns';
+  setTimeout(()=>document.getElementById('win').classList.add('show'), 400);
+}
+function failLevel(){
+  mode = 'fail';
+  clearRun(); saveMeta();
+  note(98,1.2,.12,'sawtooth'); buzz(80);
+  setTimeout(()=>document.getElementById('fail').classList.add('show'), 400);
+}
+
+/* ---------- update ---------- */
+function update(dt){
+  if(mode!=='play' || paused) return;
+
+  // --- phase clock
+  if(phase==='day'){
+    phaseT -= dt;
+    if(phaseT <= 0) startNight();
+  } else {
+    if(spawnLeft > 0){
+      spawnT -= dt;
+      if(spawnT <= 0){
+        spawnT = .5;
+        spawnMonster();
+        spawnLeft--;
+      }
+    } else if(!monsters.length) endNight();
+  }
+
+  // --- player
+  if(player.down > 0){
+    player.down -= dt;
+    if(player.down <= 0){ player.hp = maxHp()*.6; addText(player.x, player.y-30, 'back up', '#8fbf7f'); }
+  } else {
+    const [ix, iy] = inputVec();
+    if(ix||iy){
+      player.x += ix*pSpd()*dt; player.y += iy*pSpd()*dt;
+      player.dir = Math.atan2(iy, ix);
+      player.x = Math.max(30, Math.min(WORLD-30, player.x));
+      player.y = Math.max(30, Math.min(WORLD-30, player.y));
+    }
+    player.chopCd -= dt; player.atkCd -= dt;
+    // auto-fight first, chopping waits for peace
+    const m = nearest(monsters, player.x, player.y, 52);
+    if(m && player.atkCd <= 0){
+      player.atkCd = .55; player.swing = .25;
+      player.dir = Math.atan2(m.y-player.y, m.x-player.x);
+      hitMonster(m, pDmg(), player.x, player.y);
+    } else if(!m && player.chopCd <= 0){
+      const t = nearest(trees.filter(t=>t.hp>0), player.x, player.y, 42);
+      const s = !t && nearest(stones.filter(s=>s.hp>0), player.x, player.y, 42);
+      if(t){
+        player.chopCd = .5; player.swing = .25; t.shake = .25;
+        player.dir = Math.atan2(t.y-player.y, t.x-player.x);
+        t.hp--; wood += woodPerChop(); chopS();
+        addText(t.x, t.y-34, '+'+woodPerChop()+' wood', '#c9a06b');
+        puff(t.x, t.y-10, '#8fbf7f', 5, 50);
+        if(t.hp<=0) puff(t.x, t.y, '#c9a06b', 10, 80);
+      } else if(s){
+        player.chopCd = .6; player.swing = .25; s.shake = .25;
+        s.hp--; note(220,.06,.06,'square');
+        puff(s.x, s.y-6, '#9a8fb8', 5, 50);
+        const g = 4 + 2*(level-1);
+        earn(g, s.x, s.y-30);
+      }
+    }
+    player.swing -= dt;
+  }
+  player.hurtT -= dt;
+
+  // --- monsters
+  for(const m of monsters){
+    // pick target: the player if close, hurting tower, else the fire
+    let tx = fire.x, ty = fire.y, tr = 46, tgt = 'fire';
+    if(player.down<=0 && Math.hypot(player.x-m.x, player.y-m.y) < 130){ tx=player.x; ty=player.y; tr=26; tgt='player'; }
+    else {
+      const tw = nearest(towers, m.x, m.y, 90);
+      if(tw){ tx=tw.x; ty=tw.y; tr=26; tgt=tw; }
+    }
+    const dx = tx-m.x, dy = ty-m.y, d = Math.hypot(dx,dy)||1;
+    if(d > tr){ m.x += dx/d*m.spd*dt; m.y += dy/d*m.spd*dt; }
+    m.cd -= dt; m.bob += dt*6;
+    if(d <= tr+6 && m.cd <= 0){
+      m.cd = 1;
+      if(tgt==='player'){
+        player.hp -= m.dmg; player.hurtT = .25; buzz(15);
+        if(player.hp <= 0){ player.down = 4; addText(player.x, player.y-30, 'down!', '#e8896b'); }
+      } else if(tgt==='fire'){
+        fire.hp -= m.dmg;
+        if(fire.hp <= 0){ fire.hp = 0; failLevel(); return; }
+      } else {
+        tgt.hp -= m.dmg; tgt.flash = .2;
+        if(tgt.hp <= 0){ towers.splice(towers.indexOf(tgt),1); puff(tgt.x, tgt.y, '#9a8fb8', 14, 90); }
+      }
+      hitS();
+    }
+  }
+
+  // --- towers
+  for(const t of towers){
+    t.cd -= dt; t.flash -= dt;
+    if(t.cd <= 0){
+      const m = nearest(monsters, t.x, t.y, TOWER.range);
+      if(m){
+        t.cd = TOWER.rate;
+        const d = Math.hypot(m.x-t.x, m.y-t.y)||1;
+        arrows.push({ x:t.x, y:t.y-26, vx:(m.x-t.x)/d*420, vy:(m.y-t.y)/d*420, dmg:tDmg(), life:.6 });
+        note(660,.05,.04,'triangle');
+      }
+    }
+  }
+  for(const a of arrows){
+    a.x += a.vx*dt; a.y += a.vy*dt; a.life -= dt;
+    const m = nearest(monsters, a.x, a.y, 16);
+    if(m){ hitMonster(m, a.dmg, a.x, a.y); a.life = 0; }
+  }
+  arrows = arrows.filter(a=>a.life>0);
+
+  // --- cosmetics
+  for(const t of trees) t.shake -= dt;
+  for(const s of stones) s.shake -= dt;
+  for(const p of parts){ p.x += p.vx*dt; p.y += p.vy*dt; p.vy += 160*dt; p.life -= dt; }
+  parts = parts.filter(p=>p.life>0);
+  for(const t of texts){ t.y -= 26*dt; t.life -= dt; }
+  texts = texts.filter(t=>t.life>0);
+  for(const f of snow){ f.y += f.v*dt; f.x += f.drift*12*dt; if(f.y > WORLD) { f.y = 0; f.x = Math.random()*WORLD; } }
+  fire.flick += dt*9;
+
+  // --- camera
+  cam.x = Math.max(0, Math.min(WORLD-VW, player.x - VW/2));
+  cam.y = Math.max(0, Math.min(WORLD-VH, player.y - VH/2));
+}
+function nearest(arr, x, y, r){
+  let best = null, bd = r;
+  for(const o of arr){
+    if(o.hp!==undefined && o.hp<=0) continue;
+    const d = Math.hypot(o.x-x, o.y-y);
+    if(d < bd){ bd = d; best = o; }
+  }
+  return best;
+}
+function hitMonster(m, dmg, fx, fy){
+  m.hp -= dmg; m.hurt = .15;
+  const d = Math.hypot(m.x-fx, m.y-fy)||1;
+  m.x += (m.x-fx)/d*8; m.y += (m.y-fy)/d*8;
+  addText(m.x, m.y-26, dmg, '#f2edf7');
+  hitS();
+  if(m.hp <= 0){
+    monsters.splice(monsters.indexOf(m),1);
+    puff(m.x, m.y, '#7aa8e0', 10, 90);
+    earn(m.gold, m.x, m.y-20);
+  }
+}
+function spawnMonster(){
+  const st = monStats(level, night);
+  const side = Math.random()*4|0;
+  const t = Math.random();
+  const pos = [
+    [t*WORLD, 20],[t*WORLD, WORLD-20],[20, t*WORLD],[WORLD-20, t*WORLD]
+  ][side];
+  const elite = night >= 3 && Math.random() < .12;
+  monsters.push({
+    x:pos[0], y:pos[1],
+    hp: st.hp*(elite?3:1), maxHp: st.hp*(elite?3:1),
+    dmg: st.dmg*(elite?1.6:1)|0, spd: st.spd*(elite?.8:1),
+    gold: st.gold*(elite?4:1)|0, elite, cd: 0, bob: Math.random()*9, hurt:0
+  });
+}
+
+/* ---------- build & shop ---------- */
+function tryBuild(){
+  if(mode!=='play' || paused) return;
+  if(wood < towerWood() || meta.gold < towerGold()){ toast('Need '+towerWood()+' wood and '+towerGold()+' gold'); buzz(20); return; }
+  if(Math.hypot(player.x-fire.x, player.y-fire.y) < 90){ toast('Too close to the fire'); return; }
+  if(towers.some(t=>Math.hypot(t.x-player.x, t.y-player.y) < 70)){ toast('Too close to another tower'); return; }
+  wood -= towerWood(); meta.gold -= towerGold(); saveMeta();
+  towers.push({ x:player.x, y:player.y, hp:TOWER.hp, maxHp:TOWER.hp, cd:0, flash:0 });
+  towerCostMul *= 1.18;
+  puff(player.x, player.y, '#5fb8a8', 12, 80);
+  note(392,.15,.08); buzz(20);
+}
+const shopEl = document.getElementById('shop');
+function openShop(){
+  if(mode!=='play') return;
+  paused = true;
+  renderShop();
+  shopEl.classList.add('show');
+}
+function renderShop(){
+  document.getElementById('shopRes').textContent = 'wood '+wood+' · gold '+meta.gold;
+  const rows = document.getElementById('shopRows');
+  rows.innerHTML = '';
+  const mk = (nm, ds, btnTxt, can, fn) => {
+    const d = document.createElement('div');
+    d.className = 'shop-row';
+    d.innerHTML = `<span><span class="nm">${nm}</span><span class="ds">${ds}</span></span>`;
+    const b = document.createElement('button');
+    b.className = 'buy'; b.textContent = btnTxt; b.disabled = !can;
+    b.addEventListener('click', ()=>{ fn(); renderShop(); });
+    d.appendChild(b);
+    rows.appendChild(d);
+  };
+  mk('Sell wood', 'all of it, '+SELL_RATE+' gold each', '+'+(wood*SELL_RATE)+'g', wood>0, ()=>{
+    earn(wood*SELL_RATE); wood = 0;
+  });
+  const missing = fire.maxHp - Math.ceil(fire.hp);
+  const repCost = Math.ceil(missing/4);
+  mk('Feed the fire', 'repair the campfire fully', repCost+'g', missing>0 && meta.gold>=repCost, ()=>{
+    meta.gold -= repCost; fire.hp = fire.maxHp; saveMeta(); note(392,.15,.08);
+  });
+  for(const u of UPGRADES){
+    const n = meta.up[u.id];
+    const cost = upCost(u, n);
+    mk(u.name+' · '+(n+1), u.ds(n), cost+'g', meta.gold>=cost, ()=>{
+      meta.gold -= cost; meta.up[u.id]++;
+      if(u.id==='hp') player.hp = Math.min(player.hp+25, maxHp());
+      saveMeta(); note(523,.12,.07);
+    });
+  }
+}
+document.getElementById('shopClose').addEventListener('click', ()=>{
+  shopEl.classList.remove('show'); paused = false;
+});
+shopEl.addEventListener('click', e=>{ if(e.target===shopEl){ shopEl.classList.remove('show'); paused = false; } });
+document.getElementById('buildBtn').addEventListener('click', tryBuild);
+document.getElementById('shopBtn').addEventListener('click', openShop);
+
+/* ---------- drawing ---------- */
+function draw(){
+  ctx.clearRect(0,0,VW,VH);
+  if(!ground) return;
+  ctx.save();
+  ctx.translate(-cam.x, -cam.y);
+  ctx.drawImage(ground, 0, 0);
+
+  // stones & stumps & trees & towers & fire sorted by y for depth
+  const ents = [];
+  for(const s of stones) if(s.hp>0) ents.push(['stone', s]);
+  for(const t of trees) ents.push([t.hp>0?'tree':'stump', t]);
+  for(const t of towers) ents.push(['tower', t]);
+  ents.push(['fire', fire]);
+  for(const m of monsters) ents.push(['mon', m]);
+  if(player.down<=0 || Math.floor(player.down*6)%2) ents.push(['player', player]);
+  ents.sort((a,b)=>a[1].y-b[1].y);
+
+  for(const [kind, o] of ents){
+    if(o.x < cam.x-80 || o.x > cam.x+VW+80 || o.y < cam.y-100 || o.y > cam.y+VH+80) continue;
+    if(kind==='tree') drawTree(o);
+    else if(kind==='stump') drawStump(o);
+    else if(kind==='stone') drawStone(o);
+    else if(kind==='tower') drawTower(o);
+    else if(kind==='fire') drawFire(o);
+    else if(kind==='mon') drawMonster(o);
+    else if(kind==='player') drawPlayer(o);
+  }
+  // arrows + particles + texts
+  ctx.fillStyle = '#f0e6c8';
+  for(const a of arrows){ ctx.beginPath(); ctx.arc(a.x, a.y, 3, 0, TAU); ctx.fill(); }
+  for(const p of parts){
+    ctx.globalAlpha = Math.max(0, p.life*1.6);
+    ctx.fillStyle = p.col;
+    ctx.fillRect(p.x-p.sz/2, p.y-p.sz/2, p.sz, p.sz);
+  }
+  ctx.globalAlpha = 1;
+  // snow
+  ctx.fillStyle = 'rgba(235,240,255,.55)';
+  for(const f of snow){
+    if(f.x<cam.x||f.x>cam.x+VW||f.y<cam.y||f.y>cam.y+VH) continue;
+    ctx.fillRect(f.x, f.y, 2, 2);
+  }
+  for(const t of texts){
+    ctx.globalAlpha = Math.min(1, t.life*2);
+    ctx.font = '600 13px Outfit, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = t.col;
+    ctx.fillText(t.str, t.x, t.y);
+  }
+  ctx.globalAlpha = 1;
+  ctx.restore();
+
+  drawDarkness();
+  drawJoystick();
+  drawMinimap();
+}
+function drawTree(t){
+  const sh = (t.shake>0 ? Math.sin(t.shake*60)*3 : 0);
+  const s = t.s;
+  ctx.save(); ctx.translate(t.x+sh, t.y);
+  ctx.fillStyle = 'rgba(0,0,0,.3)';
+  ctx.beginPath(); ctx.ellipse(0, 4, 16*s, 6*s, 0, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#4a3b2c';
+  ctx.fillRect(-3*s, -8*s, 6*s, 12*s);
+  for(let k=0;k<3;k++){
+    const w = (26-k*6)*s, h = 22*s, yy = -2-k*14*s;
+    ctx.fillStyle = k===2? '#3f7d62' : '#35644f';
+    ctx.beginPath(); ctx.moveTo(0, yy-h); ctx.lineTo(-w/2, yy); ctx.lineTo(w/2, yy); ctx.fill();
+  }
+  ctx.fillStyle = 'rgba(235,240,255,.8)';
+  ctx.beginPath(); ctx.moveTo(0, -2-28*s-20*s); ctx.lineTo(-5*s, -2-28*s-11*s); ctx.lineTo(5*s, -2-28*s-11*s); ctx.fill();
+  ctx.restore();
+}
+function drawStump(t){
+  ctx.fillStyle = 'rgba(0,0,0,.25)';
+  ctx.beginPath(); ctx.ellipse(t.x, t.y+3, 10, 4, 0, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#4a3b2c';
+  ctx.fillRect(t.x-5, t.y-6, 10, 9);
+  ctx.fillStyle = '#6b573f';
+  ctx.beginPath(); ctx.ellipse(t.x, t.y-6, 5, 2.4, 0, 0, TAU); ctx.fill();
+}
+function drawStone(s){
+  const sh = (s.shake>0 ? Math.sin(s.shake*60)*2 : 0);
+  ctx.save(); ctx.translate(s.x+sh, s.y);
+  ctx.fillStyle = 'rgba(0,0,0,.28)';
+  ctx.beginPath(); ctx.ellipse(0, 5, 14, 5, 0, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#56506e';
+  ctx.beginPath();
+  ctx.moveTo(-13,4); ctx.lineTo(-8,-9); ctx.lineTo(2,-12); ctx.lineTo(12,-4); ctx.lineTo(10,5); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#6d6788';
+  ctx.beginPath(); ctx.moveTo(-8,-9); ctx.lineTo(2,-12); ctx.lineTo(4,-4); ctx.lineTo(-4,-2); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#f0b35e';
+  ctx.fillRect(-2, -7, 3, 3); ctx.fillRect(4, -3, 2, 2);
+  ctx.restore();
+}
+function drawTower(t){
+  ctx.save(); ctx.translate(t.x, t.y);
+  ctx.fillStyle = 'rgba(0,0,0,.3)';
+  ctx.beginPath(); ctx.ellipse(0, 4, 13, 5, 0, 0, TAU); ctx.fill();
+  ctx.fillStyle = t.flash>0 ? '#7e7396' : '#4e4668';
+  ctx.fillRect(-9, -30, 18, 34);
+  ctx.fillStyle = '#352e4d';
+  ctx.fillRect(-12, -36, 24, 8);
+  ctx.fillStyle = '#5fb8a8';
+  ctx.fillRect(-4, -33, 8, 4);
+  // hp sliver
+  ctx.fillStyle = 'rgba(0,0,0,.4)'; ctx.fillRect(-10, -44, 20, 3);
+  ctx.fillStyle = '#5fb8a8'; ctx.fillRect(-10, -44, 20*Math.max(0,t.hp/t.maxHp), 3);
+  ctx.restore();
+}
+function drawFire(f){
+  ctx.save(); ctx.translate(f.x, f.y);
+  const fl = 1 + Math.sin(f.flick)*.08;
+  ctx.fillStyle = 'rgba(0,0,0,.3)';
+  ctx.beginPath(); ctx.ellipse(0, 6, 24, 8, 0, 0, TAU); ctx.fill();
+  ctx.strokeStyle = '#4a3b2c'; ctx.lineWidth = 5; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(-14,2); ctx.lineTo(14,-4); ctx.moveTo(-13,-4); ctx.lineTo(13,3); ctx.stroke();
+  const g = ctx.createRadialGradient(0,-10,2, 0,-8,26*fl);
+  g.addColorStop(0,'#fff3c4'); g.addColorStop(.4,'#f0b35e'); g.addColorStop(1,'rgba(232,137,107,0)');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(0, -10, 26*fl, 0, TAU); ctx.fill();
+  ctx.restore();
+}
+function drawMonster(m){
+  ctx.save(); ctx.translate(m.x, m.y + Math.sin(m.bob)*2);
+  m.hurt -= 1/60;
+  const r = m.elite ? 17 : 12;
+  ctx.fillStyle = 'rgba(0,0,0,.3)';
+  ctx.beginPath(); ctx.ellipse(0, r*.8, r*.9, r*.35, 0, 0, TAU); ctx.fill();
+  ctx.fillStyle = m.hurt>0 ? '#9aa6c8' : '#2c3150';
+  ctx.beginPath();
+  ctx.moveTo(0, -r*1.5);
+  ctx.quadraticCurveTo(r, -r*.6, r*.7, r*.5);
+  ctx.quadraticCurveTo(0, r*.9, -r*.7, r*.5);
+  ctx.quadraticCurveTo(-r, -r*.6, 0, -r*1.5);
+  ctx.fill();
+  ctx.fillStyle = m.elite ? '#e08bb1' : '#7ae0d8';
+  ctx.beginPath(); ctx.arc(-r*.3, -r*.4, 2.4, 0, TAU); ctx.arc(r*.3, -r*.4, 2.4, 0, TAU); ctx.fill();
+  if(m.hp < m.maxHp){
+    ctx.fillStyle = 'rgba(0,0,0,.4)'; ctx.fillRect(-12, -r*2-6, 24, 3);
+    ctx.fillStyle = '#e8896b'; ctx.fillRect(-12, -r*2-6, 24*Math.max(0,m.hp/m.maxHp), 3);
+  }
+  ctx.restore();
+}
+function drawPlayer(p){
+  ctx.save(); ctx.translate(p.x, p.y);
+  ctx.fillStyle = 'rgba(0,0,0,.3)';
+  ctx.beginPath(); ctx.ellipse(0, 8, 11, 4.5, 0, 0, TAU); ctx.fill();
+  // axe
+  const sw = p.swing>0 ? Math.sin(p.swing*12.5)*1.2 : 0;
+  const a = p.dir + sw;
+  ctx.strokeStyle = '#c9a06b'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(Math.cos(a)*6, Math.sin(a)*6-6); ctx.lineTo(Math.cos(a)*20, Math.sin(a)*20-10); ctx.stroke();
+  ctx.fillStyle = '#d8dcec';
+  ctx.beginPath(); ctx.arc(Math.cos(a)*20, Math.sin(a)*20-10, 4, 0, TAU); ctx.fill();
+  // body: hooded wanderer
+  ctx.fillStyle = p.hurtT>0 ? '#e8896b' : '#a489d4';
+  ctx.beginPath();
+  ctx.moveTo(0, -18); ctx.quadraticCurveTo(10, -10, 8, 6); ctx.lineTo(-8, 6); ctx.quadraticCurveTo(-10, -10, 0, -18);
+  ctx.fill();
+  ctx.fillStyle = '#f5e7d2';
+  ctx.beginPath(); ctx.arc(0, -10, 4.5, 0, TAU); ctx.fill();
+  ctx.restore();
+}
+function drawDarkness(){
+  if(phase!=='night' && !(phase==='day' && phaseT<6)) return;
+  const k = phase==='night' ? 1 : (6-phaseT)/6;
+  lctx.clearRect(0,0,VW,VH);
+  lctx.fillStyle = `rgba(7,5,16,${.74*k})`;
+  lctx.fillRect(0,0,VW,VH);
+  lctx.globalCompositeOperation = 'destination-out';
+  const hole = (wx, wy, r) => {
+    const x = wx-cam.x, y = wy-cam.y;
+    if(x<-r||y<-r||x>VW+r||y>VH+r) return;
+    const g = lctx.createRadialGradient(x,y,r*.15,x,y,r);
+    g.addColorStop(0,'rgba(0,0,0,1)'); g.addColorStop(1,'rgba(0,0,0,0)');
+    lctx.fillStyle = g;
+    lctx.beginPath(); lctx.arc(x,y,r,0,TAU); lctx.fill();
+  };
+  hole(fire.x, fire.y, 250 + Math.sin(fire.flick)*12);
+  hole(player.x, player.y, 120);
+  for(const t of towers) hole(t.x, t.y, 110);
+  lctx.globalCompositeOperation = 'source-over';
+  ctx.drawImage(light, 0, 0);
+}
+function drawJoystick(){
+  if(!joy.on) return;
+  ctx.strokeStyle = 'rgba(255,255,255,.25)'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(joy.ox, joy.oy, 46, 0, TAU); ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,.3)';
+  ctx.beginPath(); ctx.arc(joy.ox+joy.dx*46, joy.oy+joy.dy*46, 14, 0, TAU); ctx.fill();
+}
+function drawMinimap(){
+  const S = 76, pad = 10, sc = S/WORLD;
+  const x0 = VW-S-pad, y0 = pad;
+  ctx.fillStyle = 'rgba(10,7,20,.65)';
+  ctx.strokeStyle = 'rgba(255,255,255,.2)';
+  ctx.beginPath();
+  if(ctx.roundRect) ctx.roundRect(x0, y0, S, S, 8); else ctx.rect(x0, y0, S, S);
+  ctx.fill(); ctx.stroke();
+  ctx.fillStyle = 'rgba(143,191,127,.5)';
+  for(const t of trees) if(t.hp>0) ctx.fillRect(x0+t.x*sc, y0+t.y*sc, 1.5, 1.5);
+  ctx.fillStyle = '#5fb8a8';
+  for(const t of towers) ctx.fillRect(x0+t.x*sc-1, y0+t.y*sc-1, 3, 3);
+  ctx.fillStyle = '#e8896b';
+  for(const m of monsters) ctx.fillRect(x0+m.x*sc-1, y0+m.y*sc-1, 2.5, 2.5);
+  ctx.fillStyle = '#f0b35e';
+  ctx.beginPath(); ctx.arc(x0+fire.x*sc, y0+fire.y*sc, 2.5, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(x0+player.x*sc, y0+player.y*sc, 2, 0, TAU); ctx.fill();
+}
+
+/* ---------- HUD ---------- */
+let hudT = 0;
+function paintHud(dt){
+  hudT -= dt;
+  if(hudT > 0) return;
+  hudT = .12;
+  document.getElementById('hpBar').firstElementChild.style.width = Math.max(0, player ? player.hp/maxHp()*100 : 0)+'%';
+  document.getElementById('fireBar').firstElementChild.style.width = Math.max(0, fire ? fire.hp/fire.maxHp*100 : 0)+'%';
+  document.getElementById('woodLbl').textContent = wood;
+  document.getElementById('goldLbl').textContent = meta.gold;
+  document.getElementById('buildCost').textContent = towerWood()+' wood · '+towerGold()+' gold';
+  const ph = document.getElementById('phaseLabel'), sub = document.getElementById('phaseSub');
+  if(mode==='play'){
+    if(phase==='day'){
+      ph.textContent = 'Day '+night+' · level '+level;
+      sub.textContent = 'night in '+Math.ceil(phaseT)+'s';
+    } else {
+      ph.textContent = 'Night '+night+' of '+nightsFor(level);
+      sub.textContent = (spawnLeft+monsters.length)+' out there';
+    }
+  } else { ph.textContent = 'ember'; sub.textContent = 'level '+progress+' unlocked'; }
+}
+
+/* ---------- menu ---------- */
+const menuEl = document.getElementById('menu');
+function openMenu(){
+  mode = 'menu'; paused = false;
+  const run = loadRun();
+  const cont = document.getElementById('continueBtn');
+  if(run){
+    cont.style.display = 'block';
+    cont.textContent = 'Continue — level '+run.lv+', night '+run.night+' →';
+    cont.onclick = ()=>startLevel(run.lv, run);
+  } else cont.style.display = 'none';
+  const grid = document.getElementById('levelGrid');
+  grid.innerHTML = '';
+  const maxShown = Math.max(progress+9, 15);
+  for(let n=1;n<=maxShown;n++){
+    const b = document.createElement('button');
+    b.className = 'lvl-chip ' + (n<progress ? 'done' : n===progress ? 'now' : 'lock');
+    b.textContent = n;
+    if(n<=progress) b.addEventListener('click', ()=>{ note(480,.08,.05); startLevel(n, null); });
+    else b.addEventListener('click', ()=>{ toast('Survive level '+progress+' first'); buzz(20); });
+    grid.appendChild(b);
+  }
+  menuEl.classList.add('show');
+}
+document.getElementById('menuBtn').addEventListener('click', ()=>{ if(mode==='play') saveMeta(); openMenu(); });
+document.getElementById('nextBtn').addEventListener('click', ()=>startLevel(level+1, null));
+document.getElementById('winMenu').addEventListener('click', openMenu);
+document.getElementById('retryBtn').addEventListener('click', ()=>startLevel(level, null));
+document.getElementById('failMenu').addEventListener('click', openMenu);
+soundBtn.addEventListener('click', ()=>{
+  soundOn=!soundOn;
+  localStorage.setItem('ember.sound', soundOn?'on':'off');
+  renderSoundIcon(); if(soundOn) note(520,.1,.07);
+});
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),2600);
+}
+
+/* ---------- loop ---------- */
+let last = 0;
+function frame(ts){
+  const dt = Math.min((ts-last)/1000 || 0, .05);
+  last = ts;
+  update(dt);
+  draw();
+  paintHud(dt);
+  requestAnimationFrame(frame);
+}
+
+/* ---------- boot ---------- */
+resize();
+renderSoundIcon();
+genWorld(progress);   // a world shimmers behind the menu
+openMenu();
+requestAnimationFrame(ts=>{ last = ts; requestAnimationFrame(frame); });
+</script>
+</body>
+</html>
