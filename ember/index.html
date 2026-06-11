@@ -189,12 +189,13 @@ function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a
 
 /* ---------- balance ---------- */
 const WORLD = 1500;
-const CAMP = { x:750, y:750, r:185 };
+const CAMP_R0 = 185;                              // fence upgrades expand the ring
+const CAMP = { x:750, y:750, r:CAMP_R0 };
 const TREES = 64, TREE_HP = 3, TREE_REGROW = 16;
-const FENCE_BASE = 260;
+const FENCE_BASE = 500;
 const woodPrice = lv => 2 + lv;                  // storehouse adds +1
 const MEAT_PRICE = 8;
-const costScale = lv => Math.pow(1.5, lv-1);
+const costScale = lv => Math.pow(1.4, lv-1);
 const STRUCTS = [                                 // revealed one after another; all built = level won
   { id:'banner',  name:'Camp banner',     cost:15 },
   { id:'turret1', name:'Watchtower',      cost:30 },
@@ -206,17 +207,23 @@ const STRUCTS = [                                 // revealed one after another;
   { id:'turret3', name:'Watchtower III',  cost:230 },
   { id:'hall',    name:'Great hall',      cost:300, ds:'completes the camp' },
 ];
-const STRUCT_POS = {
-  banner:[0,-140], turret1:[131,-131], store:[-80,70], fence1:[155,55],
-  turret2:[-131,-131], meat:[80,70], fence2:[-155,55], turret3:[0,180], hall:[0,-55],
-};
+/* ring structures sit just inside the fence, wherever the fence currently is */
+const STRUCT_ANG = { turret1:-Math.PI/4, turret2:-3*Math.PI/4, fence1:.35, fence2:Math.PI-.35, turret3:Math.PI/2 };
+function structPos(id){
+  const a = STRUCT_ANG[id];
+  if(a !== undefined){
+    const r = CAMP.r - 35;
+    return [Math.cos(a)*r, Math.sin(a)*r];
+  }
+  return { banner:[0,-140], store:[-80,70], meat:[80,70], hall:[0,-55] }[id];
+}
 const AXE_MAX = 6, BOOT_MAX = 4;
 const axeCost  = n => Math.round(12 * Math.pow(2.1, n-1));   // n = axes you already have
 const bootCost = n => Math.round(20 * Math.pow(2, n));
 const bearStats = (lv, t) => ({
-  hp: Math.round(26 * Math.pow(1.3, lv-1) * (1 + t/360)),
-  dmg: 7 + 2*(lv-1),
-  spd: 46 + 3*lv + Math.random()*10
+  hp: Math.round(20 * Math.pow(1.25, lv-1) * (1 + t/420)),
+  dmg: 4 + lv,
+  spd: 42 + 2*lv + Math.random()*8
 });
 
 /* ---------- persistent (ember.*) ---------- */
@@ -247,9 +254,9 @@ let cam = { x:0, y:0 };
 let spawnNext = 18, axeRot = 0, saveT = 0;
 
 const pSpd = () => 150 * Math.pow(1.1, boots);
-const pDmg = () => 9 + 5*axes;
+const pDmg = () => 12 + 6*axes;
 const tickRate = () => .55 / (1 + (axes-1)*.32);
-const turretDmg = () => Math.round(8 * Math.pow(1.28, level-1));
+const turretDmg = () => Math.round(10 * Math.pow(1.3, level-1));
 const has = id => STRUCTS.findIndex(s=>s.id===id) < done;
 const sellWood = () => woodPrice(level) + (has('store') ? 1 : 0);
 const stall = () => ({ x: CAMP.x, y: CAMP.y + 52 });
@@ -284,6 +291,7 @@ function renderSoundIcon(){
 /* ---------- world ---------- */
 function genWorld(lv){
   const rng = mulberry32(lv*2654435761 + 99);
+  CAMP.r = CAMP_R0;
   trees = []; bears = []; turrets = []; arrows = []; pads = [];
   ground = []; fliers = []; texts = []; parts = [];
   player = { x:CAMP.x, y:CAMP.y-10, dir:0, walk:0, tick:0, stun:0, sellCd:0 };
@@ -327,21 +335,36 @@ function padInfo(p){
   }
   if(done >= STRUCTS.length) return null;
   const s = STRUCTS[done];
-  const [dx,dy] = STRUCT_POS[s.id];
+  const [dx,dy] = structPos(s.id);
   p.x = CAMP.x+dx; p.y = CAMP.y+dy;
   return { label: s.name.toUpperCase(), cost: Math.round(s.cost*costScale(level)) };
 }
+function applyFenceTier(){
+  CAMP.r = CAMP_R0 + 60*fence.tier;
+  fence.max = Math.round(FENCE_BASE*(1+.6*fence.tier));
+  for(const t of turrets){                 // the towers move out with the fence
+    if(t.ang===undefined) continue;
+    t.x = CAMP.x + Math.cos(t.ang)*(CAMP.r-35);
+    t.y = CAMP.y + Math.sin(t.ang)*(CAMP.r-35);
+  }
+  makeGround(level);
+}
 function buildStruct(){
   const s = STRUCTS[done];
-  const [dx,dy] = STRUCT_POS[s.id];
+  const [dx,dy] = structPos(s.id);
   done++;
-  if(s.id.startsWith('turret')) turrets.push({ x:CAMP.x+dx, y:CAMP.y+dy, cd:0 });
+  if(s.id.startsWith('turret')) turrets.push({ x:CAMP.x+dx, y:CAMP.y+dy, ang:STRUCT_ANG[s.id], cd:0 });
   if(s.id.startsWith('fence')){
-    fence.tier++; fence.max = Math.round(FENCE_BASE*(1+.6*fence.tier)); fence.hp = fence.max;
+    fence.tier++;
+    applyFenceTier();
+    fence.hp = fence.max;
+    puff(CAMP.x, CAMP.y-CAMP.r, '#f0b35e', 16, 110);
   }
   puff(CAMP.x+dx, CAMP.y+dy, '#5fb8a8', 14, 90);
   note(392,.18,.09); buzz(25);
-  toast(s.name+' built'+(s.ds? ' — '+s.ds : '')+' · camp '+done+'/'+STRUCTS.length);
+  toast(s.id.startsWith('fence')
+    ? 'The camp grows! Fence stronger and wider · camp '+done+'/'+STRUCTS.length
+    : s.name+' built'+(s.ds? ' — '+s.ds : '')+' · camp '+done+'/'+STRUCTS.length);
   if(done >= STRUCTS.length) winLevel();
   else saveRun();
 }
@@ -377,7 +400,8 @@ function saveRun(){
   try {
     localStorage.setItem('ember.run', JSON.stringify({
       v:2, lv:level, t:Math.round(elapsed), done, axes, boots,
-      fhp:Math.round(fence.hp), ftier:fence.tier
+      fhp:Math.round(fence.hp), ftier:fence.tier,
+      pp: pads.map(p=>Math.round(p.pour))      // half-filled pads survive a reload too
     }));
   } catch(e){}
   saveMeta();
@@ -394,22 +418,23 @@ function loadRun(){
 /* ---------- flow ---------- */
 function startLevel(lv, resume){
   level = lv; mode = 'play'; paused = false;
-  axes = 1; boots = 0; done = 0; carried = []; elapsed = 0; spawnNext = 18;
+  axes = 1; boots = 0; done = 0; carried = []; elapsed = 0; spawnNext = 30;
   fence = { hp:FENCE_BASE, max:FENCE_BASE, tier:0, shake:0 };
   genWorld(lv);
   if(resume){
     elapsed = resume.t||0; axes = resume.axes||1; boots = resume.boots||0;
     fence.tier = resume.ftier||0;
-    fence.max = Math.round(FENCE_BASE*(1+.6*fence.tier));
+    applyFenceTier();                // expands the ring before towers are placed back
     fence.hp = Math.min(fence.max, resume.fhp||FENCE_BASE);
     done = 0;
     const target = Math.min(resume.done||0, STRUCTS.length);
     while(done < target){            // rebuild silently
-      const s = STRUCTS[done], [dx,dy] = STRUCT_POS[s.id];
+      const s = STRUCTS[done], [dx,dy] = structPos(s.id);
       done++;
-      if(s.id.startsWith('turret')) turrets.push({ x:CAMP.x+dx, y:CAMP.y+dy, cd:0 });
+      if(s.id.startsWith('turret')) turrets.push({ x:CAMP.x+dx, y:CAMP.y+dy, ang:STRUCT_ANG[s.id], cd:0 });
     }
-    spawnNext = 6;
+    (resume.pp||[]).forEach((v,i)=>{ if(pads[i]) pads[i].pour = Math.max(0, v||0); });
+    spawnNext = 14;
   } else clearRun();
   document.getElementById('menu').classList.remove('show');
   document.getElementById('win').classList.remove('show');
@@ -566,13 +591,18 @@ function update(dt){
   // --- purchase pads: stand on one and money pours out of your pocket
   for(const p of pads){
     const info = padInfo(p);
-    if(!info){ p.pour = 0; continue; }
-    if(Math.hypot(player.x-p.x, player.y-p.y) < 38 && wallet >= 1){
-      const rate = Math.max(30, info.cost/2.2);
-      const amt = Math.min(rate*dt, info.cost - p.pour, wallet);
-      if(amt > 0){
-        p.pour += amt; wallet -= amt;
-        if(Math.random()<.3) note(560+Math.random()*200,.04,.03);
+    if(!info){
+      if(p.pour > 0){ wallet += p.pour; p.pour = 0; }   // nothing left to buy here — money back
+      continue;
+    }
+    if(Math.hypot(player.x-p.x, player.y-p.y) < 38){
+      if(wallet >= 1){
+        const rate = Math.max(60, info.cost/1.5);
+        const amt = Math.min(rate*dt, info.cost - p.pour, wallet);
+        if(amt > 0){
+          p.pour += amt; wallet -= amt;
+          if(Math.random()<.3) note(560+Math.random()*200,.04,.03);
+        }
       }
       if(p.pour >= info.cost - .001){
         p.pour = 0;
@@ -582,17 +612,16 @@ function update(dt){
         else buildStruct();
         if(mode==='play') saveRun();
       }
-    } else if(p.pour > 0){
-      wallet += p.pour; p.pour = 0;   // walked away — money back
     }
+    // money already poured stays on the pad — come back any time and keep filling it
   }
 
   // --- bears
   spawnNext -= dt;
   if(spawnNext <= 0){
-    const n = Math.min(5, 1 + Math.floor(elapsed/75) + Math.floor((level-1)/2));
+    const n = Math.min(4, 1 + Math.floor(elapsed/120) + Math.floor((level-1)/3));
     for(let k=0;k<n;k++) spawnBear();
-    spawnNext = Math.max(5.5, 15 - elapsed/40 - (level-1)*1.2);
+    spawnNext = Math.max(8, 22 - elapsed/60 - (level-1));
   }
   let fenceUnderAttack = false;
   for(const b of bears){
@@ -611,7 +640,7 @@ function update(dt){
     if(d > range){ b.x += dx/d*b.spd*dt; b.y += dy/d*b.spd*dt; }
     else if(!(tx===player.x && ty===player.y)) fenceUnderAttack = true;
     if(d <= range && b.cd <= 0){
-      b.cd = 1;
+      b.cd = 1.25;
       if(tx===player.x && ty===player.y && pd < 40){
         // a swipe knocks items off your pile
         player.stun = .55; buzz(25);
@@ -636,9 +665,9 @@ function update(dt){
   for(const t of turrets){
     t.cd -= dt;
     if(t.cd <= 0){
-      const b = nearest(bears, t.x, t.y, 250);
+      const b = nearest(bears, t.x, t.y, 260);
       if(b){
-        t.cd = .7;
+        t.cd = .6;
         const d = Math.hypot(b.x-t.x, b.y-t.y)||1;
         arrows.push({ x:t.x, y:t.y-26, vx:(b.x-t.x)/d*430, vy:(b.y-t.y)/d*430, life:.65 });
         note(660,.05,.03,'triangle');
@@ -694,7 +723,7 @@ function update(dt){
 function spawnBear(){
   const st = bearStats(level, elapsed);
   const a = Math.random()*TAU;
-  const elite = elapsed > 150 && Math.random() < .14;
+  const elite = elapsed > 240 && Math.random() < .1;
   bears.push({
     x: CAMP.x + Math.cos(a)*820, y: CAMP.y + Math.sin(a)*820,
     hp: st.hp*(elite?2.6:1), maxHp: st.hp*(elite?2.6:1),
@@ -871,7 +900,7 @@ function drawStructs(ents){
   for(let i=0;i<done;i++){
     const s = STRUCTS[i];
     if(s.id.startsWith('turret') || s.id.startsWith('fence')) continue;
-    const [dx,dy] = STRUCT_POS[s.id];
+    const [dx,dy] = structPos(s.id);
     ents.push([s.id, { x:CAMP.x+dx, y:CAMP.y+dy }]);
   }
 }
