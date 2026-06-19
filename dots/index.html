@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#191527">
+<meta name="color-scheme" content="only light">
+<title>dots — connect the colours</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23231c3a'/%3E%3Cpath d='M10 11 H22 V22' stroke='%23ffc857' stroke-width='2.2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='10' cy='11' r='3.8' fill='%23ffc857'/%3E%3Ccircle cx='22' cy='11' r='3.8' fill='%23ffc857'/%3E%3Ccircle cx='22' cy='22' r='3.8' fill='%235b8def'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650&family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    /* the game defines its own night palette — block browser auto-dark/forced dark from recoloring it */
+    color-scheme: only light;
+    --bg-deep: #14101f;
+    --bg-mid: #1f1833;
+    --ink: #f2edf7;
+    --ink-dim: #9a8fb8;
+    --glass: rgba(255,255,255,.055);
+    --glass-edge: rgba(255,255,255,.16);
+    --panel: #2b2342;
+    --accent: #f0b35e;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { height:100%; overflow:hidden; }
+  body {
+    font-family:'Outfit', sans-serif;
+    /* gradient instead of flat colour: forced-dark browsers (Samsung) recolor solids but skip gradients */
+    background-image: linear-gradient(var(--bg-deep), var(--bg-deep));
+    color: var(--ink);
+    touch-action: manipulation;
+    user-select:none; -webkit-user-select:none;
+    display:flex; flex-direction:column;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+
+  /* ---- atmosphere ---- */
+  .sky { position:fixed; inset:0; z-index:-2;
+    background:
+      radial-gradient(120% 90% at 80% -10%, #3a2b55 0%, transparent 55%),
+      radial-gradient(90% 70% at 10% 110%, #232a4d 0%, transparent 60%),
+      linear-gradient(170deg, var(--bg-mid) 0%, var(--bg-deep) 70%);
+  }
+  .orb { position:fixed; border-radius:50%; filter:blur(70px); opacity:.32; z-index:-1; pointer-events:none; }
+  .orb.a { width:46vw; height:46vw; background-image:linear-gradient(#7c5cad,#7c5cad); top:-12vw; right:-10vw; animation:drift 19s ease-in-out infinite alternate; }
+  .orb.b { width:38vw; height:38vw; background-image:linear-gradient(#3d6ea5,#3d6ea5); bottom:6vh; left:-14vw; animation:drift 24s ease-in-out infinite alternate-reverse; }
+  @keyframes drift { from{transform:translateY(0) scale(1)} to{transform:translateY(26px) scale(1.07)} }
+  body::after { content:""; position:fixed; inset:0; z-index:50; pointer-events:none; opacity:.05;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='0.6'/%3E%3C/svg%3E"); }
+
+  /* ---- header ---- */
+  header { display:flex; align-items:center; justify-content:space-between;
+    padding: clamp(12px,2.4vh,22px) 20px 6px; }
+  .brand { font-family:'Fraunces', serif; font-weight:650; font-size:1.35rem; letter-spacing:.01em;
+    color:inherit; text-decoration:none; }
+  .brand em { font-style:normal; color:var(--accent); }
+  .brand .back { color:var(--ink-dim); font-weight:500; margin-right:1px; }
+  .meta { text-align:center; }
+  .meta .lvl { font-family:'Fraunces', serif; font-weight:650; font-size:1.5rem; line-height:1.1; }
+  .meta .moves { font-size:.72rem; font-weight:300; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-dim); }
+  .controls { display:flex; gap:8px; }
+  .icon-btn { width:44px; height:44px; border-radius:14px; border:1px solid var(--glass-edge);
+    background-color:transparent; background-image:linear-gradient(var(--panel),var(--panel));
+    color:var(--ink); font-size:1.05rem; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    transition:transform .15s ease; }
+  .icon-btn:active { transform:scale(.92); }
+  .icon-btn:disabled { opacity:.3; }
+  .icon-btn svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+
+  .tagline { text-align:center; font-size:.7rem; font-weight:300; letter-spacing:.2em;
+    text-transform:uppercase; color:var(--ink-dim); padding:2px 0 0; }
+
+  /* ---- level + goal strip ---- */
+  .goal { display:flex; align-items:center; gap:10px; align-self:center;
+    margin:12px auto 0; padding:8px 8px 8px 16px; border-radius:99px;
+    border:1px solid var(--glass-edge);
+    background-image:linear-gradient(var(--panel),var(--panel));
+    font-size:.82rem; font-weight:300; letter-spacing:.03em; color:var(--ink); }
+  .lvlchip { font-family:'Fraunces',serif; font-weight:650; font-size:.82rem; color:var(--accent); letter-spacing:.02em; }
+  .lvlchip b { font-weight:650; }
+  .goal-sep { width:1px; height:16px; background:var(--glass-edge); }
+  .goal-pip { width:15px; height:15px; border-radius:50%; flex:none;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.3); }
+  .goal-txt b { font-weight:600; font-variant-numeric:tabular-nums; }
+  .goal-prog { width:48px; height:6px; border-radius:99px; flex:none; overflow:hidden;
+    background-image:linear-gradient(rgba(255,255,255,.13),rgba(255,255,255,.13)); }
+  .goal-prog i { display:block; height:100%; width:0;
+    background-image:linear-gradient(var(--accent),var(--accent)); transition:width .3s ease; }
+
+  /* ---- board ---- */
+  main { flex:1; display:flex; align-items:center; justify-content:center; padding:10px 12px 14px; min-height:0; }
+  #board { position:relative; width:min(88vw, 50vh, 400px); aspect-ratio:1/1;
+    touch-action:none; }
+  .link { position:absolute; inset:0; z-index:2; pointer-events:none; overflow:visible; }
+  .link polyline { fill:none; stroke-linecap:round; stroke-linejoin:round; }
+  .dot { position:absolute; border-radius:50%; z-index:3;
+    box-shadow: inset 0 -3px 6px rgba(0,0,0,.18), inset 0 3px 5px rgba(255,255,255,.35), 0 4px 10px -5px rgba(0,0,0,.5);
+    transition:transform .16s ease, opacity .16s ease; }
+  .dot.on { box-shadow: inset 0 -3px 6px rgba(0,0,0,.18), inset 0 3px 5px rgba(255,255,255,.35),
+    0 0 0 4px rgba(255,255,255,.6), 0 4px 10px -5px rgba(0,0,0,.5); }
+  .dot.doomed { animation:throb .5s ease-in-out infinite; }
+  @keyframes throb { 0%,100%{ transform:scale(1) } 50%{ transform:scale(1.14) } }
+  .dot.spawn { animation:dspawn .18s ease; }
+  @keyframes dspawn { from{opacity:0} to{opacity:1} }
+
+  .actions { display:flex; justify-content:center; gap:12px; padding: 2px 0 clamp(12px,2vh,20px); }
+  .pill { display:flex; align-items:center; gap:7px; height:42px; padding:0 20px;
+    border-radius:99px; border:1px solid var(--glass-edge);
+    background-color:transparent;
+    background-image:linear-gradient(var(--panel),var(--panel));
+    color:var(--ink); font-family:'Outfit',sans-serif; font-weight:400; font-size:.85rem;
+    letter-spacing:.06em; cursor:pointer;
+    transition:transform .15s ease; }
+  .pill:active { transform:scale(.93); }
+  .pill svg { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+
+  /* ---- overlay (level cleared) ---- */
+  #over { position:fixed; inset:0; z-index:60; display:flex; align-items:center; justify-content:center;
+    background:rgba(16,12,26,.72); backdrop-filter:blur(8px);
+    opacity:0; pointer-events:none; transition:opacity .4s ease; }
+  #over.show { opacity:1; pointer-events:auto; }
+  .over-card { text-align:center; padding:40px 44px; border-radius:28px;
+    background-image:linear-gradient(160deg, #342b52, #251e3d);
+    border:1px solid var(--glass-edge);
+    transform:translateY(16px) scale(.96); transition:transform .45s cubic-bezier(.3,1.4,.5,1); }
+  #over.show .over-card { transform:none; }
+  .over-card h2 { font-family:'Fraunces', serif; font-weight:650; font-size:2rem; margin-bottom:6px; }
+  .over-card p { color:var(--ink-dim); font-weight:300; font-size:.9rem; margin-bottom:24px; }
+  .next-btn { font-family:'Outfit', sans-serif; font-weight:600; font-size:1rem; letter-spacing:.04em;
+    color:#1d1530; background-color:transparent; background-image:linear-gradient(var(--accent),var(--accent)); border:none; border-radius:16px;
+    padding:15px 36px; cursor:pointer; transition:transform .15s ease;
+    box-shadow:0 10px 24px -8px rgba(240,179,94,.5); }
+  .next-btn:active { transform:scale(.94); }
+
+  .confetti { position:fixed; top:-12px; border-radius:3px; z-index:55; pointer-events:none;
+    animation:fall linear forwards; }
+  @keyframes fall { to { transform: translateY(110vh) rotate(660deg); opacity:.7; } }
+
+  #toast { position:fixed; bottom:calc(24px + env(safe-area-inset-bottom)); left:50%;
+    transform:translate(-50%, 60px); z-index:70; padding:10px 20px; border-radius:99px;
+    background:rgba(255,255,255,.12); border:1px solid var(--glass-edge); backdrop-filter:blur(8px);
+    font-size:.8rem; font-weight:300; letter-spacing:.05em; opacity:0; transition:.35s ease; pointer-events:none; }
+  #toast.show { opacity:1; transform:translate(-50%,0); }
+</style>
+</head>
+<body>
+<div class="sky"></div><div class="orb a"></div><div class="orb b"></div>
+
+<header>
+  <a class="brand" href="../" aria-label="All games"><span class="back">‹</span> dots<em>.</em></a>
+  <div class="meta">
+    <div class="lvl" id="scoreLabel">0</div>
+    <div class="moves" id="bestLabel">best 0</div>
+  </div>
+  <div class="controls">
+    <button class="icon-btn" id="undoBtn" aria-label="Undo move" title="Undo">
+      <svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg>
+    </button>
+    <button class="icon-btn" id="soundBtn" aria-label="Toggle sound" title="Sound"></button>
+  </div>
+</header>
+<div class="tagline">drag to connect · loop a colour to clear it</div>
+
+<div class="goal" id="goalBar">
+  <span class="lvlchip">level <b id="lvlNum">1</b></span>
+  <span class="goal-sep"></span>
+  <span class="goal-pip" id="goalPip"></span>
+  <span class="goal-txt" id="goalTxt">connect <b>20</b></span>
+  <span class="goal-prog"><i id="goalFill"></i></span>
+</div>
+
+<main>
+  <div id="board" aria-label="dots board">
+    <svg class="link" id="link"><polyline id="linkLine"/></svg>
+  </div>
+</main>
+
+<nav class="actions">
+  <button class="pill" id="newBtn" aria-label="New game">
+    <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.3"/><path d="M21 3v6h-6"/></svg>
+    Restart
+  </button>
+</nav>
+
+<div id="over" role="dialog" aria-label="Level cleared">
+  <div class="over-card">
+    <h2 id="overTitle">Level cleared.</h2>
+    <p id="overSub">+200 · next one’s up</p>
+    <button class="next-btn" id="contBtn">Keep going →</button>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+'use strict';
+const COLS = 6, ROWS = 6, N = COLS*ROWS, COLORS = 5;
+/* high-contrast, well-separated hues so each dot reads on its own — no inner shapes */
+const COLOR = ['#ff6f69','#ffc857','#5fc97e','#5b8def','#c07ce8'];
+
+let grid = new Array(N).fill(null);    // {id, c} or null
+let score = 0, best = 0, level = 1;
+let goal = null;                        // {type, color, need, have}
+let nextId = 1, busy = false, undoState = null;
+let soundOn = localStorage.getItem('dots.sound') !== 'off';
+try { best = parseInt(localStorage.getItem('dots.best')||'0',10) || 0; } catch(e){}
+
+const board = document.getElementById('board');
+const overEl = document.getElementById('over');
+const scoreLabel = document.getElementById('scoreLabel');
+const bestLabel = document.getElementById('bestLabel');
+const soundBtn = document.getElementById('soundBtn');
+const undoBtn = document.getElementById('undoBtn');
+const linkSvg = document.getElementById('link');
+const linkLine = document.getElementById('linkLine');
+
+/* ---------- audio ---------- */
+let actx = null;
+function note(freq, dur=.16, vol=.1, type='sine'){
+  if(!soundOn) return;
+  try{
+    actx = actx || new (window.AudioContext||window.webkitAudioContext)();
+    if(actx.state==='suspended') actx.resume();
+    const o=actx.createOscillator(), g=actx.createGain();
+    o.type=type; o.frequency.setValueAtTime(freq, actx.currentTime);
+    g.gain.setValueAtTime(vol, actx.currentTime);
+    g.gain.exponentialRampToValueAtTime(.0001, actx.currentTime+dur);
+    o.connect(g).connect(actx.destination);
+    o.start(); o.stop(actx.currentTime+dur);
+  }catch(e){}
+}
+function winSound(){ [392,494,587,784].forEach((f,i)=>setTimeout(()=>note(f,.3,.1),i*110)); }
+function buzz(ms){ if(navigator.vibrate) navigator.vibrate(ms); }
+function renderSoundIcon(){
+  soundBtn.innerHTML = soundOn
+    ? '<svg viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg>'
+    : '<svg viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="m16 9 5 5m0-5-5 5"/></svg>';
+}
+const delay = ms => new Promise(r=>setTimeout(r,ms));
+
+/* ---------- gentle levels ---------- */
+function makeGoal(lv){
+  const t = (lv-1) % 4;
+  if(t===2) return { type:'score', need: 250 + lv*120, have:0 };
+  if(t===3) return { type:'loop',  need: 1,            have:0 };   // close one loop
+  return     { type:'color', color:(Math.random()*COLORS)|0, need: 12 + lv*3, have:0 };
+}
+
+/* one-step undo: full board + score + level + goal captured before a move resolves */
+function snapshot(){ return { b: grid.map(t=>t.c), s: score, lv: level, g: Object.assign({}, goal) }; }
+
+/* ---------- persistence: dots.* keys, this device only ---------- */
+function save(){
+  try {
+    // the undo snapshot is saved too, so undo still works after a reload
+    localStorage.setItem('dots.state', JSON.stringify({ b: grid.map(t=>t?t.c:0), s: score, lv: level, g: goal, u: undoState }));
+    localStorage.setItem('dots.best', best);
+    localStorage.setItem('dots.level', level);
+  } catch(e){}
+}
+function restore(){
+  try {
+    const st = JSON.parse(localStorage.getItem('dots.state')||'null');
+    if(!st || !Array.isArray(st.b) || st.b.length!==N) return false;
+    grid = st.b.map(c => ({ id:nextId++, c:(c|0)%COLORS }));
+    score = st.s||0; level = st.lv||1;
+    // only trust a saved goal in the current shape — older builds stored a typeless goal,
+    // which left the colour pip blank and stalled progress
+    goal = (st.g && st.g.type && typeof st.g.need==='number' && typeof st.g.have==='number') ? st.g : makeGoal(level);
+    undoState = (st.u && Array.isArray(st.u.b) && st.u.b.length===N) ? st.u : null;
+    return true;
+  } catch(e){ return false; }
+}
+
+/* ---------- geometry ---------- */
+let cellPx = 0, dotPx = 0;
+function metrics(){ cellPx = board.clientWidth / COLS; dotPx = cellPx * 0.7; }
+function cx(i){ return (i%COLS)*cellPx + cellPx/2; }
+function cy(i){ return ((i/COLS)|0)*cellPx + cellPx/2; }
+
+/* ---------- rendering ---------- */
+const dotEls = new Map();
+function styleDot(el, t){
+  el.style.width = dotPx+'px'; el.style.height = dotPx+'px';
+  el.style.backgroundImage =
+    `radial-gradient(circle at 34% 28%, rgba(255,255,255,.5), transparent 54%), linear-gradient(${COLOR[t.c]}, ${COLOR[t.c]})`;
+}
+function placeDot(el, i){ el.style.transform = `translate(${cx(i)-dotPx/2}px, ${cy(i)-dotPx/2}px)`; }
+function addDotEl(t, i, opts){
+  const el = document.createElement('div');
+  el.className = 'dot' + (opts && opts.spawn ? ' spawn':'');
+  el.dataset.id = t.id;
+  styleDot(el, t);
+  const startRow = (opts && typeof opts.fromRow==='number') ? opts.fromRow : (i/COLS)|0;
+  el.style.transform = `translate(${cx(i)-dotPx/2}px, ${startRow*cellPx + cellPx/2 - dotPx/2}px)`;
+  board.appendChild(el);
+  dotEls.set(t.id, el);
+  return el;
+}
+function positionAll(){ grid.forEach((t,i)=>{ if(t){ const el=dotEls.get(t.id); if(el) placeDot(el,i); } }); }
+function fullRender(){
+  for(const el of dotEls.values()) el.remove();
+  dotEls.clear();
+  metrics();
+  linkSvg.setAttribute('viewBox', `0 0 ${board.clientWidth} ${board.clientHeight}`);
+  grid.forEach((t,i)=>{ if(t){ const el=addDotEl(t,i); placeDot(el,i); } });
+}
+function goalText(){
+  if(goal.type==='score') return ['reach <b>'+goal.need+'</b> pts', false];
+  if(goal.type==='loop')  return ['close a loop', false];
+  return ['connect <b>'+goal.need+'</b>', true];
+}
+function paint(){
+  scoreLabel.textContent = score;
+  bestLabel.textContent = 'best ' + best;
+  document.getElementById('lvlNum').textContent = level;
+  const [txt, showPip] = goalText();
+  document.getElementById('goalTxt').innerHTML = txt;
+  const pip = document.getElementById('goalPip');
+  if(showPip){ pip.style.display=''; pip.style.backgroundImage = `linear-gradient(${COLOR[goal.color]},${COLOR[goal.color]})`; }
+  else pip.style.display='none';
+  document.getElementById('goalFill').style.width = Math.min(100, goal.have/goal.need*100) + '%';
+  undoBtn.disabled = !undoState || busy;
+}
+
+/* ---------- board generation ---------- */
+function randColor(){ return (Math.random()*COLORS)|0; }
+function freshGrid(){
+  for(let i=0;i<N;i++) grid[i] = { id:nextId++, c:randColor() };
+  if(!hasMove()) return freshGrid();
+}
+function hasMove(){
+  // a move exists if any two 8-neighbouring dots share a colour
+  for(let i=0;i<N;i++){
+    if(!grid[i]) continue;
+    const r=(i/COLS)|0, c=i%COLS;
+    for(let dr=-1;dr<=1;dr++) for(let dc=-1;dc<=1;dc++){
+      if(!dr&&!dc) continue;
+      const nr=r+dr, nc=c+dc;
+      if(nr<0||nr>=ROWS||nc<0||nc>=COLS) continue;
+      const j=nr*COLS+nc;
+      if(grid[j] && grid[j].c===grid[i].c) return true;
+    }
+  }
+  return false;
+}
+
+/* ---------- gravity + refill ---------- */
+function collapse(){
+  for(let c=0;c<COLS;c++){
+    const survivors=[];
+    for(let r=0;r<ROWS;r++){ const i=r*COLS+c; if(grid[i]) survivors.push(grid[i]); grid[i]=null; }
+    let r=ROWS-1;
+    for(let k=survivors.length-1;k>=0;k--){ grid[r*COLS+c]=survivors[k]; r--; }
+    let above=1;
+    for(;r>=0;r--){
+      const t={ id:nextId++, c:randColor() };
+      grid[r*COLS+c]=t;
+      addDotEl(t, r*COLS+c, { spawn:true, fromRow:-above });
+      above++;
+    }
+  }
+  void board.offsetWidth;
+  positionAll();
+}
+
+/* ---------- path / connecting (8-directional) ---------- */
+let path = [], pathColor = -1, looped = false;
+function adjacent(a,b){
+  const ar=(a/COLS)|0, ac=a%COLS, br=(b/COLS)|0, bc=b%COLS;
+  return Math.max(Math.abs(ar-br), Math.abs(ac-bc)) === 1;   // includes diagonals
+}
+/* a loop only clears the whole colour if the closed path is a true axis-aligned
+   rectangle outline (square included): orthogonal steps only, returning to the start,
+   tracing the full perimeter of its bounding box. Triangles / diagonal / odd shapes don't count. */
+function isRectangleLoop(pts){
+  if(pts.length < 4) return false;
+  let minR=99, maxR=-1, minC=99, maxC=-1;
+  for(const i of pts){ const r=(i/COLS)|0, c=i%COLS;
+    if(r<minR)minR=r; if(r>maxR)maxR=r; if(c<minC)minC=c; if(c>maxC)maxC=c; }
+  if(minR===maxR || minC===maxC) return false;               // must be 2-D, not a line
+  for(let k=0;k<pts.length;k++){                              // every edge orthogonal (incl. close)
+    const a=pts[k], b=pts[(k+1)%pts.length];
+    const dr=Math.abs(((a/COLS)|0)-((b/COLS)|0)), dc=Math.abs((a%COLS)-(b%COLS));
+    if(dr+dc !== 1) return false;
+  }
+  const w=maxC-minC+1, h=maxR-minR+1;
+  if(pts.length !== 2*(w+h)-4) return false;                 // exactly the perimeter count
+  const set=new Set(pts);
+  for(let r=minR;r<=maxR;r++) for(let c=minC;c<=maxC;c++){
+    const border = (r===minR||r===maxR||c===minC||c===maxC);
+    if(border !== set.has(r*COLS+c)) return false;           // all border cells, no interior cells
+  }
+  return true;
+}
+function dotUnder(clientX, clientY){
+  const rect = board.getBoundingClientRect();
+  const x=clientX-rect.left, y=clientY-rect.top;
+  const c=Math.round((x-cellPx/2)/cellPx), r=Math.round((y-cellPx/2)/cellPx);
+  if(c<0||c>=COLS||r<0||r>=ROWS) return -1;
+  const i=r*COLS+c;
+  if(!grid[i]) return -1;
+  if(Math.hypot(x-cx(i), y-cy(i)) > dotPx*0.62) return -1;
+  return i;
+}
+function refreshClasses(){
+  for(const el of dotEls.values()){ el.classList.remove('on','doomed'); }
+  if(looped){
+    grid.forEach(t=>{ if(t && t.c===pathColor){ const el=dotEls.get(t.id); if(el) el.classList.add('doomed'); } });
+  } else {
+    for(const idx of path){ const t=grid[idx]; const el=t&&dotEls.get(t.id); if(el) el.classList.add('on'); }
+  }
+}
+function drawLink(){
+  if(path.length===0){ linkLine.setAttribute('points',''); return; }
+  linkLine.setAttribute('points', path.map(i=>`${cx(i)},${cy(i)}`).join(' '));
+  linkLine.setAttribute('stroke', COLOR[pathColor]);
+  linkLine.setAttribute('stroke-width', Math.max(6, dotPx*0.36));
+  linkLine.setAttribute('opacity', looped ? '0.9' : '0.75');
+}
+
+board.addEventListener('pointerdown', e=>{
+  if(busy) return;
+  const i = dotUnder(e.clientX, e.clientY); if(i<0) return;
+  board.setPointerCapture(e.pointerId);
+  path=[i]; pathColor=grid[i].c; looped=false;
+  refreshClasses(); drawLink(); note(380,.06,.06);
+});
+board.addEventListener('pointermove', e=>{
+  if(busy || path.length===0 || looped) return;
+  const u = dotUnder(e.clientX, e.clientY);
+  if(u<0) return;
+  const last = path[path.length-1];
+  if(u===last) return;
+  if(grid[u].c!==pathColor || !adjacent(u,last)) return;
+  if(path.length>=2 && u===path[path.length-2]){      // backtrack
+    path.pop(); refreshClasses(); drawLink(); note(300,.05,.05); return;
+  }
+  if(path.includes(u)){                                // revisiting a dot may close a loop
+    // only a full rectangle/square outline (back to the start) clears the whole colour
+    if(u===path[0] && isRectangleLoop(path)){
+      looped=true; path.push(u);
+      refreshClasses(); drawLink(); note(520,.18,.09,'triangle'); buzz([15,40,15]);
+    }
+    return;                                             // anything else: ignored, draw on or release
+  }
+  path.push(u); refreshClasses(); drawLink();
+  note(360 + Math.min(path.length,12)*28, .05, .06); buzz(6);
+});
+board.addEventListener('pointerup', resolve);
+board.addEventListener('pointercancel', resolve);
+
+async function resolve(){
+  if(busy || path.length===0) return;
+  let toClear;
+  const wasLoop = looped;
+  if(wasLoop){
+    toClear = [];
+    grid.forEach((t,i)=>{ if(t && t.c===pathColor) toClear.push(i); });
+  } else if(path.length>=2){
+    toClear = Array.from(new Set(path));
+  } else {
+    path=[]; pathColor=-1; looped=false; refreshClasses(); drawLink(); return;
+  }
+  busy=true;
+  undoState = snapshot();   // before the board mutates
+  const clearColor = pathColor;
+  path=[]; looped=false; refreshClasses(); drawLink();
+
+  const n = toClear.length;
+  const gained = (wasLoop ? n*20 : n*10) + Math.max(0, n-3)*5;
+  score += gained; if(score>best) best=score;
+  if(goal.type==='color'){ toClear.forEach(i=>{ if(grid[i] && grid[i].c===goal.color) goal.have++; }); }
+  if(goal.type==='score') goal.have += gained;
+  if(goal.type==='loop' && wasLoop) goal.have++;
+  note(wasLoop?620:440, .14, .08);
+  buzz(wasLoop?30:12);
+  paint();
+
+  toClear.forEach(i=>{ const t=grid[i]; const el=t&&dotEls.get(t.id); if(el){ el.style.opacity='0'; el.style.transform += ' scale(.2)'; } });
+  await delay(170);
+  toClear.forEach(i=>{ const t=grid[i]; const el=t&&dotEls.get(t.id); if(el){ el.remove(); dotEls.delete(t.id); } grid[i]=null; });
+  collapse();
+  await delay(190);
+
+  if(goal.have>=goal.need){ await levelUp(); }
+  if(!hasMove()){ await reshuffle(); }
+  pathColor=-1;
+  save();
+  busy=false;
+  paint();
+}
+
+async function levelUp(){
+  const cleared = level;
+  level++;
+  const bonus = 200 + level*40;
+  score += bonus; if(score>best) best=score;
+  winSound(); buzz([20,50,20]); confetti();
+  document.getElementById('overTitle').textContent = 'Level ' + cleared + ' cleared.';
+  document.getElementById('overSub').textContent = '+' + bonus + ' · level ' + level + ' up next';
+  goal = makeGoal(level); paint(); save();
+  overEl.classList.add('show');
+  await delay(60);
+  await new Promise(res=>{
+    const btn=document.getElementById('contBtn');
+    const h=()=>{ overEl.classList.remove('show'); btn.removeEventListener('click',h); res(); };
+    btn.addEventListener('click', h);
+  });
+}
+
+async function reshuffle(){
+  const cols = grid.map(t=>t.c);
+  for(let tries=0; tries<200; tries++){
+    for(let i=cols.length-1;i>0;i--){ const j=(Math.random()*(i+1))|0; const t=cols[i]; cols[i]=cols[j]; cols[j]=t; }
+    grid.forEach((t,i)=>{ t.c=cols[i]; });
+    if(hasMove()) break;
+  }
+  fullRender();
+  toast('shuffled');
+  note(300,.12,.06);
+}
+
+/* ---------- effects ---------- */
+function confetti(){
+  for(let k=0;k<60;k++){
+    const p=document.createElement('div'); p.className='confetti';
+    const sz=4+Math.random()*7;
+    const cc=COLOR[(Math.random()*COLOR.length)|0];
+    p.style.cssText = `left:${Math.random()*100}vw;width:${sz}px;height:${sz*1.4}px;`+
+      `background-image:linear-gradient(${cc},${cc});`+
+      `animation-duration:${2.2+Math.random()*2.4}s;animation-delay:${Math.random()*.7}s;`;
+    document.body.appendChild(p);
+    setTimeout(()=>p.remove(),6000);
+  }
+}
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),1700);
+}
+
+/* ---------- buttons ---------- */
+function doUndo(){
+  if(busy || !undoState) return;
+  const u = undoState; undoState = null;
+  grid = u.b.map(c => ({ id:nextId++, c }));
+  score = u.s; level = u.lv; goal = u.g;
+  path=[]; pathColor=-1; looped=false;
+  overEl.classList.remove('show');
+  fullRender(); refreshClasses(); drawLink(); paint(); save();
+  note(330,.1,.06);
+}
+function newGame(){
+  grid = new Array(N).fill(null);
+  score=0; level=1; goal=makeGoal(1); undoState=null;
+  for(const el of dotEls.values()) el.remove(); dotEls.clear();
+  freshGrid();
+  fullRender(); paint(); save();
+}
+soundBtn.addEventListener('click', ()=>{
+  soundOn=!soundOn;
+  localStorage.setItem('dots.sound', soundOn?'on':'off');
+  renderSoundIcon(); if(soundOn) note(520,.1,.07);
+});
+undoBtn.addEventListener('click', doUndo);
+document.getElementById('newBtn').addEventListener('click', ()=>{ if(!busy) newGame(); });
+window.addEventListener('resize', ()=>{ fullRender(); drawLink(); });
+
+/* ---------- boot ---------- */
+renderSoundIcon();
+if(!restore()){ newGame(); }
+else { if(!hasMove()){ reshuffle(); } fullRender(); paint(); }
+paint();
+</script>
+</body>
+</html>

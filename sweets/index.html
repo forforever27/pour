@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#191527">
+<meta name="color-scheme" content="only light">
+<title>sweets — match three, no rush</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23231c3a'/%3E%3Crect x='6' y='6' width='9' height='9' rx='3' fill='%23ff6f69'/%3E%3Crect x='17' y='6' width='9' height='9' rx='3' fill='%23ffc857'/%3E%3Crect x='6' y='17' width='9' height='9' rx='3' fill='%235b8def'/%3E%3Crect x='17' y='17' width='9' height='9' rx='3' fill='%235fc97e'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650&family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    /* the game defines its own night palette — block browser auto-dark/forced dark from recoloring it */
+    color-scheme: only light;
+    --bg-deep: #14101f;
+    --bg-mid: #1f1833;
+    --ink: #f2edf7;
+    --ink-dim: #9a8fb8;
+    --glass: rgba(255,255,255,.055);
+    --glass-edge: rgba(255,255,255,.16);
+    --panel: #2b2342;
+    --accent: #f0b35e;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { height:100%; overflow:hidden; }
+  body {
+    font-family:'Outfit', sans-serif;
+    /* gradient instead of flat colour: forced-dark browsers (Samsung) recolor solids but skip gradients */
+    background-image: linear-gradient(var(--bg-deep), var(--bg-deep));
+    color: var(--ink);
+    touch-action: manipulation;
+    user-select:none; -webkit-user-select:none;
+    display:flex; flex-direction:column;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+
+  /* ---- atmosphere ---- */
+  .sky { position:fixed; inset:0; z-index:-2;
+    background:
+      radial-gradient(120% 90% at 80% -10%, #3a2b55 0%, transparent 55%),
+      radial-gradient(90% 70% at 10% 110%, #232a4d 0%, transparent 60%),
+      linear-gradient(170deg, var(--bg-mid) 0%, var(--bg-deep) 70%);
+  }
+  .orb { position:fixed; border-radius:50%; filter:blur(70px); opacity:.32; z-index:-1; pointer-events:none; }
+  .orb.a { width:46vw; height:46vw; background-image:linear-gradient(#7c5cad,#7c5cad); top:-12vw; right:-10vw; animation:drift 19s ease-in-out infinite alternate; }
+  .orb.b { width:38vw; height:38vw; background-image:linear-gradient(#3d6ea5,#3d6ea5); bottom:6vh; left:-14vw; animation:drift 24s ease-in-out infinite alternate-reverse; }
+  @keyframes drift { from{transform:translateY(0) scale(1)} to{transform:translateY(26px) scale(1.07)} }
+  body::after { content:""; position:fixed; inset:0; z-index:50; pointer-events:none; opacity:.05;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='0.6'/%3E%3C/svg%3E"); }
+
+  /* ---- header ---- */
+  header { display:flex; align-items:center; justify-content:space-between;
+    padding: clamp(12px,2.4vh,22px) 20px 6px; }
+  .brand { font-family:'Fraunces', serif; font-weight:650; font-size:1.35rem; letter-spacing:.01em;
+    color:inherit; text-decoration:none; }
+  .brand em { font-style:normal; color:var(--accent); }
+  .brand .back { color:var(--ink-dim); font-weight:500; margin-right:1px; }
+  .meta { text-align:center; }
+  .meta .lvl { font-family:'Fraunces', serif; font-weight:650; font-size:1.5rem; line-height:1.1; }
+  .meta .moves { font-size:.72rem; font-weight:300; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-dim); }
+  .controls { display:flex; gap:8px; }
+  .icon-btn { width:44px; height:44px; border-radius:14px; border:1px solid var(--glass-edge);
+    background-color:transparent; background-image:linear-gradient(var(--panel),var(--panel));
+    color:var(--ink); font-size:1.05rem; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    transition:transform .15s ease; }
+  .icon-btn:active { transform:scale(.92); }
+  .icon-btn:disabled { opacity:.3; }
+  .icon-btn svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+
+  .tagline { text-align:center; font-size:.7rem; font-weight:300; letter-spacing:.2em;
+    text-transform:uppercase; color:var(--ink-dim); padding:2px 0 0; }
+
+  /* ---- level + goal strip ---- */
+  .goal { display:flex; align-items:center; gap:10px; align-self:center;
+    margin:12px auto 0; padding:8px 8px 8px 16px; border-radius:99px;
+    border:1px solid var(--glass-edge);
+    background-image:linear-gradient(var(--panel),var(--panel));
+    font-size:.82rem; font-weight:300; letter-spacing:.03em; color:var(--ink); }
+  .lvlchip { font-family:'Fraunces',serif; font-weight:650; font-size:.82rem; color:var(--accent); letter-spacing:.02em; }
+  .lvlchip b { font-weight:650; }
+  .goal-sep { width:1px; height:16px; background:var(--glass-edge); }
+  .goal-pip { width:15px; height:15px; border-radius:5px; flex:none;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.3); }
+  .goal-txt b { font-weight:600; font-variant-numeric:tabular-nums; }
+  .goal-prog { width:48px; height:6px; border-radius:99px; flex:none; overflow:hidden;
+    background-image:linear-gradient(rgba(255,255,255,.13),rgba(255,255,255,.13)); }
+  .goal-prog i { display:block; height:100%; width:0;
+    background-image:linear-gradient(var(--accent),var(--accent)); transition:width .3s ease; }
+
+  /* ---- board ---- */
+  main { flex:1; display:flex; align-items:center; justify-content:center; padding:10px 12px 14px; min-height:0; }
+  #board { position:relative; width:min(92vw, 52vh, 430px); aspect-ratio:1/1;
+    border-radius:24px;
+    background-image:linear-gradient(160deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+    border:1.5px solid var(--glass-edge);
+    box-shadow: 0 18px 36px -16px rgba(0,0,0,.6);
+    padding:0; touch-action:none; }
+  .gem { position:absolute; cursor:pointer;
+    filter: drop-shadow(0 4px 6px rgba(0,0,0,.42));
+    transition:transform .17s ease, opacity .17s ease; }
+  .gem svg { display:block; width:100%; height:100%;
+    transition: transform .22s cubic-bezier(.34,1.4,.5,1), opacity .18s ease; }
+  .gem:hover svg { transform:scale(1.06); }
+  .gem.sel { z-index:6;
+    filter: drop-shadow(0 0 7px rgba(255,255,255,.85)) drop-shadow(0 4px 6px rgba(0,0,0,.42)); }
+  .gem.sel svg { transform:scale(1.13); }
+  .gem.clearing svg { transform:scale(0) rotate(40deg); opacity:0; }
+  .gem.spawn svg { animation:gemland .32s ease; }
+  @keyframes gemland { 0%{transform:scale(.4)} 60%{transform:scale(1.1)} 100%{transform:scale(1)} }
+  .spark { position:absolute; z-index:5; pointer-events:none; border-radius:50%;
+    animation:sparkpop .45s ease-out forwards; }
+  @keyframes sparkpop { from{transform:scale(.2);opacity:.9} to{transform:scale(1.8);opacity:0} }
+
+  .actions { display:flex; justify-content:center; gap:12px; padding: 2px 0 clamp(12px,2vh,20px); }
+  .pill { display:flex; align-items:center; gap:7px; height:42px; padding:0 20px;
+    border-radius:99px; border:1px solid var(--glass-edge);
+    background-color:transparent;
+    background-image:linear-gradient(var(--panel),var(--panel));
+    color:var(--ink); font-family:'Outfit',sans-serif; font-weight:400; font-size:.85rem;
+    letter-spacing:.06em; cursor:pointer;
+    transition:transform .15s ease; }
+  .pill:active { transform:scale(.93); }
+  .pill svg { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+
+  /* ---- overlay (level cleared) ---- */
+  #over { position:fixed; inset:0; z-index:60; display:flex; align-items:center; justify-content:center;
+    background:rgba(16,12,26,.72); backdrop-filter:blur(8px);
+    opacity:0; pointer-events:none; transition:opacity .4s ease; }
+  #over.show { opacity:1; pointer-events:auto; }
+  .over-card { text-align:center; padding:40px 44px; border-radius:28px;
+    background-image:linear-gradient(160deg, #342b52, #251e3d);
+    border:1px solid var(--glass-edge);
+    transform:translateY(16px) scale(.96); transition:transform .45s cubic-bezier(.3,1.4,.5,1); }
+  #over.show .over-card { transform:none; }
+  .over-card h2 { font-family:'Fraunces', serif; font-weight:650; font-size:2rem; margin-bottom:6px; }
+  .over-card p { color:var(--ink-dim); font-weight:300; font-size:.9rem; margin-bottom:24px; }
+  .next-btn { font-family:'Outfit', sans-serif; font-weight:600; font-size:1rem; letter-spacing:.04em;
+    color:#1d1530; background-color:transparent; background-image:linear-gradient(var(--accent),var(--accent)); border:none; border-radius:16px;
+    padding:15px 36px; cursor:pointer; transition:transform .15s ease;
+    box-shadow:0 10px 24px -8px rgba(240,179,94,.5); }
+  .next-btn:active { transform:scale(.94); }
+
+  .confetti { position:fixed; top:-12px; border-radius:3px; z-index:55; pointer-events:none;
+    animation:fall linear forwards; }
+  @keyframes fall { to { transform: translateY(110vh) rotate(660deg); opacity:.7; } }
+
+  #toast { position:fixed; bottom:calc(24px + env(safe-area-inset-bottom)); left:50%;
+    transform:translate(-50%, 60px); z-index:70; padding:10px 20px; border-radius:99px;
+    background:rgba(255,255,255,.12); border:1px solid var(--glass-edge); backdrop-filter:blur(8px);
+    font-size:.8rem; font-weight:300; letter-spacing:.05em; opacity:0; transition:.35s ease; pointer-events:none; }
+  #toast.show { opacity:1; transform:translate(-50%,0); }
+</style>
+</head>
+<body>
+<div class="sky"></div><div class="orb a"></div><div class="orb b"></div>
+
+<header>
+  <a class="brand" href="../" aria-label="All games"><span class="back">‹</span> sweets<em>.</em></a>
+  <div class="meta">
+    <div class="lvl" id="scoreLabel">0</div>
+    <div class="moves" id="bestLabel">best 0</div>
+  </div>
+  <div class="controls">
+    <button class="icon-btn" id="undoBtn" aria-label="Undo move" title="Undo">
+      <svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg>
+    </button>
+    <button class="icon-btn" id="soundBtn" aria-label="Toggle sound" title="Sound"></button>
+  </div>
+</header>
+<div class="tagline">no ads · no timers · just match</div>
+
+<div class="goal" id="goalBar">
+  <span class="lvlchip">level <b id="lvlNum">1</b></span>
+  <span class="goal-sep"></span>
+  <span class="goal-pip" id="goalPip"></span>
+  <span class="goal-txt" id="goalTxt">clear <b>10</b></span>
+  <span class="goal-prog"><i id="goalFill"></i></span>
+</div>
+
+<main><div id="board" aria-label="sweets board"></div></main>
+
+<nav class="actions">
+  <button class="pill" id="shuffleBtn" aria-label="Shuffle">
+    <svg viewBox="0 0 24 24"><path d="M16 3h5v5"/><path d="M4 20 21 3"/><path d="M21 16v5h-5"/><path d="m15 15 6 6"/><path d="M4 4l5 5"/></svg>
+    Shuffle
+  </button>
+  <button class="pill" id="newBtn" aria-label="New game">
+    <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.3"/><path d="M21 3v6h-6"/></svg>
+    Restart
+  </button>
+</nav>
+
+<div id="over" role="dialog" aria-label="Level cleared">
+  <div class="over-card">
+    <h2 id="overTitle">Level cleared.</h2>
+    <p id="overSub">+200 · next one’s up</p>
+    <button class="next-btn" id="contBtn">Keep going →</button>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+'use strict';
+const COLS = 7, ROWS = 7, N = COLS*ROWS, COLORS = 5, GAP = 10;
+/* high-contrast, well-separated hues — AND each colour gets its own candy silhouette
+   (circle / rounded square / hexagon / droplet / sparkle) so they read by shape too */
+const COLOR = ['#ff6f69','#ffc857','#5fc97e','#5b8def','#c07ce8'];
+/* plump, candy-like silhouettes — gumball / toffee / candy / gumdrop / heart.
+   round joins + fat strokes keep every corner chubby */
+const SHAPES = [
+  '<circle cx="50" cy="51" r="45" fill="FILL"/>',                                                   /* gumball */
+  '<rect x="8" y="8" width="84" height="84" rx="34" fill="FILL"/>',                                  /* toffee (squircle) */
+  '<path d="M50 20 L82 74 L18 74 Z" fill="FILL" stroke="FILL" stroke-width="22" stroke-linejoin="round" stroke-linecap="round"/>',  /* chubby triangle */
+  '<path d="M50 14 C42 14 39 25 36 39 C33 53 16 58 16 70 C16 81 31 86 50 86 C69 86 84 81 84 70 C84 58 67 53 64 39 C61 25 58 14 50 14 Z" fill="FILL"/>',  /* gumdrop */
+  '<path d="M50 87 C16 62 11 39 26 28 C38 19 50 26 50 39 C50 26 62 19 74 28 C89 39 84 62 50 87 Z" fill="FILL"/>'  /* heart */
+];
+/* a striped candy carries the shape filled again with a translucent stripe pattern (auto-clipped
+   to the silhouette); a bomb gets a bright starburst. stripeH clears its row, stripeV its column. */
+function gemSVG(t){
+  const base = SHAPES[t.c].replace(/FILL/g, COLOR[t.c]);
+  let overlay = '';
+  if(t.special==='stripeH' || t.special==='stripeV'){
+    const pid = 'sp'+t.id;
+    const pat = t.special==='stripeH'
+      ? `<pattern id="${pid}" width="100" height="26" patternUnits="userSpaceOnUse"><rect y="4" width="100" height="9" fill="#fff" opacity=".62"/><rect y="17" width="100" height="9" fill="#fff" opacity=".62"/></pattern>`
+      : `<pattern id="${pid}" width="26" height="100" patternUnits="userSpaceOnUse"><rect x="4" width="9" height="100" fill="#fff" opacity=".62"/><rect x="17" width="9" height="100" fill="#fff" opacity=".62"/></pattern>`;
+    overlay = `<defs>${pat}</defs>` + SHAPES[t.c].replace(/FILL/g, `url(#${pid})`);
+  } else if(t.special==='bomb'){
+    overlay = `<path d="M50 17 l9 20 20 9 -20 9 -9 20 -9 -20 -20 -9 20 -9 z" fill="#fff" opacity=".95"/>`+
+      `<circle cx="50" cy="50" r="6.5" fill="${COLOR[t.c]}"/>`;
+  }
+  return `<svg viewBox="0 0 100 100">${base}${overlay}`+
+    `<ellipse cx="39" cy="36" rx="16" ry="10" fill="#fff" opacity=".42"/></svg>`;
+}
+
+let grid = new Array(N).fill(null);   // {id, c} or null
+let score = 0, best = 0, level = 1;
+let goal = null;                       // {type, color, need, have}
+let nextId = 1, busy = false, undoState = null;
+let soundOn = localStorage.getItem('sweets.sound') !== 'off';
+try { best = parseInt(localStorage.getItem('sweets.best')||'0',10) || 0; } catch(e){}
+
+const board = document.getElementById('board');
+const overEl = document.getElementById('over');
+const scoreLabel = document.getElementById('scoreLabel');
+const bestLabel = document.getElementById('bestLabel');
+const soundBtn = document.getElementById('soundBtn');
+const undoBtn = document.getElementById('undoBtn');
+
+/* ---------- audio ---------- */
+let actx = null;
+function note(freq, dur=.18, vol=.12, type='sine'){
+  if(!soundOn) return;
+  try{
+    actx = actx || new (window.AudioContext||window.webkitAudioContext)();
+    if(actx.state==='suspended') actx.resume();
+    const o=actx.createOscillator(), g=actx.createGain();
+    o.type=type; o.frequency.setValueAtTime(freq, actx.currentTime);
+    o.frequency.exponentialRampToValueAtTime(freq*1.3, actx.currentTime+dur);
+    g.gain.setValueAtTime(vol, actx.currentTime);
+    g.gain.exponentialRampToValueAtTime(.0001, actx.currentTime+dur);
+    o.connect(g).connect(actx.destination);
+    o.start(); o.stop(actx.currentTime+dur);
+  }catch(e){}
+}
+function winSound(){ [392,494,587,784].forEach((f,i)=>setTimeout(()=>note(f,.3,.1),i*110)); }
+function buzz(ms){ if(navigator.vibrate) navigator.vibrate(ms); }
+function renderSoundIcon(){
+  soundBtn.innerHTML = soundOn
+    ? '<svg viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg>'
+    : '<svg viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="m16 9 5 5m0-5-5 5"/></svg>';
+}
+const delay = ms => new Promise(r=>setTimeout(r,ms));
+
+/* ---------- gentle levels ---------- */
+/* goals always succeed — no timer, no fail. Type rotates for variety. */
+function makeGoal(lv){
+  const t = (lv-1) % 4;
+  if(t===2) return { type:'score',   need: 250 + lv*120, have:0 };
+  if(t===3) return { type:'special', need: 1,            have:0 };  // make a big match (4+)
+  return     { type:'color', color:(Math.random()*COLORS)|0, need: 8 + lv*2, have:0 };
+}
+
+/* serialize a candy as [colour, special] so striped/bomb specials survive saves + undo */
+function packGrid(){ return grid.map(t => t ? (t.special ? [t.c, t.special] : t.c) : 0); }
+function buildGrid(arr){ return arr.map(x => {
+  const c = Array.isArray(x) ? x[0] : x, sp = Array.isArray(x) ? x[1] : 0;
+  const t = { id:nextId++, c:(c|0)%COLORS }; if(sp) t.special = sp; return t;
+}); }
+/* one-step undo: full board + score + level + goal captured before a move resolves */
+function snapshot(){ return { b: packGrid(), s: score, lv: level, g: Object.assign({}, goal) }; }
+
+/* ---------- persistence: sweets.* keys, this device only ---------- */
+function save(){
+  try {
+    // the undo snapshot is saved too, so undo still works after a reload
+    localStorage.setItem('sweets.state', JSON.stringify({ b: packGrid(), s: score, lv: level, g: goal, u: undoState }));
+    localStorage.setItem('sweets.best', best);
+    localStorage.setItem('sweets.level', level);
+  } catch(e){}
+}
+function restore(){
+  try {
+    const st = JSON.parse(localStorage.getItem('sweets.state')||'null');
+    if(!st || !Array.isArray(st.b) || st.b.length!==N) return false;
+    grid = buildGrid(st.b);
+    score = st.s||0; level = st.lv||1;
+    // only trust a saved goal in the current shape (older builds stored a typeless goal)
+    goal = (st.g && st.g.type && typeof st.g.need==='number' && typeof st.g.have==='number') ? st.g : makeGoal(level);
+    undoState = (st.u && Array.isArray(st.u.b) && st.u.b.length===N) ? st.u : null;
+    return true;
+  } catch(e){ return false; }
+}
+
+/* ---------- geometry ---------- */
+let cellPx = 0;
+function metrics(){ cellPx = (board.clientWidth - GAP*(COLS+1)) / COLS; }
+function xy(i){
+  const r=(i/COLS)|0, c=i%COLS;
+  return [GAP + c*(cellPx+GAP), GAP + r*(cellPx+GAP)];
+}
+
+/* ---------- rendering: one div per gem, keyed by id ---------- */
+const gemEls = new Map();
+function styleGem(el, t){
+  el.style.width = cellPx+'px'; el.style.height = cellPx+'px';
+  el.innerHTML = gemSVG(t);
+}
+function placeGem(el, i){ const [x,y]=xy(i); el.style.transform = `translate(${x}px, ${y}px)`; }
+function addGemEl(t, i, opts){
+  const el = document.createElement('div');
+  el.className = 'gem' + (opts && opts.spawn ? ' spawn':'');
+  el.dataset.id = t.id;
+  styleGem(el, t);
+  const startRow = (opts && typeof opts.fromRow==='number') ? opts.fromRow : (i/COLS)|0;
+  const [x]=xy(i);
+  el.style.transform = `translate(${x}px, ${GAP + startRow*(cellPx+GAP)}px)`;
+  board.appendChild(el);
+  gemEls.set(t.id, el);
+  return el;
+}
+function positionAll(){ grid.forEach((t,i)=>{ if(t){ const el=gemEls.get(t.id); if(el) placeGem(el,i); } }); }
+function fullRender(){
+  for(const el of gemEls.values()) el.remove();
+  gemEls.clear();
+  metrics();
+  grid.forEach((t,i)=>{ if(t){ const el=addGemEl(t,i); placeGem(el,i); } });
+}
+function goalText(){
+  if(goal.type==='score')   return ['reach <b>'+goal.need+'</b> pts', false];
+  if(goal.type==='special') return ['make a big match', false];
+  return ['clear <b>'+goal.need+'</b>', true];
+}
+function paint(){
+  scoreLabel.textContent = score;
+  bestLabel.textContent = 'best ' + best;
+  document.getElementById('lvlNum').textContent = level;
+  const [txt, showPip] = goalText();
+  document.getElementById('goalTxt').innerHTML = txt;
+  const pip = document.getElementById('goalPip');
+  if(showPip){ pip.style.display=''; pip.style.backgroundImage = `linear-gradient(${COLOR[goal.color]},${COLOR[goal.color]})`; }
+  else pip.style.display='none';
+  document.getElementById('goalFill').style.width = Math.min(100, goal.have/goal.need*100) + '%';
+  undoBtn.disabled = !undoState || busy;
+}
+
+/* ---------- board generation ---------- */
+function randColor(){ return (Math.random()*COLORS)|0; }
+function freshGrid(){
+  for(let i=0;i<N;i++){
+    const r=(i/COLS)|0, c=i%COLS;
+    let col;
+    do { col = randColor(); }
+    while( (c>=2 && grid[i-1] && grid[i-2] && grid[i-1].c===col && grid[i-2].c===col)
+        || (r>=2 && grid[i-COLS] && grid[i-2*COLS] && grid[i-COLS].c===col && grid[i-2*COLS].c===col) );
+    grid[i] = { id:nextId++, c:col };
+  }
+  if(!hasMove()) return freshGrid();
+}
+
+/* ---------- matching ---------- */
+/* each run of 3+ same-colour cells, with orientation + length (drives the specials) */
+function findGroups(){
+  const groups = [];
+  for(let r=0;r<ROWS;r++){
+    let run=1;
+    for(let c=1;c<=COLS;c++){
+      const i=r*COLS+c, p=r*COLS+c-1;
+      const same = c<COLS && grid[i] && grid[p] && grid[i].c===grid[p].c;
+      if(same) run++;
+      else { if(run>=3){ const cells=[]; for(let k=1;k<=run;k++) cells.push(r*COLS+(c-k)); groups.push({cells, orient:'H', len:run}); } run=1; }
+    }
+  }
+  for(let c=0;c<COLS;c++){
+    let run=1;
+    for(let r=1;r<=ROWS;r++){
+      const i=r*COLS+c, p=(r-1)*COLS+c;
+      const same = r<ROWS && grid[i] && grid[p] && grid[i].c===grid[p].c;
+      if(same) run++;
+      else { if(run>=3){ const cells=[]; for(let k=1;k<=run;k++) cells.push((r-k)*COLS+c); groups.push({cells, orient:'V', len:run}); } run=1; }
+    }
+  }
+  return groups;
+}
+function findMatches(){
+  const cells = new Set(); let maxRun = 0;
+  for(const g of findGroups()){ if(g.len>maxRun) maxRun=g.len; g.cells.forEach(i=>cells.add(i)); }
+  return { cells, maxRun };
+}
+function swapMakesMatch(a,b){
+  const t=grid[a]; grid[a]=grid[b]; grid[b]=t;
+  const ok = findMatches().cells.size>0;
+  const u=grid[a]; grid[a]=grid[b]; grid[b]=u;
+  return ok;
+}
+function hasMove(){
+  for(let i=0;i<N;i++){
+    const c=i%COLS;
+    if(c<COLS-1 && swapMakesMatch(i,i+1)) return true;
+    if(i<N-COLS && swapMakesMatch(i,i+COLS)) return true;
+  }
+  return false;
+}
+
+/* ---------- gravity + refill ---------- */
+function collapse(){
+  for(let c=0;c<COLS;c++){
+    const survivors=[];
+    for(let r=0;r<ROWS;r++){ const i=r*COLS+c; if(grid[i]) survivors.push(grid[i]); grid[i]=null; }
+    let r=ROWS-1;
+    for(let k=survivors.length-1;k>=0;k--){ grid[r*COLS+c]=survivors[k]; r--; }
+    let above=1;
+    for(;r>=0;r--){
+      const t={ id:nextId++, c:randColor() };
+      grid[r*COLS+c]=t;
+      addGemEl(t, r*COLS+c, { spawn:true, fromRow:-above });
+      above++;
+    }
+  }
+  void board.offsetWidth;   // commit start positions before sliding everything home
+  positionAll();
+}
+
+/* ---------- specials ---------- */
+let lastSwap = null;   // {a,b} of the most recent swap, so a new special spawns where you swapped
+/* a run of 4 makes a striped candy (clears its line); 5+ makes a colour bomb (clears its colour) */
+function specialFor(g){
+  if(g.len>=5) return 'bomb';
+  if(g.len===4) return g.orient==='H' ? 'stripeH' : 'stripeV';
+  return null;
+}
+function specialCell(g){
+  if(lastSwap){ if(g.cells.includes(lastSwap.a)) return lastSwap.a; if(g.cells.includes(lastSwap.b)) return lastSwap.b; }
+  return g.cells[(g.cells.length/2)|0];
+}
+/* expand a clear set by detonating any specials caught in it (stripe -> line, bomb -> colour); chains */
+function detonate(toClear, skip){
+  const queue = [...toClear];
+  while(queue.length){
+    const i = queue.shift();
+    const t = grid[i];
+    if(!t || (skip && skip.has(i)) || !t.special) continue;
+    const r=(i/COLS)|0, c=i%COLS;
+    const add = j => { if(grid[j] && !toClear.has(j)){ toClear.add(j); queue.push(j); } };
+    if(t.special==='stripeH'){ for(let cc=0;cc<COLS;cc++) add(r*COLS+cc); }
+    else if(t.special==='stripeV'){ for(let rr=0;rr<ROWS;rr++) add(rr*COLS+c); }
+    else if(t.special==='bomb'){ for(let j=0;j<N;j++) if(grid[j] && grid[j].c===t.c) add(j); }
+  }
+}
+
+/* ---------- resolve cascades ---------- */
+async function settle(){
+  let combo = 0;
+  while(true){
+    const groups = findGroups();
+    if(!groups.length) break;
+    combo++;
+    let maxRun = 0;
+    const matched = new Set();
+    groups.forEach(g=>{ if(g.len>maxRun) maxRun=g.len; g.cells.forEach(i=>matched.add(i)); });
+    // new specials born from 4+/5+ runs — these cells survive as the special
+    const creations = [];
+    for(const g of groups){ const sp=specialFor(g); if(sp) creations.push({ at: specialCell(g), type: sp }); }
+    const createAt = new Set(creations.map(c=>c.at));
+    if(goal.type==='special' && maxRun>=4) goal.have++;
+
+    const toClear = new Set(matched);
+    detonate(toClear, createAt);              // fire any specials already on the board
+    for(const a of createAt) toClear.delete(a);
+
+    let gained = 0;
+    toClear.forEach(i=>{
+      const t=grid[i]; if(!t) return;
+      gained += 10*combo;
+      if(goal.type==='color' && t.c===goal.color) goal.have++;
+      const el=gemEls.get(t.id); if(el) el.classList.add('clearing');
+      popFx(i, COLOR[t.c] || '#fff');
+    });
+    score += gained; if(score>best) best=score;
+    if(goal.type==='score') goal.have += gained;
+    note(360 + combo*40, .1, .07);
+    if(combo>1 || creations.length) buzz(creations.length?22:10);
+    paint();
+    await delay(170);
+    toClear.forEach(i=>{ const t=grid[i]; const el=t&&gemEls.get(t.id); if(el){ el.remove(); gemEls.delete(t.id); } grid[i]=null; });
+    // promote the survivor cells into their new specials
+    creations.forEach(cr=>{ const t=grid[cr.at]; if(t){ t.special=cr.type; const el=gemEls.get(t.id); if(el) styleGem(el,t); } });
+    collapse();
+    await delay(180);
+    if(goal.have>=goal.need){ await levelUp(); }
+  }
+  if(!hasMove()){ await reshuffle(true); }
+  save();
+}
+
+async function levelUp(){
+  const cleared = level;
+  level++;
+  const bonus = 200 + level*40;
+  score += bonus; if(score>best) best=score;
+  winSound(); buzz([20,50,20]); confetti();
+  document.getElementById('overTitle').textContent = 'Level ' + cleared + ' cleared.';
+  document.getElementById('overSub').textContent = '+' + bonus + ' · level ' + level + ' up next';
+  goal = makeGoal(level); paint(); save();
+  overEl.classList.add('show');
+  await delay(60);
+  await new Promise(res=>{
+    const btn=document.getElementById('contBtn');
+    const h=()=>{ overEl.classList.remove('show'); btn.removeEventListener('click',h); res(); };
+    btn.addEventListener('click', h);
+  });
+}
+
+async function reshuffle(silent){
+  const cols = grid.map(t=>t.c);
+  for(let tries=0; tries<200; tries++){
+    for(let i=cols.length-1;i>0;i--){ const j=(Math.random()*(i+1))|0; const t=cols[i]; cols[i]=cols[j]; cols[j]=t; }
+    grid.forEach((t,i)=>{ t.c=cols[i]; });
+    if(findMatches().cells.size===0 && hasMove()) break;
+  }
+  fullRender();
+  if(!silent) toast('shuffled');
+  note(300,.12,.06);
+}
+
+/* ---------- input: tap-to-select or drag-swap ---------- */
+let sel = null, downAt = null, downId = null;
+function gemIndexFromId(id){ return grid.findIndex(t=>t&&t.id===id); }
+function setSel(i){
+  clearSel(); sel = i;
+  if(i!=null){ const el=gemEls.get(grid[i].id); if(el) el.classList.add('sel'); }
+}
+function clearSel(){ if(sel!=null){ const t=grid[sel]; const el=t&&gemEls.get(t.id); if(el) el.classList.remove('sel'); } sel=null; }
+function adjacent(a,b){
+  const ar=(a/COLS)|0, ac=a%COLS, br=(b/COLS)|0, bc=b%COLS;
+  return (ar===br && Math.abs(ac-bc)===1) || (ac===bc && Math.abs(ar-br)===1);
+}
+async function trySwap(a,b){
+  if(busy || a==null || b==null || a===b || !adjacent(a,b)) { clearSel(); return; }
+  busy = true; clearSel();
+  const prev = snapshot();   // captured before the swap, committed only if the move sticks
+  const ta=grid[a], tb=grid[b];
+  placeGem(gemEls.get(ta.id), b); placeGem(gemEls.get(tb.id), a);
+  grid[a]=tb; grid[b]=ta;
+  note(300,.07,.05);
+  await delay(160);
+  if(findMatches().cells.size===0){
+    grid[a]=ta; grid[b]=tb;
+    placeGem(gemEls.get(ta.id), a); placeGem(gemEls.get(tb.id), b);
+    note(180,.1,.05,'triangle'); buzz(8);
+    await delay(170); busy=false; return;
+  }
+  undoState = prev;
+  lastSwap = { a, b };
+  await settle();
+  busy=false;
+  paint();
+}
+board.addEventListener('pointerdown', e=>{
+  if(busy) return;
+  const el = e.target.closest('.gem'); if(!el) return;
+  downId = +el.dataset.id; downAt = [e.clientX, e.clientY];
+  board.setPointerCapture(e.pointerId);
+});
+board.addEventListener('pointermove', e=>{
+  if(busy || downId==null || !downAt) return;
+  const dx=e.clientX-downAt[0], dy=e.clientY-downAt[1];
+  if(Math.max(Math.abs(dx),Math.abs(dy)) < cellPx*0.45) return;
+  const a = gemIndexFromId(downId); if(a<0){ downId=null; return; }
+  const r=(a/COLS)|0, c=a%COLS;
+  let b=-1;
+  if(Math.abs(dx)>Math.abs(dy)) b = dx>0 ? (c<COLS-1?a+1:-1) : (c>0?a-1:-1);
+  else b = dy>0 ? (r<ROWS-1?a+COLS:-1) : (r>0?a-COLS:-1);
+  downId=null; downAt=null;
+  if(b>=0) trySwap(a,b);
+});
+board.addEventListener('pointerup', e=>{
+  if(busy){ downId=null; downAt=null; return; }
+  if(downId==null) return;
+  const i = gemIndexFromId(downId); downId=null; downAt=null;
+  if(i<0) return;
+  if(sel==null){ setSel(i); note(420,.06,.05); }
+  else if(sel===i){ clearSel(); }
+  else if(adjacent(sel,i)){ const a=sel; trySwap(a,i); }
+  else { setSel(i); note(420,.06,.05); }
+});
+
+/* ---------- effects ---------- */
+function popFx(i, color){
+  const [x,y]=xy(i);
+  const d=cellPx*0.55;
+  const s=document.createElement('div'); s.className='spark';
+  s.style.cssText = `left:${x+cellPx/2-d/2}px;top:${y+cellPx/2-d/2}px;width:${d}px;height:${d}px;`+
+    `background-image:radial-gradient(circle, rgba(255,255,255,.95), ${color} 55%, transparent 72%);`;
+  board.appendChild(s);
+  setTimeout(()=>s.remove(), 470);
+}
+function confetti(){
+  for(let k=0;k<60;k++){
+    const p=document.createElement('div'); p.className='confetti';
+    const sz=4+Math.random()*7;
+    const cc=COLOR[(Math.random()*COLOR.length)|0];
+    p.style.cssText = `left:${Math.random()*100}vw;width:${sz}px;height:${sz*1.4}px;`+
+      `background-image:linear-gradient(${cc},${cc});`+
+      `animation-duration:${2.2+Math.random()*2.4}s;animation-delay:${Math.random()*.7}s;`;
+    document.body.appendChild(p);
+    setTimeout(()=>p.remove(),6000);
+  }
+}
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),1700);
+}
+
+/* ---------- buttons ---------- */
+function doUndo(){
+  if(busy || !undoState) return;
+  const u = undoState; undoState = null;
+  grid = buildGrid(u.b);
+  score = u.s; level = u.lv; goal = u.g; lastSwap = null;
+  overEl.classList.remove('show');
+  for(const el of gemEls.values()) el.remove(); gemEls.clear();
+  fullRender(); paint(); save();
+  note(330,.1,.06);
+}
+function newGame(){
+  grid = new Array(N).fill(null);
+  score=0; level=1; goal=makeGoal(1); undoState=null; lastSwap=null;
+  for(const el of gemEls.values()) el.remove(); gemEls.clear();
+  freshGrid();
+  fullRender(); paint(); save();
+}
+soundBtn.addEventListener('click', ()=>{
+  soundOn=!soundOn;
+  localStorage.setItem('sweets.sound', soundOn?'on':'off');
+  renderSoundIcon(); if(soundOn) note(520,.1,.07);
+});
+undoBtn.addEventListener('click', doUndo);
+document.getElementById('newBtn').addEventListener('click', ()=>{ if(!busy) newGame(); });
+document.getElementById('shuffleBtn').addEventListener('click', async ()=>{ if(!busy){ busy=true; await reshuffle(false); await settle(); busy=false; } });
+window.addEventListener('resize', fullRender);
+
+/* ---------- boot ---------- */
+renderSoundIcon();
+if(!restore()){ newGame(); }
+else {
+  if(!hasMove()){ reshuffle(true); }
+  fullRender(); paint();
+  if(findMatches().cells.size){ busy=true; settle().then(()=>busy=false); }
+}
+paint();
+</script>
+</body>
+</html>

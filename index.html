@@ -6,6 +6,7 @@
 <meta name="theme-color" content="#191527">
 <meta name="color-scheme" content="only light">
 <title>play. — tiny calm games</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23231c3a'/%3E%3Cpath d='M12 9 L23 16 L12 23 Z' fill='%23f0b35e'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650&family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
@@ -211,6 +212,41 @@
     <span class="prog fresh" id="dropProg">new</span>
     <span class="go">›</span>
   </a>
+
+  <a class="card" href="sweets/">
+    <div class="art">
+      <svg viewBox="0 0 36 36" fill="none">
+        <rect x="5"  y="5"  width="12" height="12" rx="4" fill="#ff6f69"/>
+        <rect x="19" y="5"  width="12" height="12" rx="4" fill="#ffc857"/>
+        <rect x="5"  y="19" width="12" height="12" rx="4" fill="#5b8def"/>
+        <rect x="19" y="19" width="12" height="12" rx="4" fill="#5fc97e"/>
+      </svg>
+    </div>
+    <div class="info">
+      <h2>sweets<em>.</em></h2>
+      <p>match three, no rush</p>
+    </div>
+    <span class="prog fresh" id="sweetsProg">new</span>
+    <span class="go">›</span>
+  </a>
+
+  <a class="card" href="dots/">
+    <div class="art">
+      <svg viewBox="0 0 36 36" fill="none">
+        <path d="M11 11 H25 V25" stroke="#ffc857" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="11" cy="11" r="4.2" fill="#ffc857"/>
+        <circle cx="25" cy="11" r="4.2" fill="#ffc857"/>
+        <circle cx="25" cy="25" r="4.2" fill="#ffc857"/>
+        <circle cx="11" cy="25" r="3.6" fill="#5b8def"/>
+      </svg>
+    </div>
+    <div class="info">
+      <h2>dots<em>.</em></h2>
+      <p>connect the colours</p>
+    </div>
+    <span class="prog fresh" id="dotsProg">new</span>
+    <span class="go">›</span>
+  </a>
 </main>
 
 <footer>progress is saved on this device, per game</footer>
@@ -270,6 +306,22 @@ try {
   if (b > 0) {
     const el = document.getElementById('dropProg');
     el.textContent = 'best ' + b;
+    el.classList.remove('fresh');
+  }
+} catch(e) {}
+try {
+  const lv = parseInt(localStorage.getItem('sweets.level') || '1', 10);
+  if (lv > 1) {
+    const el = document.getElementById('sweetsProg');
+    el.textContent = 'level ' + lv;
+    el.classList.remove('fresh');
+  }
+} catch(e) {}
+try {
+  const lv = parseInt(localStorage.getItem('dots.level') || '1', 10);
+  if (lv > 1) {
+    const el = document.getElementById('dotsProg');
+    el.textContent = 'level ' + lv;
     el.classList.remove('fresh');
   }
 } catch(e) {}

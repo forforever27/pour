@@ -14,7 +14,7 @@ catch-up for any new session.
 - **Local working copy:** `C:\Users\user\Desktop\AGENT\Others\Games\Pour\`
   (folder is still named `Pour` for historical reasons — it is the **whole-site repo**, not just Pour)
 - **Deploy:** push to `main`. GitHub Pages serves `main` at root `/`. No build step.
-- **Games:** Pour, Sudoku, Codeword, 2048, Drop, Ember — 6 total.
+- **Games:** Pour, Sudoku, Codeword, 2048, Drop, Ember, Sweets, Dots — 8 total.
 - **Owner:** Xy Koh — designer, not a developer. Keep explanations plain.
 
 > ⚠️ **Never move the domain or account.** All player progress lives in browser
@@ -43,6 +43,10 @@ build, no dependencies, no framework. Only external resources are Google Fonts
   and frosted-glass overlay cards.
 - Mobile-first: everything fits a ~375×812 phone with no horizontal scroll;
   `viewport-fit=cover` + `env(safe-area-inset-*)` padding.
+- **Favicons are inline SVG data-URIs** (`<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,…">`)
+  right after each `<title>` — no separate `.ico`/`.png` files, in keeping with the no-build
+  rule. Each is a rounded `#231c3a` tile + the game's motif in palette accents (the hub is a
+  play-triangle). `#`→`%23`, `<`→`%3C`, `>`→`%3E`, single-quoted attrs. New games get one too.
 
 ### Per-game localStorage namespace (critical rule)
 Each game uses its **own key prefix** so games never collide and one game's reset never
@@ -56,6 +60,8 @@ touches another:
 | 2048     | `/2048/`     | `2048.state`, `2048.best`, `2048.sound` |
 | Drop     | `/drop/`     | `drop.state`, `drop.best`, `drop.sound` |
 | Ember    | `/ember/`    | `ember.level`, `ember.meta`, `ember.run`, `ember.sound` |
+| Sweets   | `/sweets/`   | `sweets.state`, `sweets.best`, `sweets.level`, `sweets.sound` |
+| Dots     | `/dots/`     | `dots.state`, `dots.best`, `dots.level`, `dots.sound` |
 
 The hub (`/index.html`) reads these **read-only** to show a progress chip on each card.
 
@@ -169,6 +175,51 @@ shows a "Continue" button when a run checkpoint exists.
 - **Bug class to avoid:** anything calling `saveRun()` *after* `winLevel()`/`failLevel()`
   recreates a stale "Continue". Guard saves with `mode==='play'`.
 
+> **Both Sweets and Dots use "gentle levels" (owner-chosen): no timers, no fail, ever.**
+> A level counter + a small goal that always eventually succeeds, then a celebratory card and
+> the next level. Goal type rotates by `(level-1)%4`: `color, color, score, special`
+> (`special` = "make a big match (4+)" in Sweets / "close a loop" in Dots). `makeGoal(lv)`
+> builds it; needs scale gently with level. They share the **same high-contrast 5-colour
+> palette** `['#ff6f69','#ffc857','#5fc97e','#5b8def','#c07ce8']` (red/amber/green/blue/purple)
+> — distinct by hue alone, **no inner shapes** (an earlier shapes-for-colour-blindness version
+> was dropped; owner found it visually noisy). Hub chips read `*.level`.
+
+### Sweets — `/sweets/`
+Match-three (the Candy-Crush concept). **7×7 board, 5 colours, GAP 10** — deliberately roomy
+and calm (an earlier 8×8-with-shapes build felt too tight/busy). Each colour is a plump, candy-like
+SVG silhouette — gumball (circle) / toffee (squircle) / chubby triangle / gumdrop / heart —
+with a gloss highlight and `filter:drop-shadow`; no symbols. Swap two adjacent gems (drag
+*or* tap-then-tap); the swap reverts if it makes no match. Matches of 3+ clear, gravity pulls
+gems down, new ones fall from the top, cascades chain with a rising combo multiplier.
+**Special candies (Candy-Crush style):** a 4-in-a-row makes a **striped candy** (rendered as
+a stripe-pattern fill of the silhouette; clears its whole row or column when next matched),
+a 5+-in-a-row makes a **colour bomb** (starburst; clears every candy of its colour). They
+activate by being caught in a later match and **chain** (`detonate()` expands the clear set;
+stripe→line, bomb→colour). A new special spawns at the swapped cell (`lastSwap`) and survives
+as the run's one uncleared cell. Engine: `findGroups()` returns each run `{cells, orient, len}`
+(specials read len/orient); `findMatches()` derives `{cells, maxRun}` from it; `collapse()`
+does per-column gravity+refill; `settle()` runs the async cascade — creates specials,
+detonates caught ones, credits the goal. Auto-reshuffles if no move; manual **Shuffle** pill. **One-step undo** (header) reverts the
+last swap + its whole cascade — snapshot captured before the swap, committed only if it
+sticks, persisted in `sweets.state.u` so it survives a reload.
+`sweets.state` = {board (each cell a
+colour, or `[colour,special]`), score, level, goal, undo snapshot}.
+
+### Dots — `/dots/`
+Connect-the-dots (the *Two Dots* concept). **6×6 grid, 5 colours**, solid glossy circles
+(`dotPx = cellPx*0.7`). Drag through adjacent same-colour dots — **8-directional, diagonals
+included** (`adjacent()` = Chebyshev distance 1; `hasMove()` checks all 8 neighbours) — release
+with 2+ to clear. **Closing a loop** (touch a dot already in the path) clears **every dot of
+that colour** — the doomed dots throb, bigger payout. The loop only counts when the closed path
+is a **true axis-aligned rectangle/square outline** (`isRectangleLoop()`: orthogonal edges only,
+returns to the start, traces the full bounding-box perimeter). With diagonals on, a 3-dot
+triangle (or any non-rectangular shape) would otherwise be a trivial instant-win — those just
+clear their dots as a normal line instead. An SVG `<polyline>` over the board draws
+the live connecting line in the dot's colour. Cleared dots fall, new ones drop
+(`collapse()`, same pattern as Sweets). **One-step undo** (header) reverts the last
+connect/clear, persisted in `dots.state.u`. `dots.state` = {colours, score, level, goal,
+undo snapshot}. Path/loop logic lives in the `pointerdown/move/up` handlers + `resolve()`.
+
 ---
 
 ## Tech / workflow notes
@@ -201,5 +252,6 @@ shows a "Continue" button when a run checkpoint exists.
 
 ---
 
-_Last updated after: Ember "triple-thick forest, stronger towers, more upgrades"
-(commit 6cfb667). 6 games live._
+_Last updated after: added **Sweets** (match-3) and **Dots** (connect-the-dots) with
+"gentle levels" (no timer/no fail), a high-contrast shapeless palette, roomier boards, and
+diagonal connections in Dots; plus inline-SVG favicons for the hub and every game. 8 games live._
