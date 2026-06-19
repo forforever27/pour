@@ -217,9 +217,15 @@ const SHAPES = [
   '<path d="M50 14 C42 14 39 25 36 39 C33 53 16 58 16 70 C16 81 31 86 50 86 C69 86 84 81 84 70 C84 58 67 53 64 39 C61 25 58 14 50 14 Z" fill="FILL"/>',  /* gumdrop */
   '<path d="M50 87 C16 62 11 39 26 28 C38 19 50 26 50 39 C50 26 62 19 74 28 C89 39 84 62 50 87 Z" fill="FILL"/>'  /* heart */
 ];
-/* a striped candy carries the shape filled again with a translucent stripe pattern (auto-clipped
-   to the silhouette); a bomb gets a bright starburst. stripeH clears its row, stripeV its column. */
+/* striped candy = the silhouette refilled with a stripe pattern (auto-clipped to the shape);
+   wrapped = a foil wrapper outline; colour bomb = a colourless dark sprinkle ball. */
 function gemSVG(t){
+  if(t.special==='bomb'){
+    const pts=[[34,32],[60,30],[30,55],[50,48],[68,57],[40,71],[63,70],[48,40],[26,46],[72,44]];
+    let dots=''; pts.forEach((p,k)=>{ dots+=`<circle cx="${p[0]}" cy="${p[1]}" r="6.5" fill="${COLOR[k%COLORS]}"/>`; });
+    return `<svg viewBox="0 0 100 100"><circle cx="50" cy="51" r="45" fill="#241d3a"/>${dots}`+
+      `<ellipse cx="38" cy="33" rx="15" ry="9" fill="#fff" opacity=".2"/></svg>`;
+  }
   const base = SHAPES[t.c].replace(/FILL/g, COLOR[t.c]);
   let overlay = '';
   if(t.special==='stripeH' || t.special==='stripeV'){
@@ -228,9 +234,9 @@ function gemSVG(t){
       ? `<pattern id="${pid}" width="100" height="26" patternUnits="userSpaceOnUse"><rect y="4" width="100" height="9" fill="#fff" opacity=".62"/><rect y="17" width="100" height="9" fill="#fff" opacity=".62"/></pattern>`
       : `<pattern id="${pid}" width="26" height="100" patternUnits="userSpaceOnUse"><rect x="4" width="9" height="100" fill="#fff" opacity=".62"/><rect x="17" width="9" height="100" fill="#fff" opacity=".62"/></pattern>`;
     overlay = `<defs>${pat}</defs>` + SHAPES[t.c].replace(/FILL/g, `url(#${pid})`);
-  } else if(t.special==='bomb'){
-    overlay = `<path d="M50 17 l9 20 20 9 -20 9 -9 20 -9 -20 -20 -9 20 -9 z" fill="#fff" opacity=".95"/>`+
-      `<circle cx="50" cy="50" r="6.5" fill="${COLOR[t.c]}"/>`;
+  } else if(t.special==='wrap'){
+    overlay = `<rect x="19" y="19" width="62" height="62" rx="15" fill="none" stroke="#fff" stroke-width="7" opacity=".75"/>`+
+      `<path d="M25 25 75 75 M75 25 25 75" stroke="#fff" stroke-width="4" opacity=".4"/>`;
   }
   return `<svg viewBox="0 0 100 100">${base}${overlay}`+
     `<ellipse cx="39" cy="36" rx="16" ry="10" fill="#fff" opacity=".42"/></svg>`;
@@ -389,7 +395,7 @@ function findGroups(){
     let run=1;
     for(let c=1;c<=COLS;c++){
       const i=r*COLS+c, p=r*COLS+c-1;
-      const same = c<COLS && grid[i] && grid[p] && grid[i].c===grid[p].c;
+      const same = c<COLS && grid[i] && grid[p] && grid[i].c===grid[p].c && grid[i].special!=='bomb' && grid[p].special!=='bomb';
       if(same) run++;
       else { if(run>=3){ const cells=[]; for(let k=1;k<=run;k++) cells.push(r*COLS+(c-k)); groups.push({cells, orient:'H', len:run}); } run=1; }
     }
@@ -398,7 +404,7 @@ function findGroups(){
     let run=1;
     for(let r=1;r<=ROWS;r++){
       const i=r*COLS+c, p=(r-1)*COLS+c;
-      const same = r<ROWS && grid[i] && grid[p] && grid[i].c===grid[p].c;
+      const same = r<ROWS && grid[i] && grid[p] && grid[i].c===grid[p].c && grid[i].special!=='bomb' && grid[p].special!=='bomb';
       if(same) run++;
       else { if(run>=3){ const cells=[]; for(let k=1;k<=run;k++) cells.push((r-k)*COLS+c); groups.push({cells, orient:'V', len:run}); } run=1; }
     }
@@ -417,6 +423,7 @@ function swapMakesMatch(a,b){
   return ok;
 }
 function hasMove(){
+  for(let i=0;i<N;i++) if(grid[i] && grid[i].special==='bomb') return true;   // a colour bomb is always swappable
   for(let i=0;i<N;i++){
     const c=i%COLS;
     if(c<COLS-1 && swapMakesMatch(i,i+1)) return true;
@@ -444,19 +451,49 @@ function collapse(){
   positionAll();
 }
 
-/* ---------- specials ---------- */
+/* ---------- specials ----------
+   striped (4 in a row) -> clears its row/column
+   wrapped (L/T of 5)    -> 3x3 explosion
+   colour bomb (5 straight, colourless) -> swap onto a candy to clear that whole colour
+   combos when you swap two specials: stripe+stripe = cross, stripe+wrap = giant cross,
+   wrap+wrap = 5x5, bomb+stripe/wrap = convert a colour to that special then detonate all,
+   bomb+bomb = whole board. */
 let lastSwap = null;   // {a,b} of the most recent swap, so a new special spawns where you swapped
-/* a run of 4 makes a striped candy (clears its line); 5+ makes a colour bomb (clears its colour) */
-function specialFor(g){
-  if(g.len>=5) return 'bomb';
-  if(g.len===4) return g.orient==='H' ? 'stripeH' : 'stripeV';
-  return null;
-}
 function specialCell(g){
   if(lastSwap){ if(g.cells.includes(lastSwap.a)) return lastSwap.a; if(g.cells.includes(lastSwap.b)) return lastSwap.b; }
   return g.cells[(g.cells.length/2)|0];
 }
-/* expand a clear set by detonating any specials caught in it (stripe -> line, bomb -> colour); chains */
+function colorOf(g){ const t=grid[g.cells[0]]; return t ? t.c : -1; }
+function mostCommonColor(){
+  const n=new Array(COLORS).fill(0);
+  for(let i=0;i<N;i++){ const t=grid[i]; if(t && t.special!=='bomb') n[t.c]++; }
+  let b=0; for(let c=1;c<COLORS;c++) if(n[c]>n[b]) b=c; return b;
+}
+/* which specials a set of runs creates: crossing row+col of one colour -> wrapped;
+   straight 5+ -> bomb; straight 4 -> striped */
+function computeCreations(groups){
+  const used=new Set(), creations=[];
+  const Hs=groups.filter(g=>g.orient==='H'), Vs=groups.filter(g=>g.orient==='V');
+  for(const h of Hs){ if(used.has(h)) continue;
+    for(const v of Vs){ if(used.has(v)) continue;
+      if(colorOf(h)!==colorOf(v)) continue;
+      const shared=h.cells.find(i=>v.cells.includes(i));
+      if(shared==null) continue;
+      used.add(h); used.add(v);
+      let at=shared;
+      if(lastSwap){ if(h.cells.includes(lastSwap.a)||v.cells.includes(lastSwap.a)) at=lastSwap.a;
+                    else if(h.cells.includes(lastSwap.b)||v.cells.includes(lastSwap.b)) at=lastSwap.b; }
+      creations.push({ at, type:'wrap' });
+      break;
+    }
+  }
+  for(const g of groups){ if(used.has(g)) continue;
+    if(g.len>=5) creations.push({ at: specialCell(g), type:'bomb' });
+    else if(g.len===4) creations.push({ at: specialCell(g), type:(g.orient==='H'?'stripeH':'stripeV') });
+  }
+  return creations;
+}
+/* expand a clear set by detonating any specials caught in it; chains through neighbours */
 function detonate(toClear, skip){
   const queue = [...toClear];
   while(queue.length){
@@ -467,8 +504,73 @@ function detonate(toClear, skip){
     const add = j => { if(grid[j] && !toClear.has(j)){ toClear.add(j); queue.push(j); } };
     if(t.special==='stripeH'){ for(let cc=0;cc<COLS;cc++) add(r*COLS+cc); }
     else if(t.special==='stripeV'){ for(let rr=0;rr<ROWS;rr++) add(rr*COLS+c); }
-    else if(t.special==='bomb'){ for(let j=0;j<N;j++) if(grid[j] && grid[j].c===t.c) add(j); }
+    else if(t.special==='wrap'){ for(let rr=r-1;rr<=r+1;rr++) for(let cc=c-1;cc<=c+1;cc++) if(rr>=0&&rr<ROWS&&cc>=0&&cc<COLS) add(rr*COLS+cc); }
+    else if(t.special==='bomb'){ const col=mostCommonColor(); for(let j=0;j<N;j++) if(grid[j]&&grid[j].c===col&&grid[j].special!=='bomb') add(j); }
   }
+}
+
+/* clear one batch (shared by cascades + special combos): detonate, score, fx, remove, create, collapse */
+async function applyClear(toClear, combo, creations){
+  creations = creations || [];
+  const createAt = new Set(creations.map(c=>c.at));
+  detonate(toClear, createAt);
+  for(const a of createAt) toClear.delete(a);
+  let gained = 0;
+  toClear.forEach(i=>{
+    const t=grid[i]; if(!t) return;
+    gained += 10*combo;
+    if(goal.type==='color' && t.special!=='bomb' && t.c===goal.color) goal.have++;
+    const el=gemEls.get(t.id); if(el) el.classList.add('clearing');
+    popFx(i, COLOR[t.c] || '#fff');
+  });
+  score += gained; if(score>best) best=score;
+  if(goal.type==='score') goal.have += gained;
+  note(360 + combo*40, .1, .07);
+  if(combo>1 || creations.length) buzz(creations.length?22:10);
+  paint();
+  await delay(170);
+  toClear.forEach(i=>{ const t=grid[i]; const el=t&&gemEls.get(t.id); if(el){ el.remove(); gemEls.delete(t.id); } grid[i]=null; });
+  creations.forEach(cr=>{ const t=grid[cr.at]; if(t){ t.special=cr.type; const el=gemEls.get(t.id); if(el) styleGem(el,t); } });
+  collapse();
+  await delay(180);
+}
+
+/* special-vs-special (or colour-bomb-vs-anything) combo on swap; returns a clear Set or null */
+function specialCombo(A, B, a, b){
+  const sa=A.special, sb=B.special;
+  if(!sa && !sb) return null;
+  const isBomb=s=>s==='bomb', isStripe=s=>s==='stripeH'||s==='stripeV', isWrap=s=>s==='wrap';
+  const set=new Set();
+  if(isBomb(sa) && isBomb(sb)){ for(let i=0;i<N;i++) if(grid[i]) set.add(i); return set; }   // two bombs -> whole board
+  if(isBomb(sa) || isBomb(sb)){
+    const bombCell = isBomb(sa)? a : b, other = isBomb(sa)? B : A;
+    set.add(bombCell);
+    const col = other.c;
+    if(isStripe(other.special) || isWrap(other.special)){
+      for(let i=0;i<N;i++){ const t=grid[i]; if(t && t.special!=='bomb' && t.c===col){
+        t.special = isWrap(other.special) ? 'wrap' : (Math.random()<.5?'stripeH':'stripeV');
+        const el=gemEls.get(t.id); if(el) styleGem(el,t); set.add(i); } }
+    } else {
+      for(let i=0;i<N;i++){ const t=grid[i]; if(t && t.special!=='bomb' && t.c===col) set.add(i); }   // bomb + plain -> clear colour
+    }
+    return set;
+  }
+  const r=(a/COLS)|0, c=a%COLS;
+  if(isStripe(sa) && isStripe(sb)){                              // cross: full row + column
+    for(let cc=0;cc<COLS;cc++) set.add(r*COLS+cc);
+    for(let rr=0;rr<ROWS;rr++) set.add(rr*COLS+c);
+    return set;
+  }
+  if((isStripe(sa)&&isWrap(sb)) || (isWrap(sa)&&isStripe(sb))){  // giant cross: 3 rows + 3 cols
+    for(let dr=-1;dr<=1;dr++){ const rr=r+dr; if(rr>=0&&rr<ROWS) for(let cc=0;cc<COLS;cc++) set.add(rr*COLS+cc); }
+    for(let dc=-1;dc<=1;dc++){ const cc=c+dc; if(cc>=0&&cc<COLS) for(let rr=0;rr<ROWS;rr++) set.add(rr*COLS+cc); }
+    return set;
+  }
+  if(isWrap(sa) && isWrap(sb)){                                  // 5x5 blast
+    for(let dr=-2;dr<=2;dr++) for(let dc=-2;dc<=2;dc++){ const rr=r+dr, cc=c+dc; if(rr>=0&&rr<ROWS&&cc>=0&&cc<COLS) set.add(rr*COLS+cc); }
+    return set;
+  }
+  return null;   // one line/wrap special + a plain candy -> needs a normal match (settle handles it)
 }
 
 /* ---------- resolve cascades ---------- */
@@ -481,35 +583,9 @@ async function settle(){
     let maxRun = 0;
     const matched = new Set();
     groups.forEach(g=>{ if(g.len>maxRun) maxRun=g.len; g.cells.forEach(i=>matched.add(i)); });
-    // new specials born from 4+/5+ runs — these cells survive as the special
-    const creations = [];
-    for(const g of groups){ const sp=specialFor(g); if(sp) creations.push({ at: specialCell(g), type: sp }); }
-    const createAt = new Set(creations.map(c=>c.at));
+    const creations = computeCreations(groups);
     if(goal.type==='special' && maxRun>=4) goal.have++;
-
-    const toClear = new Set(matched);
-    detonate(toClear, createAt);              // fire any specials already on the board
-    for(const a of createAt) toClear.delete(a);
-
-    let gained = 0;
-    toClear.forEach(i=>{
-      const t=grid[i]; if(!t) return;
-      gained += 10*combo;
-      if(goal.type==='color' && t.c===goal.color) goal.have++;
-      const el=gemEls.get(t.id); if(el) el.classList.add('clearing');
-      popFx(i, COLOR[t.c] || '#fff');
-    });
-    score += gained; if(score>best) best=score;
-    if(goal.type==='score') goal.have += gained;
-    note(360 + combo*40, .1, .07);
-    if(combo>1 || creations.length) buzz(creations.length?22:10);
-    paint();
-    await delay(170);
-    toClear.forEach(i=>{ const t=grid[i]; const el=t&&gemEls.get(t.id); if(el){ el.remove(); gemEls.delete(t.id); } grid[i]=null; });
-    // promote the survivor cells into their new specials
-    creations.forEach(cr=>{ const t=grid[cr.at]; if(t){ t.special=cr.type; const el=gemEls.get(t.id); if(el) styleGem(el,t); } });
-    collapse();
-    await delay(180);
+    await applyClear(matched, combo, creations);
     if(goal.have>=goal.need){ await levelUp(); }
   }
   if(!hasMove()){ await reshuffle(true); }
@@ -567,14 +643,23 @@ async function trySwap(a,b){
   grid[a]=tb; grid[b]=ta;
   note(300,.07,.05);
   await delay(160);
+  lastSwap = { a, b };
+  // colour-bomb / special-vs-special combos fire on swap, no normal match needed
+  const comboSet = specialCombo(grid[a], grid[b], a, b);
+  if(comboSet){
+    undoState = prev;
+    note(560,.2,.1,'triangle'); buzz([20,40,20]);
+    await applyClear(comboSet, 1, []);
+    await settle();
+    busy=false; paint(); return;
+  }
   if(findMatches().cells.size===0){
     grid[a]=ta; grid[b]=tb;
     placeGem(gemEls.get(ta.id), a); placeGem(gemEls.get(tb.id), b);
     note(180,.1,.05,'triangle'); buzz(8);
-    await delay(170); busy=false; return;
+    await delay(170); busy=false; paint(); return;
   }
   undoState = prev;
-  lastSwap = { a, b };
   await settle();
   busy=false;
   paint();

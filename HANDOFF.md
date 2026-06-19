@@ -191,15 +191,20 @@ SVG silhouette — gumball (circle) / toffee (squircle) / chubby triangle / gumd
 with a gloss highlight and `filter:drop-shadow`; no symbols. Swap two adjacent gems (drag
 *or* tap-then-tap); the swap reverts if it makes no match. Matches of 3+ clear, gravity pulls
 gems down, new ones fall from the top, cascades chain with a rising combo multiplier.
-**Special candies (Candy-Crush style):** a 4-in-a-row makes a **striped candy** (rendered as
-a stripe-pattern fill of the silhouette; clears its whole row or column when next matched),
-a 5+-in-a-row makes a **colour bomb** (starburst; clears every candy of its colour). They
-activate by being caught in a later match and **chain** (`detonate()` expands the clear set;
-stripe→line, bomb→colour). A new special spawns at the swapped cell (`lastSwap`) and survives
-as the run's one uncleared cell. Engine: `findGroups()` returns each run `{cells, orient, len}`
-(specials read len/orient); `findMatches()` derives `{cells, maxRun}` from it; `collapse()`
-does per-column gravity+refill; `settle()` runs the async cascade — creates specials,
-detonates caught ones, credits the goal. Auto-reshuffles if no move; manual **Shuffle** pill. **One-step undo** (header) reverts the
+**Special candies (full Candy-Crush set).** Created in `computeCreations(groups)`:
+4-in-a-row → **striped** (clears its row/column), L/T crossing of one colour → **wrapped**
+(3×3 blast), 5-straight → **colour bomb** (a *colourless* sprinkle ball — excluded from colour
+runs in `findGroups`; `hasMove` always treats a bomb as a live move). Striped/wrapped activate
+by being matched again and **chain** via `detonate()` (stripe→line, wrap→3×3, bomb-caught→a
+colour). The colour bomb activates on **swap**: `specialCombo(A,B,a,b)` (called in `trySwap`
+before the match check) fires special-vs-special / bomb-vs-anything moves without needing a
+match — bomb+plain = clear that colour, bomb+bomb = whole board, bomb+striped/wrapped =
+convert that colour to stripes/wraps then detonate all, stripe+stripe = cross, stripe+wrap =
+3-row+3-col, wrap+wrap = 5×5. All clears funnel through one `applyClear(set, combo, creations)`
+(detonate → score/goal → remove → promote new specials → collapse), shared by `settle()` and
+combos. Specials persist through saves/undo (`packGrid`/`buildGrid` store `[colour, special]`).
+Engine: `findGroups()` returns each run `{cells, orient, len}`; `findMatches()` derives
+`{cells, maxRun}`; `collapse()` does per-column gravity+refill; `settle()` runs the cascade. Auto-reshuffles if no move; manual **Shuffle** pill. **One-step undo** (header) reverts the
 last swap + its whole cascade — snapshot captured before the swap, committed only if it
 sticks, persisted in `sweets.state.u` so it survives a reload.
 `sweets.state` = {board (each cell a
