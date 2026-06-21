@@ -144,6 +144,37 @@
     background:rgba(255,255,255,.12); border:1px solid var(--glass-edge); backdrop-filter:blur(8px);
     font-size:.8rem; font-weight:300; letter-spacing:.05em; opacity:0; transition:.35s ease; pointer-events:none; }
   #toast.show { opacity:1; transform:translate(-50%,0); }
+  /* ---- how-to-play tutorial ---- */
+  #tut { position:fixed; inset:0; z-index:80; display:flex; align-items:center; justify-content:center;
+    background:rgba(16,12,26,.8); backdrop-filter:blur(8px);
+    opacity:0; pointer-events:none; transition:opacity .35s ease;
+    padding: calc(env(safe-area-inset-top) + 14px) 18px calc(env(safe-area-inset-bottom) + 14px); }
+  #tut.show { opacity:1; pointer-events:auto; }
+  .tut-card { width:min(92vw,380px); border-radius:26px; padding:20px;
+    background-image:linear-gradient(160deg,#342b52,#251e3d); border:1px solid var(--glass-edge);
+    box-shadow:0 24px 48px -20px rgba(0,0,0,.7);
+    transform:translateY(14px) scale(.97); transition:transform .4s cubic-bezier(.3,1.4,.5,1); }
+  #tut.show .tut-card { transform:none; }
+  .tut-illo { width:100%; aspect-ratio:16/10; border-radius:18px;
+    background-image:linear-gradient(160deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+    border:1px solid var(--glass-edge); display:flex; align-items:center; justify-content:center;
+    overflow:hidden; margin-bottom:14px; }
+  .tut-illo svg { width:92%; height:92%; }
+  .tut-title { font-family:'Fraunces',serif; font-weight:650; font-size:1.18rem; text-align:center; }
+  .tut-text { color:var(--ink-dim); font-weight:300; font-size:.86rem; line-height:1.5;
+    text-align:center; margin-top:5px; min-height:3.8em; }
+  .tut-nav { display:flex; align-items:center; justify-content:space-between; margin-top:6px; }
+  .tut-back { background:none; border:none; cursor:pointer; color:var(--ink-dim);
+    font-family:'Outfit',sans-serif; font-weight:300; font-size:.85rem; padding:8px 2px; min-width:54px; text-align:left; }
+  .tut-back[disabled] { opacity:0; pointer-events:none; }
+  .tut-dots { display:flex; gap:6px; }
+  .tut-dots i { width:7px; height:7px; border-radius:50%; background:rgba(255,255,255,.25); transition:.25s ease; }
+  .tut-dots i.on { background:var(--accent); width:18px; border-radius:4px; }
+  .tut-next { font-family:'Outfit',sans-serif; font-weight:600; font-size:.9rem;
+    color:#1d1530; background-image:linear-gradient(var(--accent),var(--accent)); border:none;
+    border-radius:13px; padding:11px 20px; cursor:pointer; min-width:54px;
+    transition:transform .15s ease; box-shadow:0 8px 20px -8px rgba(240,179,94,.5); }
+  .tut-next:active { transform:scale(.94); }
 </style>
 </head>
 <body>
@@ -158,6 +189,9 @@
   <div class="controls">
     <button class="icon-btn" id="undoBtn" aria-label="Undo move" title="Undo">
       <svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg>
+    </button>
+    <button class="icon-btn" id="infoBtn" aria-label="How to play" title="How to play">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16.5"/><line x1="12" y1="7.4" x2="12" y2="7.6"/></svg>
     </button>
     <button class="icon-btn" id="soundBtn" aria-label="Toggle sound" title="Sound"></button>
   </div>
@@ -193,6 +227,52 @@
   </div>
 </div>
 <div id="toast"></div>
+
+<div id="tut" role="dialog" aria-label="How to play">
+  <div class="tut-card">
+    <div class="tut-illo" id="tutIllo"></div>
+    <div class="tut-title" id="tutTitle"></div>
+    <div class="tut-text" id="tutText"></div>
+    <div class="tut-nav">
+      <button class="tut-back" id="tutBack">‹ back</button>
+      <div class="tut-dots" id="tutDots"></div>
+      <button class="tut-next" id="tutNext">Next ›</button>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  const A='#ff6f69',M='#ffc857',G='#5fc97e',B='#5b8def',P='#c07ce8',Pk='#e08bb1',acc='#f0b35e',edge='rgba(255,255,255,.4)',ink='#1d1530';
+  const S=i=>`<svg viewBox="0 0 200 130">${i}</svg>`;
+  const dt=(x,y,c,r)=>{ r=r||12; return `<circle cx="${x}" cy="${y}" r="${r}" fill="${c}"/><ellipse cx="${x-r*0.3}" cy="${y-r*0.35}" rx="${r*0.4}" ry="${r*0.25}" fill="#fff" opacity=".4"/>`; };
+  const darrow=(x,y)=>`<polyline points="${x},${y} ${x},${y+16}" fill="none" stroke="${acc}" stroke-width="3" stroke-linecap="round"/><polyline points="${x-5},${y+10} ${x},${y+16} ${x+5},${y+10}" fill="none" stroke="${acc}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>`;
+  const glow=(x,y)=>`<circle cx="${x}" cy="${y}" r="15" fill="none" stroke="#fff" stroke-width="2" opacity=".5"/>`;
+  const KEY='dots.tut';
+  const TUT=[
+    { illo:S(`<polyline points="50,35 90,72 130,72" fill="none" stroke="${M}" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" opacity=".8"/>`
+        +dt(50,35,M)+dt(90,35,G)+dt(130,35,B)+dt(170,35,Pk)
+        +dt(50,72,A)+dt(90,72,M)+dt(130,72,M)+dt(170,72,G)
+        +dt(50,109,B)+dt(90,109,A)+dt(130,109,Pk)+dt(170,109,B)),
+      title:'Connect colours', text:'Drag through touching dots of one colour — diagonals count too.' },
+    { illo:S(dt(55,32,B)+darrow(55,48)+dt(95,32,A)+darrow(95,48)+dt(135,32,G)+darrow(135,48)
+        +`<circle cx="55" cy="92" r="12" fill="${M}" opacity=".25"/><circle cx="95" cy="92" r="12" fill="${M}" opacity=".25"/><circle cx="135" cy="92" r="12" fill="${M}" opacity=".25"/>`),
+      title:'Release to clear', text:'Let go and the linked dots pop; fresh dots drop in from the top.' },
+    { illo:S(`<polyline points="70,42 120,42 120,90 70,90 70,42" fill="none" stroke="${M}" stroke-width="6" stroke-linejoin="round" opacity=".85"/>`
+        +dt(70,42,M)+dt(120,42,M)+dt(120,90,M)+dt(70,90,M)+glow(160,58)+dt(160,58,M)+glow(40,104)+dt(40,104,M)),
+      title:'Loop a colour', text:'Close a square or rectangle to clear every dot of that colour at once.' }
+  ];
+  const el=document.getElementById('tut'),illoEl=document.getElementById('tutIllo'),titleEl=document.getElementById('tutTitle'),textEl=document.getElementById('tutText'),dotsEl=document.getElementById('tutDots'),backEl=document.getElementById('tutBack'),nextEl=document.getElementById('tutNext'),info=document.getElementById('infoBtn');
+  let p=0;
+  function render(){ illoEl.innerHTML=TUT[p].illo; titleEl.textContent=TUT[p].title; textEl.textContent=TUT[p].text; let d=''; for(let i=0;i<TUT.length;i++) d+=`<i class="${i===p?'on':''}"></i>`; dotsEl.innerHTML=d; backEl.disabled=p===0; nextEl.textContent=p===TUT.length-1?'Got it':'Next ›'; }
+  function openTut(){ p=0; render(); el.classList.add('show'); }
+  function closeTut(){ el.classList.remove('show'); }
+  if(info) info.addEventListener('click',openTut);
+  backEl.addEventListener('click',()=>{ if(p>0){p--;render();} });
+  nextEl.addEventListener('click',()=>{ if(p<TUT.length-1){p++;render();} else closeTut(); });
+  el.addEventListener('click',e=>{ if(e.target===el) closeTut(); });
+  try{ if(!localStorage.getItem(KEY)){ localStorage.setItem(KEY,'1'); setTimeout(openTut,600); } }catch(e){}
+})();
+</script>
 
 <script>
 'use strict';

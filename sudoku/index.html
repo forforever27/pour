@@ -200,6 +200,37 @@
     background:rgba(255,255,255,.12); border:1px solid var(--glass-edge); backdrop-filter:blur(8px);
     font-size:.8rem; font-weight:300; letter-spacing:.05em; opacity:0; transition:.35s ease; pointer-events:none; }
   #toast.show { opacity:1; transform:translate(-50%,0); }
+  /* ---- how-to-play tutorial ---- */
+  #tut { position:fixed; inset:0; z-index:80; display:flex; align-items:center; justify-content:center;
+    background:rgba(16,12,26,.8); backdrop-filter:blur(8px);
+    opacity:0; pointer-events:none; transition:opacity .35s ease;
+    padding: calc(env(safe-area-inset-top) + 14px) 18px calc(env(safe-area-inset-bottom) + 14px); }
+  #tut.show { opacity:1; pointer-events:auto; }
+  .tut-card { width:min(92vw,380px); border-radius:26px; padding:20px;
+    background-image:linear-gradient(160deg,#342b52,#251e3d); border:1px solid var(--glass-edge);
+    box-shadow:0 24px 48px -20px rgba(0,0,0,.7);
+    transform:translateY(14px) scale(.97); transition:transform .4s cubic-bezier(.3,1.4,.5,1); }
+  #tut.show .tut-card { transform:none; }
+  .tut-illo { width:100%; aspect-ratio:16/10; border-radius:18px;
+    background-image:linear-gradient(160deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+    border:1px solid var(--glass-edge); display:flex; align-items:center; justify-content:center;
+    overflow:hidden; margin-bottom:14px; }
+  .tut-illo svg { width:92%; height:92%; }
+  .tut-title { font-family:'Fraunces',serif; font-weight:650; font-size:1.18rem; text-align:center; }
+  .tut-text { color:var(--ink-dim); font-weight:300; font-size:.86rem; line-height:1.5;
+    text-align:center; margin-top:5px; min-height:3.8em; }
+  .tut-nav { display:flex; align-items:center; justify-content:space-between; margin-top:6px; }
+  .tut-back { background:none; border:none; cursor:pointer; color:var(--ink-dim);
+    font-family:'Outfit',sans-serif; font-weight:300; font-size:.85rem; padding:8px 2px; min-width:54px; text-align:left; }
+  .tut-back[disabled] { opacity:0; pointer-events:none; }
+  .tut-dots { display:flex; gap:6px; }
+  .tut-dots i { width:7px; height:7px; border-radius:50%; background:rgba(255,255,255,.25); transition:.25s ease; }
+  .tut-dots i.on { background:var(--accent); width:18px; border-radius:4px; }
+  .tut-next { font-family:'Outfit',sans-serif; font-weight:600; font-size:.9rem;
+    color:#1d1530; background-image:linear-gradient(var(--accent),var(--accent)); border:none;
+    border-radius:13px; padding:11px 20px; cursor:pointer; min-width:54px;
+    transition:transform .15s ease; box-shadow:0 8px 20px -8px rgba(240,179,94,.5); }
+  .tut-next:active { transform:scale(.94); }
 </style>
 </head>
 <body>
@@ -214,6 +245,9 @@
   <div class="controls">
     <button class="icon-btn" id="undoBtn" aria-label="Undo" title="Undo">
       <svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg>
+    </button>
+    <button class="icon-btn" id="infoBtn" aria-label="How to play" title="How to play">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16.5"/><line x1="12" y1="7.4" x2="12" y2="7.6"/></svg>
     </button>
     <button class="icon-btn" id="soundBtn" aria-label="Toggle sound" title="Sound"></button>
   </div>
@@ -267,6 +301,54 @@
 </div>
 <div id="veil"><div class="veil-card">dealing numbers<span class="dots"><i>.</i><i>.</i><i>.</i></span></div></div>
 <div id="toast"></div>
+
+<div id="tut" role="dialog" aria-label="How to play">
+  <div class="tut-card">
+    <div class="tut-illo" id="tutIllo"></div>
+    <div class="tut-title" id="tutTitle"></div>
+    <div class="tut-text" id="tutText"></div>
+    <div class="tut-nav">
+      <button class="tut-back" id="tutBack">‹ back</button>
+      <div class="tut-dots" id="tutDots"></div>
+      <button class="tut-next" id="tutNext">Next ›</button>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  const A='#ff6f69',M='#ffc857',G='#5fc97e',B='#5b8def',P='#c07ce8',Pk='#e08bb1',acc='#f0b35e',edge='rgba(255,255,255,.4)',ink='#1d1530';
+  const S=i=>`<svg viewBox="0 0 200 130">${i}</svg>`;
+  const U=120/9;
+  const grid9=(extra='')=>{ let s=`<rect x="44" y="5" width="120" height="120" rx="4" fill="none" stroke="${edge}" stroke-width="2.5"/>`;
+    for(let i=1;i<9;i++){ const o=44+i*U, oy=5+i*U, bold=i%3===0, col=bold?'rgba(255,255,255,.4)':'rgba(255,255,255,.15)', w=bold?2.2:1;
+      s+=`<line x1="${o}" y1="5" x2="${o}" y2="125" stroke="${col}" stroke-width="${w}"/><line x1="44" y1="${oy}" x2="164" y2="${oy}" stroke="${col}" stroke-width="${w}"/>`; }
+    return s+extra; };
+  const cxy=(r,c)=>[44+c*U+U/2, 5+r*U+U/2];
+  const dig=(r,c,n,col)=>{ const [x,y]=cxy(r,c); return `<text x="${x}" y="${y+4.5}" font-family="Georgia,serif" font-size="11" fill="${col||'#f2edf7'}" text-anchor="middle">${n}</text>`; };
+  const cellHi=(r,c,col,w,h)=>{ const x=44+c*U, y=5+r*U; return `<rect x="${x}" y="${y}" width="${U*(w||1)}" height="${U*(h||1)}" fill="${col}" opacity=".2"/>`; };
+  const ring=(r,c)=>{ const x=44+c*U, y=5+r*U; return `<rect x="${x+1}" y="${y+1}" width="${U-2}" height="${U-2}" rx="2" fill="none" stroke="${acc}" stroke-width="2"/>`; };
+  const note3=(r,c)=>{ const [x,y]=cxy(r,c); return `<text x="${x-4}" y="${y-1}" font-size="5" fill="rgba(255,255,255,.55)" text-anchor="middle">1</text><text x="${x+4}" y="${y-1}" font-size="5" fill="rgba(255,255,255,.55)" text-anchor="middle">4</text><text x="${x}" y="${y+6}" font-size="5" fill="rgba(255,255,255,.55)" text-anchor="middle">7</text>`; };
+  const KEY='sudoku.tut';
+  const TUT=[
+    { illo:S(grid9(dig(0,0,5,acc)+dig(1,3,3)+dig(2,7,8,Pk)+dig(4,4,1,acc)+dig(3,1,9)+dig(6,5,6,B)+dig(7,2,2)+dig(8,8,4,G))),
+      title:'Fill 1 to 9', text:'Every empty square gets a number from 1 to 9.' },
+    { illo:S(grid9(cellHi(3,0,acc,9,1)+cellHi(0,5,B,1,9)+cellHi(6,0,G,3,3)+dig(3,2,4)+dig(1,5,7)+dig(7,1,2))),
+      title:'No repeats', text:'Each number appears once per row, once per column, and once per 3×3 box.' },
+    { illo:S(grid9(ring(2,2)+dig(2,2,7,acc)+note3(5,5)+dig(0,4,3)+dig(7,7,8,Pk))),
+      title:'Tap, then pick', text:'Tap a square and choose a number — or add small pencil notes for maybes.' }
+  ];
+  const el=document.getElementById('tut'),illoEl=document.getElementById('tutIllo'),titleEl=document.getElementById('tutTitle'),textEl=document.getElementById('tutText'),dotsEl=document.getElementById('tutDots'),backEl=document.getElementById('tutBack'),nextEl=document.getElementById('tutNext'),info=document.getElementById('infoBtn');
+  let p=0;
+  function render(){ illoEl.innerHTML=TUT[p].illo; titleEl.textContent=TUT[p].title; textEl.textContent=TUT[p].text; let d=''; for(let i=0;i<TUT.length;i++) d+=`<i class="${i===p?'on':''}"></i>`; dotsEl.innerHTML=d; backEl.disabled=p===0; nextEl.textContent=p===TUT.length-1?'Got it':'Next ›'; }
+  function openTut(){ p=0; render(); el.classList.add('show'); }
+  function closeTut(){ el.classList.remove('show'); }
+  if(info) info.addEventListener('click',openTut);
+  backEl.addEventListener('click',()=>{ if(p>0){p--;render();} });
+  nextEl.addEventListener('click',()=>{ if(p<TUT.length-1){p++;render();} else closeTut(); });
+  el.addEventListener('click',e=>{ if(e.target===el) closeTut(); });
+  try{ if(!localStorage.getItem(KEY)){ localStorage.setItem(KEY,'1'); setTimeout(openTut,600); } }catch(e){}
+})();
+</script>
 
 <script>
 'use strict';

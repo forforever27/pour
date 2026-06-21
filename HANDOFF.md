@@ -48,6 +48,19 @@ build, no dependencies, no framework. Only external resources are Google Fonts
   rule. Each is a rounded `#231c3a` tile + the game's motif in palette accents (the hub is a
   play-triangle). `#`→`%23`, `<`→`%3C`, `>`→`%3E`, single-quoted attrs. New games get one too.
 
+### How-to-play tutorial (shared component, all 8 games)
+Each game has an **info (ⓘ) button** in the header that opens a `#tut` pop-up: an
+**illustration-led, multi-page** how-to (2–4 pages), navigated by ‹back / Next / Got it with
+page dots; tap the backdrop to close. It auto-opens **once** on first visit (flag `<game>.tut`
+in localStorage). The whole thing is one self-contained block inserted before each game's main
+`<script>`: shared `.tut-*` CSS, the `#tut` markup, and an **IIFE** holding a `TUT` array of
+`{illo, title, text}` pages + a tiny controller. Illustrations are **inline SVG built in JS**
+from small helper fns (`S`, `arrow`, `chk`, `crs`, plus per-game shape helpers like
+`tube`/`cdy`/`dt`/`grid9`) on a `0 0 200 130` viewBox — no images, no text-heavy slides.
+To edit a game's tutorial, change its `TUT` array; to restyle all, edit the `.tut-*` CSS
+(duplicated per file). The IIFE keeps its vars off the global scope so it never collides with
+game code.
+
 ### Per-game localStorage namespace (critical rule)
 Each game uses its **own key prefix** so games never collide and one game's reset never
 touches another:
