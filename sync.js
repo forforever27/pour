@@ -3,26 +3,33 @@
    ----------------------------------------------------------------------------
    Offline-first by design: localStorage stays the source of truth on each
    device. The cloud (Firebase / Firestore) is an ADDITIVE mirror that only
-   does anything once a player taps the ☁ button and signs in with Google.
-   Signed out = the game behaves exactly as before, fully offline, no account.
+   does anything once the player signs in with Google ON THE HUB.
+
+   Sign-in lives in ONE place — the hub home page. Firebase keeps the session
+   for the whole origin (forforever27.github.io), so every game page is signed
+   in automatically afterwards and syncs its own data silently, with no button.
 
    The Firebase web config below is NOT secret — it is safe to commit to a
    public repo. Security is enforced by Firestore rules (each player can only
    touch their own users/{uid} document), not by hiding these values.
 
-   Usage from a game (one <script> tag in <head> or before the game script):
-       <script src="../sync.js"></script>
-   then, after the game's own state + a toast() helper exist:
-       PlaySync.init({
-         game: 'pour',
-         mount: '.controls',                       // where the ☁ button goes
-         fields: { 'pour.level': { merge: 'max' } },// keys to sync + merge rule
-         toast: toast,                             // optional toast(msg) fn
-         onRemote: () => location.reload()         // called when cloud changes
-       });
+   USAGE
+   -----
+   Hub (index.html), once:
+       PlaySync.initHub({ btn: el, toast: fn, onChange: renderChips });
+       // btn = an existing <button> the hub styles itself
+       // onChange runs after cloud data lands so the hub can repaint chips
 
-   Data shape in Firestore:  users/{uid} = { pour: { "pour__level": 42 },
-                                             updatedAt: "..." }
+   A game (e.g. pour/index.html):
+       PlaySync.init({ game: 'pour', toast: fn, onRemote: fn });
+       // no button — login is inherited from the hub
+       // call PlaySync.push() after the game saves a synced value
+
+   REGISTRY below is the single source of truth for what each game syncs and
+   how conflicting values are merged. Add a game here when wiring its sync.
+
+   Firestore shape:  users/{uid} = { pour: { "pour__level": "42" },
+                                     updatedAt: "..." }
    (dots in localStorage keys are stored as "__" so Firestore is happy.)
    ============================================================================ */
 window.PlaySync = (function () {
@@ -36,14 +43,16 @@ window.PlaySync = (function () {
     appId: "1:811102676707:web:ce951a6e6e81c6003b07d6",
   };
 
+  // What each game syncs + how to merge a local vs cloud value.
+  // merge: 'max' = furthest/best wins, 'min', or 'latest' = trust the cloud copy.
+  // Add other games here as their sync is wired in.
+  const REGISTRY = {
+    pour: { "pour.level": { merge: "max" } },
+  };
+
   const enc = (k) => k.replace(/\./g, "__"); // localStorage key -> Firestore field
-  const SVG_OUT =
-    '<svg viewBox="0 0 24 24"><path d="M7 18a4 4 0 0 1-.3-8A5.5 5.5 0 0 1 17.5 9.5 3.75 3.75 0 0 1 17 18H7z"/></svg>';
-  const SVG_IN =
-    '<svg viewBox="0 0 24 24"><path d="M7 18a4 4 0 0 1-.3-8A5.5 5.5 0 0 1 17.5 9.5 3.75 3.75 0 0 1 17 18H7z"/><path d="M9.3 13.6l1.9 1.9 3.6-4"/></svg>';
 
   const S = {
-    cfg: null,
     ready: false,
     user: null,
     auth: null,
@@ -51,44 +60,13 @@ window.PlaySync = (function () {
     fs: null,
     db: null,
     ref: null,
-    btn: null,
-    applyingRemote: false, // guard so a remote pull doesn't echo back up
+    targets: [], // [{game, fields, onRemote}]
+    buttons: [], // [{el, render}]
+    applyingRemote: false,
+    startPromise: null,
   };
 
-  function toast(msg) {
-    if (S.cfg && typeof S.cfg.toast === "function") S.cfg.toast(msg);
-  }
-
-  function makeButton() {
-    if (!S.cfg.mount) return;
-    const host =
-      typeof S.cfg.mount === "string"
-        ? document.querySelector(S.cfg.mount)
-        : S.cfg.mount;
-    if (!host) return;
-    const b = document.createElement("button");
-    b.className = "icon-btn";
-    b.id = "syncBtn";
-    b.setAttribute("aria-label", "Sync progress");
-    b.title = "Sync across devices";
-    b.innerHTML = SVG_OUT;
-    b.addEventListener("click", toggle);
-    host.appendChild(b);
-    S.btn = b;
-    paintButton();
-  }
-
-  function paintButton() {
-    if (!S.btn) return;
-    const on = !!S.user;
-    S.btn.innerHTML = on ? SVG_IN : SVG_OUT;
-    S.btn.style.color = on ? "var(--accent, #f0b35e)" : "";
-    S.btn.title = on
-      ? "Synced — tap to sign out"
-      : "Sync across devices (sign in)";
-  }
-
-  // Merge one field: returns the value that should win locally.
+  /* ---------- merge helpers ---------- */
   function mergeValue(rule, localRaw, cloudVal) {
     if (cloudVal === undefined || cloudVal === null) return localRaw;
     if (localRaw === null || localRaw === undefined) return cloudVal;
@@ -96,18 +74,17 @@ window.PlaySync = (function () {
       return String(Math.max(Number(localRaw) || 0, Number(cloudVal) || 0));
     if (rule === "min")
       return String(Math.min(Number(localRaw) || 0, Number(cloudVal) || 0));
-    return cloudVal; // 'latest' / default: trust the cloud copy
+    return cloudVal; // 'latest' / default
   }
 
-  // Pull cloud doc, merge into localStorage. Returns true if anything changed.
-  function applyRemote(data) {
-    const mine = (data && data[S.cfg.game]) || {};
+  // Merge one game's cloud fields into localStorage. Returns true if changed.
+  function applyGame(game, fields, docData) {
+    const mine = (docData && docData[game]) || {};
     let changed = false;
-    for (const key in S.cfg.fields) {
-      const rule = S.cfg.fields[key].merge || "latest";
+    for (const key in fields) {
+      const rule = fields[key].merge || "latest";
       const localRaw = localStorage.getItem(key);
-      const cloudVal = mine[enc(key)];
-      const winner = mergeValue(rule, localRaw, cloudVal);
+      const winner = mergeValue(rule, localRaw, mine[enc(key)]);
       if (winner !== null && winner !== undefined && String(winner) !== localRaw) {
         localStorage.setItem(key, String(winner));
         changed = true;
@@ -116,98 +93,158 @@ window.PlaySync = (function () {
     return changed;
   }
 
-  function localPayload() {
-    const out = {};
-    for (const key in S.cfg.fields) {
-      const v = localStorage.getItem(key);
-      if (v !== null) out[enc(key)] = v;
+  // Build the Firestore payload for the games registered on this page.
+  function buildPayload() {
+    const payload = {};
+    for (const t of S.targets) {
+      const out = {};
+      for (const key in t.fields) {
+        const v = localStorage.getItem(key);
+        if (v !== null) out[enc(key)] = v;
+      }
+      payload[t.game] = out;
     }
-    return out;
+    return payload;
   }
 
   async function push() {
-    if (!S.ready || !S.user || !S.ref) return;
+    if (!S.ready || !S.user || !S.ref || !S.targets.length) return;
     try {
       await S.fs.setDoc(
         S.ref,
-        { [S.cfg.game]: localPayload(), updatedAt: new Date().toISOString() },
+        Object.assign(buildPayload(), { updatedAt: new Date().toISOString() }),
         { merge: true }
       );
     } catch (e) {
-      console.warn("[PlaySync] push failed (will retry next change)", e);
+      console.warn("[PlaySync] push failed (will retry on next change)", e);
     }
   }
 
-  async function init(cfg) {
-    S.cfg = cfg;
-    makeButton();
-    if (!firebaseConfig.apiKey) return; // not configured yet -> local-only
-    let appMod, authMod, fsMod;
-    try {
-      [appMod, authMod, fsMod] = await Promise.all([
-        import(`${SDK}/firebase-app.js`),
-        import(`${SDK}/firebase-auth.js`),
-        import(`${SDK}/firebase-firestore.js`),
-      ]);
-    } catch (e) {
-      console.warn("[PlaySync] SDK unavailable (offline or blocked)", e);
-      return; // game keeps working offline; button shows an error on tap
-    }
-    const app = appMod.initializeApp(firebaseConfig);
-    S.authMod = authMod;
-    S.auth = authMod.getAuth(app);
-    S.fs = fsMod;
-    S.db = fsMod.getFirestore(app);
-    S.ready = true;
-
-    authMod.onAuthStateChanged(S.auth, async (user) => {
-      S.user = user;
-      paintButton();
-      if (!user) {
-        S.ref = null;
-        return;
-      }
-      S.ref = fsMod.doc(S.db, "users", user.uid);
+  /* ---------- buttons ---------- */
+  function paintButtons() {
+    const on = !!S.user;
+    for (const b of S.buttons) {
       try {
-        const snap = await fsMod.getDoc(S.ref);
-        const changed = snap.exists() ? applyRemote(snap.data()) : false;
-        await push(); // upload the merged result so the cloud is current
-        if (changed && typeof S.cfg.onRemote === "function") S.cfg.onRemote();
-      } catch (e) {
-        console.warn("[PlaySync] initial read failed", e);
+        b.render(b.el, on, S.user);
+      } catch (_) {}
+    }
+  }
+
+  /* ---------- auth lifecycle ---------- */
+  async function handleAuth(user) {
+    S.user = user;
+    paintButtons();
+    if (!user) {
+      S.ref = null;
+      return;
+    }
+    S.ref = S.fs.doc(S.db, "users", user.uid);
+    try {
+      const snap = await S.fs.getDoc(S.ref);
+      const data = snap.exists() ? snap.data() : null;
+      const fired = [];
+      for (const t of S.targets) {
+        if (applyGame(t.game, t.fields, data)) fired.push(t);
       }
-      // Live updates from other devices.
-      fsMod.onSnapshot(S.ref, (snap) => {
-        if (!snap.exists() || S.applyingRemote) return;
-        S.applyingRemote = true;
-        const changed = applyRemote(snap.data());
-        S.applyingRemote = false;
-        if (changed && typeof S.cfg.onRemote === "function") S.cfg.onRemote();
-      });
+      await push(); // upload the merged result so the cloud is current
+      for (const t of fired) if (typeof t.onRemote === "function") t.onRemote();
+    } catch (e) {
+      console.warn("[PlaySync] initial read failed", e);
+    }
+    // Live updates from other devices.
+    S.fs.onSnapshot(S.ref, (snap) => {
+      if (!snap.exists() || S.applyingRemote) return;
+      S.applyingRemote = true;
+      const data = snap.data();
+      for (const t of S.targets) {
+        if (applyGame(t.game, t.fields, data) && typeof t.onRemote === "function")
+          t.onRemote();
+      }
+      S.applyingRemote = false;
     });
   }
 
-  async function toggle() {
-    if (!S.ready) {
-      toast("Sync not ready yet — try again in a moment.");
+  function start() {
+    if (S.startPromise) return S.startPromise;
+    S.startPromise = (async () => {
+      if (!firebaseConfig.apiKey) return false;
+      let appMod, authMod, fsMod;
+      try {
+        [appMod, authMod, fsMod] = await Promise.all([
+          import(`${SDK}/firebase-app.js`),
+          import(`${SDK}/firebase-auth.js`),
+          import(`${SDK}/firebase-firestore.js`),
+        ]);
+      } catch (e) {
+        console.warn("[PlaySync] SDK unavailable (offline or blocked)", e);
+        return false;
+      }
+      const app = appMod.initializeApp(firebaseConfig);
+      S.authMod = authMod;
+      S.auth = authMod.getAuth(app);
+      S.fs = fsMod;
+      S.db = fsMod.getFirestore(app);
+      S.ready = true;
+      authMod.onAuthStateChanged(S.auth, handleAuth);
+      return true;
+    })();
+    return S.startPromise;
+  }
+
+  async function toggle(toast) {
+    const ok = await start();
+    if (!ok || !S.ready) {
+      if (toast) toast("Sync not ready — check your connection and try again.");
       return;
     }
     try {
       if (S.user) {
         await S.authMod.signOut(S.auth);
-        toast("Signed out. Your progress stays on this device.");
+        if (toast) toast("Signed out. Progress stays on this device.");
       } else {
         await S.authMod.signInWithPopup(
           S.auth,
           new S.authMod.GoogleAuthProvider()
         );
-        toast("Signed in — progress now syncs across devices.");
+        if (toast) toast("Signed in — progress now syncs across devices.");
       }
     } catch (e) {
       console.warn("[PlaySync] auth error", e);
-      toast("Sign-in didn’t complete. Please try again.");
+      if (toast) toast("Sign-in didn’t complete. Please try again.");
     }
   }
 
-  return { init, push, isOn: () => !!S.user };
+  /* ---------- public API ---------- */
+
+  // A game page: sync this one game silently (login inherited from the hub).
+  function init(cfg) {
+    const fields = cfg.fields || REGISTRY[cfg.game];
+    if (!fields) {
+      console.warn("[PlaySync] no fields registered for game:", cfg.game);
+      return;
+    }
+    S.targets.push({ game: cfg.game, fields, onRemote: cfg.onRemote });
+    start();
+  }
+
+  // The hub page: one sign-in button + sync EVERY registered game.
+  function initHub(cfg) {
+    for (const game in REGISTRY) {
+      S.targets.push({ game, fields: REGISTRY[game], onRemote: cfg.onChange });
+    }
+    if (cfg.btn) {
+      const render =
+        cfg.render ||
+        function (el, on) {
+          el.textContent = on ? "✓ synced · sign out" : "☁ sign in to sync";
+          el.classList.toggle("on", on);
+        };
+      S.buttons.push({ el: cfg.btn, render });
+      render(cfg.btn, false);
+      cfg.btn.addEventListener("click", () => toggle(cfg.toast));
+    }
+    start();
+  }
+
+  return { init, initHub, push, isOn: () => !!S.user };
 })();

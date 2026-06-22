@@ -84,6 +84,23 @@
 
   footer { font-size:.68rem; font-weight:300; letter-spacing:.12em; color:var(--ink-dim);
     text-align:center; padding: 0 24px 36px; margin-top:auto; }
+
+  /* ---- one sign-in for the whole hub ---- */
+  .sync { margin-top:16px; font-family:'Outfit',sans-serif; font-size:.74rem; font-weight:400;
+    letter-spacing:.06em; color:var(--ink-dim); cursor:pointer;
+    padding:8px 16px; border-radius:99px; border:1px solid var(--glass-edge);
+    background-color:transparent; background-image:linear-gradient(var(--glass),var(--glass));
+    transition:transform .15s ease, color .2s ease, border-color .2s ease; }
+  .sync:active { transform:scale(.95); }
+  .sync.on { color:var(--accent); border-color:rgba(240,179,94,.4); }
+
+  #toast { position:fixed; left:50%; bottom:calc(28px + env(safe-area-inset-bottom));
+    transform:translateX(-50%) translateY(20px); z-index:60;
+    background-image:linear-gradient(#2b2342,#2b2342); color:var(--ink);
+    font-size:.8rem; padding:10px 18px; border-radius:99px; border:1px solid var(--glass-edge);
+    box-shadow:0 10px 30px -10px rgba(0,0,0,.6); opacity:0; pointer-events:none;
+    transition:opacity .25s ease, transform .25s ease; max-width:86vw; text-align:center; }
+  #toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
 </style>
 </head>
 <body>
@@ -91,7 +108,8 @@
 
 <header>
   <h1>play<em>.</em></h1>
-  <div class="tagline">no ads · no accounts · just play</div>
+  <div class="tagline">no ads · just play</div>
+  <button class="sync" id="syncBtn" aria-label="Sync progress across devices">☁ sign in to sync</button>
 </header>
 
 <main>
@@ -249,82 +267,85 @@
   </a>
 </main>
 
-<footer>progress is saved on this device, per game</footer>
+<footer id="foot">progress saves on this device · sign in to sync</footer>
+<div id="toast"></div>
 
+<script src="sync.js"></script>
 <script>
 'use strict';
 /* each game keeps its own localStorage keys (pour.*, sudoku.*) — the hub only peeks to show progress */
-try {
-  const lv = parseInt(localStorage.getItem('pour.level') || '1', 10);
-  if (lv > 1) {
-    const el = document.getElementById('pourProg');
-    el.textContent = 'level ' + lv;
-    el.classList.remove('fresh');
-  }
-} catch(e) {}
-try {
-  const el = document.getElementById('sudokuProg');
-  const stats = JSON.parse(localStorage.getItem('sudoku.stats') || '{}');
-  const solved = Object.values(stats).reduce((a,b)=>a+(+b||0), 0);
-  if (solved > 0) {
-    el.textContent = solved + ' solved';
-    el.classList.remove('fresh');
-  } else if (localStorage.getItem('sudoku.state')) {
-    el.textContent = 'in progress';
-    el.classList.remove('fresh');
-  }
-} catch(e) {}
-try {
-  const lv = parseInt(localStorage.getItem('codeword.level') || '1', 10);
-  if (lv > 1) {
-    const el = document.getElementById('codewordProg');
-    el.textContent = 'level ' + lv;
-    el.classList.remove('fresh');
-  }
-} catch(e) {}
-try {
-  const b = parseInt(localStorage.getItem('2048.best') || '0', 10);
-  if (b > 0) {
-    const el = document.getElementById('g2048Prog');
-    el.textContent = 'best ' + b;
-    el.classList.remove('fresh');
-  }
-} catch(e) {}
-try {
-  const lv = parseInt(localStorage.getItem('ember.level') || '1', 10);
-  const el = document.getElementById('emberProg');
-  if (lv > 1) {
-    el.textContent = 'level ' + lv;
-    el.classList.remove('fresh');
-  } else if (localStorage.getItem('ember.run')) {
-    el.textContent = 'in progress';
-    el.classList.remove('fresh');
-  }
-} catch(e) {}
-try {
-  const b = parseInt(localStorage.getItem('drop.best') || '0', 10);
-  if (b > 0) {
-    const el = document.getElementById('dropProg');
-    el.textContent = 'best ' + b;
-    el.classList.remove('fresh');
-  }
-} catch(e) {}
-try {
-  const lv = parseInt(localStorage.getItem('sweets.level') || '1', 10);
-  if (lv > 1) {
-    const el = document.getElementById('sweetsProg');
-    el.textContent = 'level ' + lv;
-    el.classList.remove('fresh');
-  }
-} catch(e) {}
-try {
-  const lv = parseInt(localStorage.getItem('dots.level') || '1', 10);
-  if (lv > 1) {
-    const el = document.getElementById('dotsProg');
-    el.textContent = 'level ' + lv;
-    el.classList.remove('fresh');
-  }
-} catch(e) {}
+function setChip(id, text){
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = text;
+  el.classList.remove('fresh');
+}
+function renderChips() {
+  try {
+    const lv = parseInt(localStorage.getItem('pour.level') || '1', 10);
+    if (lv > 1) setChip('pourProg', 'level ' + lv);
+  } catch(e) {}
+  try {
+    const stats = JSON.parse(localStorage.getItem('sudoku.stats') || '{}');
+    const solved = Object.values(stats).reduce((a,b)=>a+(+b||0), 0);
+    if (solved > 0) setChip('sudokuProg', solved + ' solved');
+    else if (localStorage.getItem('sudoku.state')) setChip('sudokuProg', 'in progress');
+  } catch(e) {}
+  try {
+    const lv = parseInt(localStorage.getItem('codeword.level') || '1', 10);
+    if (lv > 1) setChip('codewordProg', 'level ' + lv);
+  } catch(e) {}
+  try {
+    const b = parseInt(localStorage.getItem('2048.best') || '0', 10);
+    if (b > 0) setChip('g2048Prog', 'best ' + b);
+  } catch(e) {}
+  try {
+    const lv = parseInt(localStorage.getItem('ember.level') || '1', 10);
+    if (lv > 1) setChip('emberProg', 'level ' + lv);
+    else if (localStorage.getItem('ember.run')) setChip('emberProg', 'in progress');
+  } catch(e) {}
+  try {
+    const b = parseInt(localStorage.getItem('drop.best') || '0', 10);
+    if (b > 0) setChip('dropProg', 'best ' + b);
+  } catch(e) {}
+  try {
+    const lv = parseInt(localStorage.getItem('sweets.level') || '1', 10);
+    if (lv > 1) setChip('sweetsProg', 'level ' + lv);
+  } catch(e) {}
+  try {
+    const lv = parseInt(localStorage.getItem('dots.level') || '1', 10);
+    if (lv > 1) setChip('dotsProg', 'level ' + lv);
+  } catch(e) {}
+}
+renderChips();
+
+/* tiny toast */
+let _toastT;
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(_toastT); _toastT = setTimeout(()=>t.classList.remove('show'), 2400);
+}
+
+/* one sign-in for the whole hub; on login, pull every game's cloud progress
+   and repaint the chips. Games then sync themselves silently. */
+if (window.PlaySync) {
+  PlaySync.initHub({
+    btn: document.getElementById('syncBtn'),
+    toast: toast,
+    onChange: ()=>{
+      renderChips();
+      const f = document.getElementById('foot');
+      if (f) f.textContent = PlaySync.isOn() ? 'synced across your devices ☁' : 'progress saves on this device · sign in to sync';
+    },
+    render: (el, on)=>{
+      el.textContent = on ? '✓ synced · sign out' : '☁ sign in to sync';
+      el.classList.toggle('on', on);
+      const f = document.getElementById('foot');
+      if (f) f.textContent = on ? 'synced across your devices ☁' : 'progress saves on this device · sign in to sync';
+    }
+  });
+}
 </script>
 </body>
 </html>

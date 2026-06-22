@@ -840,13 +840,10 @@ levelsEl.addEventListener('click', e=>{ if(e.target === levelsEl) closeLevels();
 renderSoundIcon();
 loadLevel();
 
-/* ---- cross-device cloud sync (optional, opt-in via the ☁ button) ---- */
+/* ---- cross-device cloud sync (login lives on the hub; this syncs silently) ---- */
 if(window.PlaySync){
   PlaySync.init({
-    game: 'pour',
-    mount: '.controls',
-    fields: { 'pour.level': { merge: 'max' } },   // furthest level wins
-    toast: toast,
+    game: 'pour',                                  // fields + merge rule come from sync.js REGISTRY
     onRemote: ()=>{
       const cloudP = parseInt(localStorage.getItem('pour.level')||'1',10);
       if(cloudP > progress){
