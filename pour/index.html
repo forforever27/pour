@@ -350,6 +350,7 @@
 })();
 </script>
 
+<script src="../sync.js"></script>
 <script>
 'use strict';
 let totals = [];  // per-colour piece count — a colour is "sorted" when ALL its pieces sit in one tube
@@ -716,6 +717,7 @@ function checkWin(){
   if(!won) return;
   progress = Math.max(progress, level+1);          // replays never shrink progress
   localStorage.setItem('pour.level', progress);
+  if(window.PlaySync) PlaySync.push();              // mirror to cloud if signed in
   winSound(); buzz([30,60,30]);
   document.getElementById('winTitle').textContent = WIN_WORDS[level % WIN_WORDS.length];
   document.getElementById('winSub').textContent = 'Solved in ' + moves + (moves===1?' move':' moves');
@@ -802,6 +804,7 @@ document.getElementById('hintBtn').addEventListener('click', ()=>{
 document.getElementById('skipBtn').addEventListener('click', ()=>{
   if(busy) return;
   level++; progress = Math.max(progress, level);
+  if(window.PlaySync) PlaySync.push();              // mirror to cloud if signed in
   loadLevel(); toast('Level skipped ✦');
 });
 
@@ -836,6 +839,23 @@ levelsEl.addEventListener('click', e=>{ if(e.target === levelsEl) closeLevels();
 
 renderSoundIcon();
 loadLevel();
+
+/* ---- cross-device cloud sync (optional, opt-in via the ☁ button) ---- */
+if(window.PlaySync){
+  PlaySync.init({
+    game: 'pour',
+    mount: '.controls',
+    fields: { 'pour.level': { merge: 'max' } },   // furthest level wins
+    toast: toast,
+    onRemote: ()=>{
+      const cloudP = parseInt(localStorage.getItem('pour.level')||'1',10);
+      if(cloudP > progress){
+        progress = cloudP;                         // unlock synced levels, no mid-game reload
+        toast('Progress synced — up to level '+progress+' ☁');
+      }
+    }
+  });
+}
 </script>
 </body>
 </html>
