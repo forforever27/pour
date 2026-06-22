@@ -125,9 +125,13 @@ button (header) steps back through place/erase/hint; erase key on the keyboard.
 
 ### 2048 — `/2048/`
 Classic slide-and-merge, site palette, animated tiles keyed by id. Swipe (pointer) +
-arrows/WASD. One-step undo (header). **Out-of-moves overlay offers "↩ undo last move"**
-because the overlay covers the header button — the undo snapshot is persisted with the
-board so the rescue still works after a reload. `2048.best` tracked.
+arrows/WASD. **Multi-level undo** (header) — `undoStack` of up to `UNDO_CAP` (50)
+snapshots `{b,s}`, pushed each move, popped on undo. The whole stack is persisted in
+`2048.state` (`u` field) so undos survive a reload; `restore()` tolerates the old
+single-snapshot `{b,s}` format (wraps it as a 1-item stack). **Out-of-moves overlay
+offers "↩ undo last move"** because the overlay covers the header button — clicking it
+undoes one and dismisses the overlay, then the header undo continues back through the
+stack. `2048.best` tracked.
 
 ### Drop — `/drop/`
 Suika-style merge: drop "moons", two equal merge into the next of 11 tiers, up to a sun.

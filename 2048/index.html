@@ -268,7 +268,8 @@ const TILE_STYLE = {
 
 let grid = Array(16).fill(null);   // {id, v} or null
 let score = 0, best = 0, won = false, over = false;
-let undoState = null;
+let undoStack = [];                // snapshots {b, s}, newest last — supports many undos
+const UNDO_CAP = 50;
 let nextId = 1, busy = false;
 let soundOn = localStorage.getItem('2048.sound') !== 'off';
 try { best = parseInt(localStorage.getItem('2048.best')||'0',10) || 0; } catch(e){}
@@ -307,8 +308,8 @@ function renderSoundIcon(){
 /* ---------- persistence: 2048.* keys, this device only ---------- */
 function save(){
   try {
-    // the undo snapshot is saved too, so "undo last move" still works after a reload
-    localStorage.setItem('2048.state', JSON.stringify({ b: grid.map(t=>t?t.v:0), s: score, w: won, u: undoState }));
+    // the whole undo stack is saved too, so undos still work after a reload
+    localStorage.setItem('2048.state', JSON.stringify({ b: grid.map(t=>t?t.v:0), s: score, w: won, u: undoStack }));
     localStorage.setItem('2048.best', best);
   } catch(e){}
 }
@@ -320,7 +321,10 @@ function restore(){
     if(!Array.isArray(st.b) || st.b.length!==16 || !st.b.some(v=>v)) return false;
     grid = st.b.map(v => v ? {id:nextId++, v} : null);
     score = st.s||0; won = !!st.w;
-    if(st.u && Array.isArray(st.u.b) && st.u.b.length===16) undoState = { b: st.u.b, s: st.u.s||0 };
+    const raw2 = Array.isArray(st.u) ? st.u           // new format: a stack
+      : (st.u && Array.isArray(st.u.b) ? [st.u] : []); // old format: a single {b,s}
+    undoStack = raw2.filter(u => u && Array.isArray(u.b) && u.b.length===16)
+                    .map(u => ({ b: u.b, s: u.s||0 }));
     return true;
   } catch(e){ return false; }
 }
@@ -370,7 +374,7 @@ function addTileEl(t, i, cls){
 function paintHud(){
   scoreLabel.textContent = score;
   bestLabel.textContent = 'best ' + best;
-  undoBtn.disabled = !undoState;
+  undoBtn.disabled = !undoStack.length;
 }
 function fullRender(){
   for(const el of tileEls.values()) el.remove();
@@ -453,7 +457,8 @@ function move(dir){
   if(!changed) return;
 
   busy = true;
-  undoState = prev;
+  undoStack.push(prev);
+  if(undoStack.length > UNDO_CAP) undoStack.shift();
   grid = newGrid;
   // slide everything
   for(const m of moves){
@@ -493,7 +498,7 @@ function showGameOver(){
   document.getElementById('overTitle').textContent = 'Out of moves.';
   document.getElementById('overSub').textContent = 'Score ' + score + (score>=best ? ' · new best ✦' : ' · best ' + best);
   document.getElementById('keepBtn').style.display = 'none';
-  document.getElementById('undoAlt').style.display = undoState ? 'block' : 'none';
+  document.getElementById('undoAlt').style.display = undoStack.length ? 'block' : 'none';
   setTimeout(()=>overEl.classList.add('show'), 350);
 }
 function confetti(){
@@ -510,7 +515,7 @@ function confetti(){
 }
 function newGame(){
   grid = Array(16).fill(null);
-  score = 0; won = false; over = false; undoState = null;
+  score = 0; won = false; over = false; undoStack = [];
   overEl.classList.remove('show');
   for(const el of tileEls.values()) el.remove();
   tileEls.clear();
@@ -525,10 +530,11 @@ function toast(msg){
 
 /* ---------- controls ---------- */
 function doUndo(){
-  if(!undoState || busy) return;
-  grid = undoState.b.map(v => v ? {id:nextId++, v} : null);
-  score = undoState.s;
-  undoState = null; over = false;
+  if(!undoStack.length || busy) return;
+  const prev = undoStack.pop();
+  grid = prev.b.map(v => v ? {id:nextId++, v} : null);
+  score = prev.s;
+  over = false;
   overEl.classList.remove('show');
   note(330,.1,.06);
   save(); fullRender();
