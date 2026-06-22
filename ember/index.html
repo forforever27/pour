@@ -262,6 +262,7 @@
 })();
 </script>
 
+<script src="../sync.js"></script>
 <script>
 'use strict';
 const TAU = Math.PI*2;
@@ -544,6 +545,7 @@ function winLevel(){
   wallet += bonus;
   progress = Math.max(progress, level+1);
   clearRun(); saveMeta();
+  if(window.PlaySync) PlaySync.push();              // sync furthest level + money
   winS(); buzz([30,60,30]);
   document.getElementById('winSub').textContent =
     'Level '+level+' · the whole camp is built · +$'+bonus;
@@ -1233,6 +1235,21 @@ renderSoundIcon();
 genWorld(progress);
 openMenu();
 requestAnimationFrame(ts=>{ last = ts; requestAnimationFrame(frame); });
+
+/* ---- cross-device cloud sync (login lives on the hub; this syncs silently) ---- */
+if(window.PlaySync){
+  PlaySync.init({
+    game: 'ember',
+    onRemote: ()=>{
+      let ch=false;
+      const c = parseInt(localStorage.getItem('ember.level')||'1',10);
+      if(c > progress){ progress = c; ch=true; }
+      try{ const m = JSON.parse(localStorage.getItem('ember.meta')||'null');
+           if(m && (m.gold|0) > wallet){ wallet = m.gold|0; ch=true; } }catch(e){}
+      if(ch){ saveMeta(); if(mode==='menu') openMenu(); }   // refresh menu/money; don't disturb a live run
+    }
+  });
+}
 </script>
 </body>
 </html>

@@ -224,6 +224,7 @@
 })();
 </script>
 
+<script src="../sync.js"></script>
 <script>
 'use strict';
 /* eleven moons, small dew to the great sun — radii scale with board width */
@@ -378,7 +379,7 @@ function merge(a, b){
   a.vx = (a.vx+b.vx)/2; a.vy = (a.vy+b.vy)/2 - 60*S;
   a.t++; a.age = 0;
   score += POINTS(a.t);
-  if(score > best) best = score;
+  if(score > best){ best = score; if(window.PlaySync) PlaySync.push(); }
   effects.push({ x:a.x, y:a.y, r:TIERS[a.t].r*S, life:.35 });
   note(240 + a.t*55, .14, .08);
   if(a.t >= 7) buzz(15);
@@ -542,6 +543,17 @@ if(!restore()){ cur = randTier(); next = randTier(); }
 overTime = -1.5;   // grace period so a restored tall pile isn't an instant loss
 paintHud();
 requestAnimationFrame(ts=>{ last = ts; requestAnimationFrame(frame); });
+
+/* ---- cross-device cloud sync (login lives on the hub; this syncs silently) ---- */
+if(window.PlaySync){
+  PlaySync.init({
+    game: 'drop',
+    onRemote: ()=>{
+      const c = parseInt(localStorage.getItem('drop.best')||'0',10);
+      if(c > best){ best = c; paintHud(); }
+    }
+  });
+}
 </script>
 </body>
 </html>

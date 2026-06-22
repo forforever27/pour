@@ -320,6 +320,7 @@
 })();
 </script>
 
+<script src="../sync.js"></script>
 <script>
 'use strict';
 /* pre-generated 13x13 grids (tools/gen_codeword.py) — every grid uses all 26 letters,
@@ -573,6 +574,7 @@ function checkWin(){
   progress = Math.max(progress, level+1);
   clearSave();
   try { localStorage.setItem('codeword.level', progress); } catch(e){}
+  if(window.PlaySync) PlaySync.push();              // mirror furthest level to cloud
   sel = 0; paint();
   winSound(); buzz([30,60,30]);
   document.getElementById('winTitle').textContent = WIN_WORDS[level % WIN_WORDS.length];
@@ -661,6 +663,17 @@ try {
   }
 } catch(e){}
 setupLevel(savedLv, savedA);
+
+/* ---- cross-device cloud sync (login lives on the hub; this syncs silently) ---- */
+if(window.PlaySync){
+  PlaySync.init({
+    game: 'codeword',
+    onRemote: ()=>{
+      const c = parseInt(localStorage.getItem('codeword.level')||'1',10);
+      if(c > progress) progress = c;               // unlock synced levels in the picker
+    }
+  });
+}
 </script>
 </body>
 </html>

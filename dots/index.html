@@ -274,6 +274,7 @@
 })();
 </script>
 
+<script src="../sync.js"></script>
 <script>
 'use strict';
 const COLS = 6, ROWS = 6, N = COLS*ROWS, COLORS = 5;
@@ -582,6 +583,7 @@ async function levelUp(){
   document.getElementById('overTitle').textContent = 'Level ' + cleared + ' cleared.';
   document.getElementById('overSub').textContent = '+' + bonus + ' · level ' + level + ' up next';
   goal = makeGoal(level); paint(); save();
+  if(window.PlaySync) PlaySync.push();              // sync level + best on level-up
   overEl.classList.add('show');
   await delay(60);
   await new Promise(res=>{
@@ -654,6 +656,21 @@ renderSoundIcon();
 if(!restore()){ newGame(); }
 else { if(!hasMove()){ reshuffle(); } fullRender(); paint(); }
 paint();
+
+/* ---- cross-device cloud sync (login lives on the hub; this syncs silently) ---- */
+if(window.PlaySync){
+  PlaySync.init({
+    game: 'dots',
+    onRemote: ()=>{
+      const cl = parseInt(localStorage.getItem('dots.level')||'1',10);
+      const cb = parseInt(localStorage.getItem('dots.best')||'0',10);
+      let ch=false;
+      if(cl > level){ level = cl; ch=true; }      // level counter follows you; current board continues
+      if(cb > best){ best = cb; ch=true; }
+      if(ch) paint();
+    }
+  });
+}
 </script>
 </body>
 </html>

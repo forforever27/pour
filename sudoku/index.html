@@ -350,6 +350,7 @@
 })();
 </script>
 
+<script src="../sync.js"></script>
 <script>
 'use strict';
 const WIN_WORDS = ['Lovely.','Sorted.','Pristine.','Serene.','Sharp.','Elegant.','Satisfying.','Flawless.'];
@@ -653,6 +654,7 @@ function checkWin(){
   for(let i=0;i<81;i++) if(board[i]!==solution[i]) return;
   stats[diff] = (stats[diff]||0) + 1;
   try { localStorage.setItem('sudoku.stats', JSON.stringify(stats)); } catch(e){}
+  if(window.PlaySync) PlaySync.push();              // mirror solved counts to cloud
   clearSave();
   selected = -1; paint();
   winSound(); buzz([30,60,30]);
@@ -754,6 +756,20 @@ buildBoard();
 renderSoundIcon();
 if(restore()) paint();
 else { paint(); openPicker(true); }
+
+/* ---- cross-device cloud sync (login lives on the hub; this syncs silently) ---- */
+if(window.PlaySync){
+  PlaySync.init({
+    game: 'sudoku',
+    onRemote: ()=>{
+      try { stats = JSON.parse(localStorage.getItem('sudoku.stats')||'{}'); } catch(e){}
+      if(pickerEl.classList.contains('show')){                    // refresh tallies if picker is open
+        const forced = document.getElementById('pickerClose').style.visibility === 'hidden';
+        openPicker(forced);
+      }
+    }
+  });
+}
 </script>
 </body>
 </html>

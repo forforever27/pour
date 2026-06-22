@@ -44,10 +44,23 @@ window.PlaySync = (function () {
   };
 
   // What each game syncs + how to merge a local vs cloud value.
-  // merge: 'max' = furthest/best wins, 'min', or 'latest' = trust the cloud copy.
-  // Add other games here as their sync is wired in.
+  // merge: 'max' = furthest/best wins, 'min', 'maxmap' = per-key max of a JSON
+  // object (e.g. {gentle:3,classic:1}), or 'latest' = trust the cloud copy.
+  // Only monotonic progress markers are synced — never in-progress board blobs
+  // (*.state) so two devices never clobber each other's live game, and never
+  // *.sound (a per-device preference).
   const REGISTRY = {
-    pour: { "pour.level": { merge: "max" } },
+    pour:     { "pour.level":     { merge: "max" } },
+    sudoku:   { "sudoku.stats":   { merge: "maxmap" } },               // solved counts per difficulty
+    codeword: { "codeword.level": { merge: "max" } },                  // furthest level
+    "2048":   { "2048.best":      { merge: "max" } },                  // best score
+    drop:     { "drop.best":      { merge: "max" } },                  // best score
+    ember:    { "ember.level":    { merge: "max" },                    // furthest level
+                "ember.meta":     { merge: "maxmap" } },               // {gold} — keep the most money
+    sweets:   { "sweets.level":   { merge: "max" },
+                "sweets.best":    { merge: "max" } },
+    dots:     { "dots.level":     { merge: "max" },
+                "dots.best":      { merge: "max" } },
   };
 
   const enc = (k) => k.replace(/\./g, "__"); // localStorage key -> Firestore field
@@ -74,6 +87,14 @@ window.PlaySync = (function () {
       return String(Math.max(Number(localRaw) || 0, Number(cloudVal) || 0));
     if (rule === "min")
       return String(Math.min(Number(localRaw) || 0, Number(cloudVal) || 0));
+    if (rule === "maxmap") {
+      let l = {}, c = {};
+      try { l = JSON.parse(localRaw) || {}; } catch (_) {}
+      try { c = JSON.parse(cloudVal) || {}; } catch (_) {}
+      const out = Object.assign({}, l);
+      for (const k in c) out[k] = Math.max(Number(out[k]) || 0, Number(c[k]) || 0);
+      return JSON.stringify(out);
+    }
     return cloudVal; // 'latest' / default
   }
 
