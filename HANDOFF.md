@@ -15,11 +15,15 @@ catch-up for any new session.
   (folder is still named `Pour` for historical reasons — it is the **whole-site repo**, not just Pour)
 - **Deploy:** push to `main`. GitHub Pages serves `main` at root `/`. No build step.
 - **Games:** Pour, Sudoku, Codeword, 2048, Drop, Ember, Sweets, Dots — 8 total.
+- **Cross-device sync:** optional, offline-first, via Firebase (project `play-ee089`). One
+  Google sign-in **on the hub** mirrors every game's progress across devices. Signed out,
+  the games are unchanged and fully offline. See **Cross-device cloud sync** below.
 - **Owner:** Xy Koh — designer, not a developer. Keep explanations plain.
 
-> ⚠️ **Never move the domain or account.** All player progress lives in browser
-> `localStorage`, which is scoped to the origin `forforever27.github.io`. Moving to a
-> different domain or account silently wipes every existing player's saves and streaks.
+> ⚠️ **Never move the domain or account.** Local player progress lives in browser
+> `localStorage`, scoped to the origin `forforever27.github.io`. Moving to a different
+> domain or account silently wipes every existing player's local saves and streaks (and
+> would also break the Firebase **Authorized domains** allow-list — see sync section).
 
 ---
 
@@ -83,8 +87,87 @@ The hub (`/index.html`) reads these **read-only** to show a progress chip on eac
    back-to-hub link: `<a class="brand" href="../">‹ gamename.</a>`.
 2. Use its own `gamename.*` localStorage keys.
 3. Add a `<a class="card" href="gamename/">` to `/index.html` (with an inline-SVG icon)
-   and a progress-chip reader in the hub's boot `<script>`.
-4. Test on a 375-wide viewport, then push to `main`.
+   and a progress-chip reader in the hub's `renderChips()`.
+4. (Optional) wire cross-device sync — add the game to the `REGISTRY` in `sync.js` and
+   one `PlaySync.init` call. See the **Cross-device cloud sync** section below.
+5. Test on a 375-wide viewport, then push to `main`.
+
+---
+
+## Cross-device cloud sync (Firebase)
+
+Optional, **offline-first**, opt-in. `localStorage` stays the source of truth on each
+device; the cloud is an **additive mirror** that does nothing until the player signs in.
+Added 2026-06-23, live on all 8 games.
+
+### How it works
+- **One shared file, `/sync.js`** (repo root). The hub loads it as `sync.js`; each game
+  loads it as `../sync.js`. It exposes `window.PlaySync`.
+- **Sign-in lives ONLY on the hub** — a "☁ sign in to sync" button in the hub header.
+  Firebase keeps the auth session for the whole origin, so once you sign in on the hub,
+  **every game page is already signed in** and syncs itself silently, no per-game button.
+- **Google sign-in** (`signInWithPopup`) → data stored in **Firestore** at `users/{uid}`,
+  one map field per game. Same pattern as the owner's period-tracker app (`cycle-garden`).
+- The Firebase web config in `sync.js` is **committed in plaintext — this is safe**.
+  Security is enforced by **Firestore rules** (each player can only read/write their own
+  `users/{uid}` doc), not by hiding the keys. SDK is lazy-loaded from the gstatic CDN
+  (v10.12.2) so the no-build / no-dependency rule still holds.
+
+### Firebase project (owner's, account `xykoh2012@gmail.com`)
+- Project id **`play-ee089`** · console: console.firebase.google.com.
+- **Auth → Sign-in method:** Google enabled.
+- **Auth → Settings → Authorized domains:** must include `forforever27.github.io`
+  (and `localhost` for local testing, which is on by default). If sign-in popups fail
+  with "unauthorized domain", this is why.
+- **Firestore rules** (each user owns only their doc):
+  ```
+  rules_version = '2';
+  service cloud.firestore {
+    match /databases/{database}/documents {
+      match /users/{uid} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+    }
+  }
+  ```
+
+### What syncs (the REGISTRY in sync.js — single source of truth)
+**Only monotonic progress markers sync.** Deliberately NOT the in-progress board blobs
+(`*.state`) so two devices never clobber each other's live game, and NOT `*.sound`
+(a device preference). Merge rules: `max` = highest wins; `maxmap` = per-key max of a
+JSON object.
+
+| Game     | Synced key(s)                  | Merge            |
+|----------|--------------------------------|------------------|
+| Pour     | `pour.level`                   | max              |
+| Sudoku   | `sudoku.stats`                 | maxmap (counts)  |
+| Codeword | `codeword.level`               | max              |
+| 2048     | `2048.best`                    | max              |
+| Drop     | `drop.best`                    | max              |
+| Ember    | `ember.level`, `ember.meta`    | max, maxmap (gold)|
+| Sweets   | `sweets.level`, `sweets.best`  | max, max         |
+| Dots     | `dots.level`, `dots.best`      | max, max         |
+
+### Wiring a game (what each game does)
+- Loads `../sync.js` before its main `<script>`.
+- Calls `PlaySync.init({ game:'name', onRemote: fn })` at the end of its boot script.
+  Fields + merge come from the REGISTRY; `onRemote` updates in-memory vars + repaints
+  **without rebuilding the active board/run** (e.g. Pour/Codeword/Ember just bump the
+  furthest-level var; Sudoku re-reads `stats` + refreshes the picker if open; 2048/Drop
+  bump `best` + `paintHud()`; Sweets/Dots bump level+best + `paint()`).
+- Calls `PlaySync.push()` at its progress milestone only (not every frame): 2048/Drop
+  when `best` grows; Sweets/Dots at level-up; Codeword/Sudoku/Pour on win; Ember on
+  `winLevel`.
+- The hub calls `PlaySync.initHub({ btn, toast, onChange, render })`: manages the one
+  sign-in button and, on login, pulls **every** registered game's progress, writes
+  localStorage, and repaints the menu chips via `renderChips()`.
+
+### Known cosmetic quirk (acceptable, no data loss)
+Endless level games (Sweets, Dots) store the current level inside `*.state`, which isn't
+synced — only the `*.level` counter is. So on a *fresh* second device the level **number**
+follows you, but the board starts at its normal opening layout and scales up to the synced
+level on the next level-up. To make the board jump straight to the synced level you'd need
+to also sync `*.state` (with a "higher level wins" merge) — not done, to avoid clobbering.
 
 ---
 
@@ -259,6 +342,9 @@ undo snapshot}. Path/loop logic lives in the `pointerdown/move/up` handlers + `r
   gh api repos/forforever27/pour/pages/builds/latest --jq '.status'   # -> "built"
   curl -s "https://forforever27.github.io/pour/ember/?v=$(date +%s)" | grep -c "some-new-token"
   ```
+  Note: the Pages build-status API often lags (`"building"` for a minute or two) even
+  after the new content is already serving. Don't trust it alone — confirm by `curl`-ing
+  the live file for a token from your change (with a `?v=timestamp` cache-buster).
 - **gh CLI:** two accounts exist — `forforever27` (personal, must be active for this repo)
   and `xinyee-a28` (work). The Pour repo's local git config uses `gh auth git-credential`,
   so pushes work as long as gh's active account is `forforever27` (`gh auth switch` if not).
@@ -274,6 +360,8 @@ undo snapshot}. Path/loop logic lives in the `pointerdown/move/up` handlers + `r
 
 ---
 
-_Last updated after: added **Sweets** (match-3) and **Dots** (connect-the-dots) with
-"gentle levels" (no timer/no fail), a high-contrast shapeless palette, roomier boards, and
-diagonal connections in Dots; plus inline-SVG favicons for the hub and every game. 8 games live._
+_Last updated after: added **cross-device cloud sync** (Firebase project `play-ee089`,
+offline-first, one Google sign-in on the hub, shared `sync.js` with a per-game REGISTRY) —
+live across all 8 games, syncing only monotonic progress markers. See the **Cross-device
+cloud sync** section. Prior: added Sweets (match-3) and Dots (connect-the-dots) with gentle
+levels, plus inline-SVG favicons. 8 games live._
