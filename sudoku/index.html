@@ -632,19 +632,15 @@ function eraseCell(){
 }
 function hint(){
   if(winEl.classList.contains('show')) return;
-  let i = selected;
-  if(i<0 || puzzle[i] || board[i]===solution[i]){
-    // no useful selection — reveal a random unsolved square instead
-    const open = [];
-    for(let k=0;k<81;k++) if(board[k]!==solution[k]) open.push(k);
-    if(!open.length) return;
-    i = open[(Math.random()*open.length)|0];
-  }
+  const i = selected;
+  // reveal ONLY the square you picked — never a random one
+  if(i < 0){ toast('Tap a square first, then hint'); return; }
+  if(puzzle[i]){ deny(i); toast('That square was already given'); return; }
+  if(board[i] === solution[i]){ deny(i); toast('That square is already solved'); return; }
   pushUndo();
   board[i] = solution[i];
   notes[i] = 0;
   clearPeerNotes(i, solution[i]);
-  selected = i;
   note(620,.1,.05);
   cellEls[i].classList.add('flash');
   setTimeout(()=>cellEls[i].classList.remove('flash'), 720);
