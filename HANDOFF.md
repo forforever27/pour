@@ -383,5 +383,9 @@ state**: clog all 3 bays with non-front buses and you jam ("Bays clogged." → r
 cuboid — bright roof with a direction arrow, window bands only on the two LONG sides, a
 windshield on the driving end; boarding-bay buses drawn side-on, width scaled to seats).
 Blocked buses are NOT dimmed — tapping a jammed one plays a shudder (`.jam` keyframe lunging
-in its facing direction). Syncs `bus.level` (max).
+in its facing direction). **Pour-style controls**: **Hint** (highlights the lowest-`ord` bus
+still in the lot — always the next correct move, and always movable), **free Skip**, **Levels**
+(replay any unlocked level), **unlimited undo** (history stack) + **Restart** (back to the
+level's start). Like Pour, `bus.level` stores `progress` (furthest unlocked, synced max); a
+separate `level` is what's in play, so replaying earlier levels never lowers progress.
 Prior: cross-device cloud sync (Firebase `play-ee089`), Sweets, Dots. 9 games live._

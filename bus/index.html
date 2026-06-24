@@ -230,6 +230,36 @@
     font-size:.8rem; font-weight:300; letter-spacing:.05em; opacity:0; transition:.35s ease; pointer-events:none; }
   #toast.show { opacity:1; transform:translate(-50%,0); }
 
+  /* ---- hint highlight (a lifted, glowing bus = drive this one next) ---- */
+  .buz.hint .box { animation:hintlift .75s ease-in-out infinite; }
+  @keyframes hintlift { 0%,100%{ transform:translateZ(calc(var(--h)/2)) } 50%{ transform:translateZ(calc(var(--h)/2 + 13px)) } }
+  .buz.hint .f-top { box-shadow:0 0 0 3px var(--accent), 0 0 22px 6px rgba(240,179,94,.6); }
+
+  /* ---- level select ---- */
+  #levels { position:fixed; inset:0; z-index:62; display:flex; align-items:center; justify-content:center;
+    background:rgba(16,12,26,.72); backdrop-filter:blur(8px);
+    opacity:0; pointer-events:none; transition:opacity .35s ease; }
+  #levels.show { opacity:1; pointer-events:auto; }
+  .levels-card { width:min(86vw,360px); max-height:72vh; display:flex; flex-direction:column;
+    border-radius:24px; padding:20px 18px;
+    background-image:linear-gradient(160deg,#342b52,#251e3d); border:1px solid var(--glass-edge);
+    transform:translateY(14px) scale(.97); transition:transform .4s cubic-bezier(.3,1.4,.5,1); }
+  #levels.show .levels-card { transform:none; }
+  .levels-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
+  .levels-head h2 { font-family:'Fraunces',serif; font-weight:650; font-size:1.3rem; }
+  #levelGrid { overflow-y:auto; display:grid; grid-template-columns:repeat(5,1fr); gap:9px; padding:2px;
+    overscroll-behavior:contain; }
+  .lvl-chip { height:48px; border-radius:14px; border:1px solid var(--glass-edge);
+    background-color:transparent; background-image:linear-gradient(var(--panel),var(--panel));
+    color:var(--ink); font-family:'Outfit',sans-serif; font-size:.9rem; cursor:pointer;
+    transition:transform .12s ease; }
+  .lvl-chip:active { transform:scale(.92); }
+  .lvl-chip.done { border-color:rgba(240,179,94,.45); color:var(--accent); }
+  .lvl-chip.now { border-color:var(--accent);
+    background-image:linear-gradient(var(--accent),var(--accent)); color:#1d1530; font-weight:600; }
+  .lvl-chip.lock { opacity:.32; }
+  .lvl-chip.playing { outline:2px solid rgba(255,255,255,.45); outline-offset:2px; }
+
   /* ---- how-to-play tutorial ---- */
   #tut { position:fixed; inset:0; z-index:80; display:flex; align-items:center; justify-content:center;
     background:rgba(16,12,26,.8); backdrop-filter:blur(8px);
@@ -276,6 +306,9 @@
     <button class="icon-btn" id="undoBtn" aria-label="Undo move" title="Undo">
       <svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg>
     </button>
+    <button class="icon-btn" id="restartBtn" aria-label="Restart level" title="Restart">
+      <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.3"/><path d="M21 3v6h-6"/></svg>
+    </button>
     <button class="icon-btn" id="infoBtn" aria-label="How to play" title="How to play">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16.5"/><line x1="12" y1="7.4" x2="12" y2="7.6"/></svg>
     </button>
@@ -303,11 +336,31 @@
 </main>
 
 <nav class="actions">
-  <button class="pill" id="newBtn" aria-label="Restart level">
-    <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.3"/><path d="M21 3v6h-6"/></svg>
-    Restart
+  <button class="pill" id="hintBtn" aria-label="Show a hint">
+    <svg viewBox="0 0 24 24"><path d="M9 18h6m-5 3h4"/><path d="M12 3a6 6 0 0 1 3.5 10.9c-.8.6-1.5 1.2-1.5 2.1h-4c0-.9-.7-1.5-1.5-2.1A6 6 0 0 1 12 3z"/></svg>
+    Hint
+  </button>
+  <button class="pill" id="levelsBtn" aria-label="All levels">
+    <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>
+    Levels
+  </button>
+  <button class="pill" id="skipBtn" aria-label="Skip this level">
+    Skip
+    <svg viewBox="0 0 24 24"><path d="m6 5 7 7-7 7"/><path d="M17 5v14"/></svg>
   </button>
 </nav>
+
+<div id="levels" role="dialog" aria-label="Level select">
+  <div class="levels-card">
+    <div class="levels-head">
+      <h2>Levels</h2>
+      <button class="icon-btn" id="levelsClose" aria-label="Close">
+        <svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div id="levelGrid"></div>
+  </div>
+</div>
 
 <div id="over" role="dialog" aria-label="Result">
   <div class="over-card">
@@ -397,9 +450,11 @@ let busList = new Map();       // id -> {id,c,dir,r,col,ord}
 let bays = [];                 // [null | {id,c,seated}]
 let queue = [];                // [colorIndex,...] front = index 0
 let totalBuses = 0, departed = 0;
-let nextId = 1, busy = false, over = false, undoState = null, gen = 0;
+let nextId = 1, busy = false, over = false, gen = 0, progress = 1;
+let history = [];              // unlimited undo: stack of pre-move snapshots
 let soundOn = localStorage.getItem('bus.sound') !== 'off';
-try { level = Math.max(1, parseInt(localStorage.getItem('bus.level')||'1',10)||1); } catch(e){}
+try { progress = Math.max(1, parseInt(localStorage.getItem('bus.level')||'1',10)||1); } catch(e){}
+level = progress;              // furthest unlocked (progress) vs the level currently in play (level)
 
 const lotEl   = document.getElementById('lot');
 const baysEl  = document.getElementById('bays');
@@ -545,7 +600,6 @@ function genLevel(lv){
   });
   bays = new Array(BAYS).fill(null);
   totalBuses = busList.size; departed = 0;
-  undoState = null;
 }
 
 /* ---------- geometry / lot rendering ---------- */
@@ -658,7 +712,7 @@ function updateMeta(){
   document.getElementById('busDone').textContent = departed;
   document.getElementById('busTotal').textContent = totalBuses;
   document.getElementById('goalFill').style.width = (totalBuses? departed/totalBuses*100 : 0)+'%';
-  undoBtn.disabled = !undoState || busy || over;
+  undoBtn.disabled = !history.length || busy || over;
 }
 
 /* ---------- persistence ---------- */
@@ -666,11 +720,11 @@ function busToData(b){ const e=busExtent(b); return {c:b.c,d:b.dir,l:b.len,s:b.c
 function save(){
   try{
     localStorage.setItem('bus.state', JSON.stringify({
-      lv:level, R, C, lot:[...busList.values()].map(busToData),
+      lv:level, prog:progress, R, C, lot:[...busList.values()].map(busToData),
       bays:bays.map(b=>b?{c:b.c,cap:b.cap,s:b.seated}:null),
-      q:queue, tot:totalBuses, dep:departed, u:undoState
+      q:queue, tot:totalBuses, dep:departed, hist:history.slice(-150)
     }));
-    localStorage.setItem('bus.level', level);
+    localStorage.setItem('bus.level', progress);     // bus.level = furthest unlocked (synced)
   }catch(e){}
 }
 function rebuildFrom(lot){
@@ -683,12 +737,12 @@ function restore(){
   try{
     const s = JSON.parse(localStorage.getItem('bus.state')||'null');
     if(!s || !Array.isArray(s.lot) || (s.lot[0] && s.lot[0].s===undefined)) return false;  // ignore older saves
-    level=s.lv||1; R=s.R||5; C=s.C||5;
+    level=s.lv||1; progress=Math.max(s.prog||1, level); R=s.R||5; C=s.C||5;
     rebuildFrom(s.lot);
     bays = (s.bays||[]).map(b=>b?{id:nextId++,c:b.c,cap:b.cap,seated:b.s}:null);
     while(bays.length<BAYS) bays.push(null);
     queue = s.q||[]; totalBuses=s.tot||busList.size; departed=s.dep||0;
-    undoState = (s.u && Array.isArray(s.u.lot)) ? s.u : null;
+    history = Array.isArray(s.hist) ? s.hist : [];
     return true;
   }catch(e){ return false; }
 }
@@ -778,7 +832,7 @@ async function tapBus(id){
   if(freeBayIndex()<0){ toast('bays are full'); note(200,.12,.06,'sawtooth'); return; }
 
   const myGen = gen;
-  busy=true; undoState = snapshot();
+  busy=true; history.push(snapshot()); clearHint();      // unlimited undo
   // remove from lot (clear every cell the bus occupies)
   b.cells.forEach(p=>grid[p.r][p.c]=0); busList.delete(id);
   await animateDriveOff(b);
@@ -811,12 +865,13 @@ function showOver(title, sub, label){
 }
 async function levelClear(){
   const cleared = level;
+  progress = Math.max(progress, level+1);              // unlock the next level
+  localStorage.setItem('bus.level', progress);
   winSound(); buzz([20,50,20]); confetti();
-  level++; localStorage.setItem('bus.level', level);
   if(window.PlaySync) PlaySync.push();
   await delay(140);
-  await showOver('Level '+cleared+' cleared.', 'lot empty · level '+level+' next', 'Keep going →');
-  startLevel(level);
+  await showOver('Level '+cleared+' cleared.', 'lot empty · level '+(cleared+1)+' next', 'Keep going →');
+  startLevel(cleared+1);
 }
 async function jammed(){
   note(150,.5,.12,'sawtooth'); buzz([40,30,40]);
@@ -846,24 +901,82 @@ function toast(msg){
 
 /* ---------- flow ---------- */
 function renderAll(){ buildLot(); renderBays(); renderQueue(); updateMeta(); runBoarding(gen); }
-function startLevel(lv){ gen++; level=lv; genLevel(lv); renderAll(); save(); }
-function doUndo(){
-  if(busy||over||!undoState) return;
-  gen++;                                              // cancel any in-flight boarding
-  const u = undoState; undoState=null;
+function startLevel(lv){ gen++; level=lv; genLevel(lv); history=[]; clearHint(); renderAll(); save(); }
+// restore a saved snapshot into the live state (shared by undo & restart)
+function applySnap(u){
   R=u.R; C=u.C; rebuildFrom(u.lot);
   bays = u.bays.map(b=>b?{id:nextId++,c:b.c,cap:b.cap,seated:b.s}:null);
   while(bays.length<BAYS) bays.push(null);
   queue=u.q.slice(); totalBuses=u.tot; departed=u.dep; level=u.lv;
+}
+function doUndo(){
+  if(busy||over||!history.length) return;
+  gen++;                                              // cancel any in-flight boarding
+  clearHint();
+  applySnap(history.pop());                           // unlimited — step back one move
   renderAll(); save(); note(330,.1,.06);
 }
+function restart(){
+  if(busy||over) return;
+  if(!history.length){ toast('already fresh ✦'); return; }
+  gen++; clearHint();
+  applySnap(history[0]); history=[];                  // back to the start of this level (same board)
+  renderAll(); save(); note(260,.12,.07); toast('level restarted');
+}
+
+/* ---- hint: the next bus in the canonical solve order is the lowest-ord bus still
+   in the lot — and it is ALWAYS currently movable. Lift + glow it. ---- */
+let hintTimer=null;
+function clearHint(){ clearTimeout(hintTimer); for(const el of busEls.values()) el.classList.remove('hint'); }
+function doHint(){
+  if(busy||over) return;
+  let next=null;
+  for(const b of busList.values()) if(!next || b.ord<next.ord) next=b;
+  if(!next) return;
+  if(freeBayIndex()<0){ toast('free a bay first — undo ↩'); buzz(20); return; }
+  clearHint();
+  const el=busEls.get(next.id);
+  if(el){ el.classList.add('hint'); note(620,.1,.05); }
+  hintTimer=setTimeout(()=>{ if(el) el.classList.remove('hint'); }, 2200);
+}
+function skip(){
+  if(busy||over) return;
+  level++; progress=Math.max(progress, level);        // free skip unlocks the next level
+  if(window.PlaySync) PlaySync.push();
+  startLevel(level); toast('level skipped ✦');
+}
+
+/* ---- level select: replay any unlocked level ---- */
+const levelsEl=document.getElementById('levels'), levelGrid=document.getElementById('levelGrid');
+function openLevels(){
+  levelGrid.innerHTML='';
+  const maxShown=Math.max(progress+12, 25);
+  for(let n=1;n<=maxShown;n++){
+    const b=document.createElement('button');
+    b.className='lvl-chip '+(n<progress?'done':n===progress?'now':'lock');
+    if(n===level) b.classList.add('playing');
+    b.textContent=n;
+    b.setAttribute('aria-label','Level '+n+(n>progress?' (locked)':''));
+    if(n<=progress) b.addEventListener('click', ()=>{ startLevel(n); closeLevels(); note(480,.08,.05); });
+    else b.addEventListener('click', ()=>{ toast('finish level '+progress+' to unlock'); buzz(20); });
+    levelGrid.appendChild(b);
+  }
+  levelsEl.classList.add('show');
+  const now=levelGrid.querySelector('.now'); if(now) now.scrollIntoView({block:'center'});
+}
+function closeLevels(){ levelsEl.classList.remove('show'); }
 
 soundBtn.addEventListener('click', ()=>{
   soundOn=!soundOn; localStorage.setItem('bus.sound', soundOn?'on':'off');
   renderSoundIcon(); if(soundOn) note(520,.1,.07);
 });
 undoBtn.addEventListener('click', doUndo);
-document.getElementById('newBtn').addEventListener('click', ()=>{ if(!busy&&!over) startLevel(level); });
+document.getElementById('restartBtn').addEventListener('click', restart);
+document.getElementById('hintBtn').addEventListener('click', doHint);
+document.getElementById('skipBtn').addEventListener('click', skip);
+document.getElementById('levelsBtn').addEventListener('click', ()=>{ if(!busy) openLevels(); });
+document.getElementById('levelsClose').addEventListener('click', closeLevels);
+levelsEl.addEventListener('click', e=>{ if(e.target===levelsEl) closeLevels(); });
 window.addEventListener('resize', ()=>{ if(!busy){ buildLot(); } });
 
 /* ---------- boot ---------- */
@@ -876,8 +989,7 @@ if(window.PlaySync){
     game: 'bus',
     onRemote: ()=>{
       const cl = parseInt(localStorage.getItem('bus.level')||'1',10);
-      if(cl>level && !busy && departed===0){ startLevel(cl); }
-      updateMeta();
+      if(cl > progress){ progress = cl; updateMeta(); toast('progress synced — up to level '+progress+' ☁'); }
     }
   });
 }
