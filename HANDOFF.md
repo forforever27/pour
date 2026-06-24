@@ -378,7 +378,8 @@ to ONE length and is shared by ≥2 buses** — so a colour's line-count is a su
 front boards, into a matching bay; if their bus isn't at a bay the whole line waits — the
 queue is meaningful. It runs in the **background (non-blocking)** so you can keep driving
 buses while riders load (a `gen` token cancels in-flight boarding on undo/restart). **Lose
-state**: clog all 3 bays with non-front buses and you jam ("Bays clogged." → retry).
+state**: clog all 3 bays with non-front buses and you jam ("Bays clogged." → **↩ Undo last
+move** to step back the bad move and keep the board, or **Retry level** for a fresh one).
 **Isometric/2.5D look** (CSS `perspective` + `rotateX/rotateZ`; each bus is a real extruded
 cuboid — bright roof with a direction arrow, window bands only on the two LONG sides, a
 windshield on the driving end; boarding-bay buses drawn side-on, width scaled to seats).

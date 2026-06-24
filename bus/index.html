@@ -219,6 +219,11 @@
     padding:15px 36px; cursor:pointer; transition:transform .15s ease;
     box-shadow:0 10px 24px -8px rgba(240,179,94,.5); }
   .next-btn:active { transform:scale(.94); }
+  .alt-btn { display:block; margin:12px auto 0; background:none; border:none; cursor:pointer;
+    color:var(--ink-dim); font-family:'Outfit',sans-serif; font-weight:400; font-size:.85rem;
+    letter-spacing:.04em; padding:8px 12px; transition:transform .15s ease, color .2s ease; }
+  .alt-btn:active { transform:scale(.95); }
+  .alt-btn:hover { color:var(--ink); }
 
   .confetti { position:fixed; top:-12px; border-radius:3px; z-index:55; pointer-events:none;
     animation:fall linear forwards; }
@@ -367,6 +372,7 @@
     <h2 id="overTitle">Level cleared.</h2>
     <p id="overSub">next one’s up</p>
     <button class="next-btn" id="contBtn">Keep going →</button>
+    <button class="alt-btn" id="altBtn" style="display:none">Retry level</button>
   </div>
 </div>
 <div id="toast"></div>
@@ -852,15 +858,20 @@ lotEl.addEventListener('click', e=>{
 });
 
 /* ---------- end states ---------- */
-function showOver(title, sub, label){
+function showOver(title, sub, label, altLabel){
   over = true;
   document.getElementById('overTitle').textContent = title;
   document.getElementById('overSub').textContent = sub;
   const btn = document.getElementById('contBtn'); btn.textContent = label;
+  const alt = document.getElementById('altBtn');
+  alt.style.display = altLabel ? 'block' : 'none';
+  if(altLabel) alt.textContent = altLabel;
   overEl.classList.add('show');
   return new Promise(res=>{
-    const h=()=>{ overEl.classList.remove('show'); btn.removeEventListener('click',h); over=false; res(); };
-    btn.addEventListener('click', h);
+    const done=v=>{ overEl.classList.remove('show'); btn.removeEventListener('click',hm); alt.removeEventListener('click',ha); over=false; res(v); };
+    const hm=()=>done('main'), ha=()=>done('alt');
+    btn.addEventListener('click', hm);
+    alt.addEventListener('click', ha);
   });
 }
 async function levelClear(){
@@ -876,8 +887,10 @@ async function levelClear(){
 async function jammed(){
   note(150,.5,.12,'sawtooth'); buzz([40,30,40]);
   await delay(140);
-  await showOver('Bays clogged.', 'the rider up front has no bus — give it another go', 'Try again');
-  startLevel(level);
+  // offer to step back the move that clogged the bays, or retry the level fresh
+  const choice = await showOver('Bays clogged.', 'no bus for the rider up front — undo your last move and try another', '↩ Undo last move', 'Retry level');
+  if(choice==='alt' || !history.length) startLevel(level);
+  else doUndo();
 }
 
 /* ---------- effects ---------- */
