@@ -437,20 +437,32 @@ function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=(Math.random()*(i+1)
 
 /* ---------- generation (multi-cell buses, solvable by reverse construction) ---------- */
 function levelParams(lv){
-  const G = Math.min(4 + Math.floor((lv-1)/3), 6);            // 4 -> 6 grid (every 3 levels)
-  const K = Math.min(3 + Math.floor((lv-1)/3), 6);            // 3 -> 6 colours
-  const frac = Math.min(0.36 + (lv-1)*0.02, 0.56);          // fraction of lot cells filled
-  const maxLen = Math.min(3 + Math.floor((lv-1)/3), 5, G);  // longer buses unlock with level (early: 2-3)
+  const G = Math.min(5 + Math.floor((lv-1)/3), 7);           // bigger lot: 5 -> 7
+  const K = Math.min(3 + Math.floor((lv-1)/3), 6);           // 3 -> 6 colours
+  const frac = Math.min(0.62 + (lv-1)*0.015, 0.8);          // densely packed -> buses block each other
+  const maxLen = Math.min(2 + Math.floor((lv-1)/3), 4);      // mostly short; 3 from lv4, 4 from lv7
   return { G, K, frac, maxLen };
 }
-// a bus boards exactly as many riders as it is long (seats = length).
-// short buses stay frequent at every level; long ones appear more as levels rise.
+// a bus boards exactly as many riders as it is long (seats = length); short buses dominate
 function pickLen(maxLen){
-  const r = Math.random();
-  if(r<0.45 || maxLen<3) return 2;
-  if(r<0.78 || maxLen<4) return 3;
-  if(r<0.93 || maxLen<5) return 4;
-  return 5;
+  const r=Math.random();
+  if(r<0.6 || maxLen<3) return 2;
+  if(r<0.92 || maxLen<4) return 3;
+  return 4;
+}
+// every colour maps to ONE length and is shared by >= 2 buses, so:
+//  - a colour's front-of-queue run always fills a same-colour bus exactly (no half-loaded clog)
+//  - a colour's total in line is a sum across its buses, never a single bus's seat count
+function assignColours(buses, K){
+  const byLen={}; buses.forEach((b,i)=>{ (byLen[b.len]=byLen[b.len]||[]).push(i); });
+  const lens=Object.keys(byLen), perLen=Math.max(1, Math.floor(K/lens.length));
+  let cid=0;
+  for(const L of lens){
+    const idxs=shuffle(byLen[L].slice());
+    const nc=Math.max(1, Math.min(perLen, Math.floor(idxs.length/2)));   // each colour gets >= 2 buses
+    idxs.forEach((idx,j)=>{ buses[idx].col = cid + (j % nc); });
+    cid += nc;
+  }
 }
 function makeCells(r0, c0, len, dir){      // cells a bus occupies; horizontal if facing left/right
   const horiz = (dir===1||dir===3), cells=[];
@@ -470,53 +482,67 @@ function laneClear(occ, fr, fc, dir){      // is the lane from a front cell to t
   while(rr>=0 && rr<R && cc>=0 && cc<C){ if(occ[rr][cc]) return false; rr+=DR[dir]; cc+=DC[dir]; }
   return true;
 }
+// one packed candidate: place buses (each with a clear lane out when removed). returns addOrder.
+function buildCandidate(frac, maxLen){
+  const occ = Array.from({length:R},()=>new Array(C).fill(0));
+  const addOrder=[];
+  const targetCells = Math.round(R*C*frac);
+  let used=0, attempts=0;
+  while(used<targetCells && attempts++<R*C*120){
+    const dir=(Math.random()*4)|0;
+    const len=pickLen(maxLen);
+    const horiz=(dir===1||dir===3);
+    const w=horiz?len:1, h=horiz?1:len;
+    if(w>C || h>R) continue;
+    const c0=(Math.random()*(C-w+1))|0, r0=(Math.random()*(R-h+1))|0;
+    const cells=makeCells(r0,c0,len,dir);
+    if(cells.some(p=>occ[p.r][p.c])) continue;
+    const f=frontCell(cells,dir);
+    if(!laneClear(occ, f.r, f.c, dir)) continue;            // must have a clear lane out when removed
+    cells.forEach(p=>occ[p.r][p.c]=1); used+=cells.length;
+    addOrder.push({ dir, len, cells });
+  }
+  return addOrder;
+}
+// how many buses are blocked (can't drive straight out) in this candidate — the spatial difficulty
+function countBlocked(buses){
+  const g=Array.from({length:R},()=>new Array(C).fill(0));
+  buses.forEach((b,k)=>b.cells.forEach(p=>g[p.r][p.c]=k+1));
+  let n=0;
+  for(const b of buses){
+    const f=frontCell(b.cells,b.dir); let rr=f.r+DR[b.dir], cc=f.c+DC[b.dir], clear=true;
+    while(rr>=0&&rr<R&&cc>=0&&cc<C){ if(g[rr][cc]){ clear=false; break; } rr+=DR[b.dir]; cc+=DC[b.dir]; }
+    if(!clear) n++;
+  }
+  return n;
+}
 function genLevel(lv){
   const { G, K, frac, maxLen } = levelParams(lv);
   R=G; C=G;
-  let ok=false, guard=0;
-  while(!ok && guard++<60){
-    const occ = Array.from({length:R},()=>new Array(C).fill(0));
-    const addOrder=[];
-    const targetCells = Math.max(4, Math.round(R*C*frac));
-    let used=0, attempts=0;
-    while(used<targetCells && attempts++<R*C*60){
-      const dir=(Math.random()*4)|0;
-      const len=pickLen(maxLen);
-      const horiz=(dir===1||dir===3);
-      const w=horiz?len:1, h=horiz?1:len;
-      if(w>C || h>R) continue;
-      const c0=(Math.random()*(C-w+1))|0, r0=(Math.random()*(R-h+1))|0;
-      const cells=makeCells(r0,c0,len,dir);
-      if(cells.some(p=>occ[p.r][p.c])) continue;
-      const f=frontCell(cells,dir);
-      if(!laneClear(occ, f.r, f.c, dir)) continue;          // must have a clear lane out when removed
-      cells.forEach(p=>occ[p.r][p.c]=1); used+=cells.length;
-      addOrder.push({ dir, len, cells, col:(Math.random()*K)|0 });
-    }
-    if(addOrder.length<2) continue;
-    // assign colours so every colour is shared by >= 2 buses, so a colour's rider
-    // count in the queue is the SUM across its buses — never a single bus's seat count
-    const n=addOrder.length, Kc=Math.max(1, Math.min(K, Math.floor(n/2)));
-    const cols=[]; for(let c=0;c<Kc;c++) cols.push(c,c);
-    while(cols.length<n) cols.push((Math.random()*Kc)|0);
-    shuffle(cols);
-    addOrder.forEach((b,idx)=>{ b.col=cols[idx]; });
-    // reverse of add-order is a valid drive-out order
-    const solveSeq = addOrder.slice().reverse();
-    grid=Array.from({length:R},()=>new Array(C).fill(0));
-    busList=new Map();
-    solveSeq.forEach((b,i)=>{
-      const id=nextId++;
-      busList.set(id, { id, c:b.col, dir:b.dir, len:b.len, cap:b.len, cells:b.cells.map(p=>({...p})), ord:i });
-      b.cells.forEach(p=>grid[p.r][p.c]=id);
-    });
-    // rider pool = every bus's seats, SHUFFLED so the queue is not grouped 1:1 by bus
-    // (a colour's count in line = sum across all its buses, never a single bus's seat count)
-    const pool=[];
-    for(const bus of busList.values()) for(let s=0;s<bus.cap;s++) pool.push(bus.c);
-    queue = shuffle(pool);
-    ok=true;
+  // rejection-sample for a genuinely TANGLED layout: keep generating until enough buses
+  // block each other (so it takes thought, not mindless tapping), keeping the best seen.
+  let best=null, bestBlocked=-1;
+  for(let tries=0; tries<80; tries++){
+    const cand=buildCandidate(frac, maxLen);
+    if(cand.length<4) continue;
+    const blocked=countBlocked(cand);
+    if(blocked>bestBlocked){ best=cand; bestBlocked=blocked; }
+    if(blocked >= Math.max(3, Math.round(cand.length*0.45))) break;   // tangled enough
   }
+  const addOrder = best || buildCandidate(frac, maxLen);
+  assignColours(addOrder, K);                               // colour <-> length, each colour >= 2 buses
+  // reverse of add-order is a valid drive-out order
+  const solveSeq = addOrder.slice().reverse();
+  grid=Array.from({length:R},()=>new Array(C).fill(0));
+  busList=new Map(); queue=[];
+  solveSeq.forEach((b,i)=>{
+    const id=nextId++;
+    busList.set(id, { id, c:b.col, dir:b.dir, len:b.len, cap:b.len, cells:b.cells.map(p=>({...p})), ord:i });
+    b.cells.forEach(p=>grid[p.r][p.c]=id);
+    // riders queue GROUPED by bus in solve order — strict front-of-queue boarding works,
+    // and each same-colour run fills a same-colour bus exactly (no half-loaded clog)
+    for(let s=0;s<b.len;s++) queue.push(b.col);
+  });
   bays = new Array(BAYS).fill(null);
   totalBuses = busList.size; departed = 0;
   undoState = null;
@@ -693,37 +719,49 @@ function animateDriveOff(b){
   buzz(8);
   return delay(330);
 }
-/* boarding runs in the BACKGROUND (not under the input lock) so you can keep
-   tapping buses while riders board. It's pool-based: a bay pulls its own colour
-   from anywhere in the queue, so it never stalls. A `gen` token cancels any
-   in-flight boarding when the board is reset (undo / restart / level change). */
-async function boardBay(i, myGen){
-  while(true){
-    if(gen!==myGen) return;
-    const bay = bays[i];
-    if(!bay || bay.seated >= bay.cap) break;
-    const qi = queue.indexOf(bay.c);
-    if(qi<0) break;                                     // no rider of this colour right now
-    queue.splice(qi,1); bay.seated++;
-    renderQueue(); renderBay(i, {fill:true});
-    note(560+bay.seated*40, .1, .07); buzz(5);
-    await delay(120);
-  }
+/* STRICT front-of-queue boarding: only the rider at the FRONT of the line boards,
+   and only into a bay whose bus matches their colour. If the front rider's bus
+   isn't at a bay, the whole line waits. Runs in the BACKGROUND (not under the input
+   lock) so you can keep driving buses while riders board — no lag. A `gen` token
+   cancels in-flight boarding on undo / restart / level change. `boarding` guards
+   against a second concurrent loop. */
+let boarding = false;
+async function runBoarding(myGen){
+  if(boarding) return;
+  boarding = true;
+  try{
+    while(gen===myGen && queue.length){
+      const X = queue[0];                              // the rider at the FRONT
+      const bi = bays.findIndex(b=>b && b.c===X && b.seated<b.cap);
+      if(bi<0) break;                                  // their bus isn't boarding → the line waits
+      queue.shift(); bays[bi].seated++;
+      renderQueue(); renderBay(bi, {fill:true});
+      note(560+bays[bi].seated*40, .1, .07); buzz(5);
+      await delay(130);
+      if(gen!==myGen) return;
+      if(bays[bi].seated >= bays[bi].cap){             // full → drive away
+        departSound(); buzz([12,30,12]);
+        const bb = baysEl.children[bi] && baysEl.children[bi].querySelector('.baybus');
+        if(bb) bb.classList.add('leaving');
+        await delay(320);
+        if(gen!==myGen) return;
+        bays[bi]=null; departed++;
+        renderBay(bi); updateMeta(); save();
+      }
+    }
+  } finally { boarding = false; }
   if(gen!==myGen) return;
-  if(bays[i] && bays[i].seated >= bays[i].cap){         // full → drive away
-    departSound(); buzz([12,30,12]);
-    const bb = baysEl.children[i] && baysEl.children[i].querySelector('.baybus');
-    if(bb) bb.classList.add('leaving');
-    await delay(320);
-    if(gen!==myGen) return;
-    bays[i]=null; departed++;
-    renderBay(i); updateMeta(); save();
-  }
-  if(gen!==myGen) return;
-  if(busList.size===0 && bays.every(x=>!x) && !over) await levelClear();   // lot cleared → win
+  if(busList.size===0 && bays.every(x=>!x) && queue.length===0 && !over) await levelClear();
+  else if(isStuck() && !over) await jammed();
 }
-function resumeBoarding(){                              // restart boarding for any half-loaded bay
-  for(let i=0;i<BAYS;i++) if(bays[i] && bays[i].seated<bays[i].cap) boardBay(i, gen);
+// stuck = the front rider's bus can never reach a bay: all bays are clogged with
+// non-matching buses (or no bus of that colour is left in the lot).
+function isStuck(){
+  if(queue.length===0) return false;
+  const X = queue[0];
+  if(bays.some(b=>b && b.c===X && b.seated<b.cap)) return false;   // a bay is boarding them
+  if(bays.some(b=>!b)) return [...busList.values()].every(b=>b.c!==X);  // free bay: stuck only if no X bus remains
+  return true;                                                          // all bays full, none serving the front
 }
 async function tapBus(id){
   if(busy||over) return;
@@ -752,7 +790,7 @@ async function tapBus(id){
   renderBay(bi, {pop:true});
   updateMeta(); save();
   busy=false;                                           // release input immediately
-  boardBay(bi, myGen);                                  // board in the background
+  runBoarding(myGen);                                   // board in the background (front-of-queue)
 }
 lotEl.addEventListener('click', e=>{
   const t = e.target.closest('.buz'); if(!t) return;
@@ -780,6 +818,12 @@ async function levelClear(){
   await showOver('Level '+cleared+' cleared.', 'lot empty · level '+level+' next', 'Keep going →');
   startLevel(level);
 }
+async function jammed(){
+  note(150,.5,.12,'sawtooth'); buzz([40,30,40]);
+  await delay(140);
+  await showOver('Bays clogged.', 'the rider up front has no bus — give it another go', 'Try again');
+  startLevel(level);
+}
 
 /* ---------- effects ---------- */
 function confetti(){
@@ -801,7 +845,7 @@ function toast(msg){
 }
 
 /* ---------- flow ---------- */
-function renderAll(){ buildLot(); renderBays(); renderQueue(); updateMeta(); resumeBoarding(); }
+function renderAll(){ buildLot(); renderBays(); renderQueue(); updateMeta(); runBoarding(gen); }
 function startLevel(lv){ gen++; level=lv; genLevel(lv); renderAll(); save(); }
 function doUndo(){
   if(busy||over||!undoState) return;

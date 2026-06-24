@@ -363,17 +363,20 @@ undo snapshot}. Path/loop logic lives in the `pointerdown/move/up` handlers + `r
 ---
 
 _Last updated after: added **Bus** (`/bus/`) — a drive-out jam + boarding game (the "bus
-fever" loop: the lot is jammed with buses, each facing a direction; tap a bus to drive it
-straight out IF the lane to the edge is clear; it pulls into one of 3 boarding bays and its
-matching-colour riders board; clear the lot to win — no lose state). **Spatial jam is
-always solvable by construction** (buses are "driven in" from the edges, so reversing that
-order is a valid clear). **Buses are rectangular; seats = length** (a length-L bus boards L
-riders); length grows with level (2-3 early → up to 5), but **short buses stay common at
-every level**. **Colours are shared by ≥2 buses**, so a colour's rider count in the (shuffled)
-queue is always a SUM across buses — never a single bus's seat count. **Boarding is
-pool-based and non-blocking**: a bay pulls its colour from anywhere in the queue and runs in
-the background (a `gen` token cancels in-flight boarding on undo/restart), so you can keep
-tapping buses while riders load — never stalls. 4×4→6×6 grid, lot fills ~36→56% of cells.
+fever" loop: a packed lot of buses each facing a direction; tap a bus to drive it straight
+out IF the lane to the edge is clear; it pulls into one of 3 boarding bays; clear the lot to
+win). **Spatial jam is always solvable by construction** (buses are "driven in" from the
+edges, so reversing that order is a valid clear), and generation **rejection-samples for a
+tangled layout** — keeps regenerating until ~45%+ of buses block each other, so it takes
+thought, not mindless tapping. **Big dense lot** (5×5 → 7×7, ~62-80% filled). **Buses are
+rectangular; seats = length** (mostly length-2; up to 4 at high levels). **Each colour maps
+to ONE length and is shared by ≥2 buses** — so a colour's line-count is a sum across buses
+(never a single bus's seats), AND a colour's front run always fills a same-colour bus exactly
+(no half-loaded clog). **Boarding is STRICT front-of-queue (FIFO)**: only the rider at the
+front boards, into a matching bay; if their bus isn't at a bay the whole line waits — the
+queue is meaningful. It runs in the **background (non-blocking)** so you can keep driving
+buses while riders load (a `gen` token cancels in-flight boarding on undo/restart). **Lose
+state**: clog all 3 bays with non-front buses and you jam ("Bays clogged." → retry).
 **Isometric/2.5D look** (CSS `perspective` + `rotateX/rotateZ`; each bus is a real extruded
 cuboid — bright roof with a direction arrow, window bands only on the two LONG sides, a
 windshield on the driving end; boarding-bay buses drawn side-on, width scaled to seats).
