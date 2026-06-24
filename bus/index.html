@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#191527">
+<meta name="color-scheme" content="only light">
+<title>bus — clear the jam</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23231c3a'/%3E%3Crect x='6' y='10' width='20' height='12' rx='3' fill='%23f0b35e'/%3E%3Crect x='8' y='12.5' width='4' height='3.6' rx='1' fill='%23231c3a'/%3E%3Crect x='14' y='12.5' width='4' height='3.6' rx='1' fill='%23231c3a'/%3E%3Crect x='20' y='12.5' width='4' height='3.6' rx='1' fill='%23231c3a'/%3E%3Ccircle cx='11' cy='23' r='2' fill='%235b8def'/%3E%3Ccircle cx='21' cy='23' r='2' fill='%235b8def'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650&family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: only light;
+    --bg-deep: #14101f;
+    --bg-mid: #1f1833;
+    --ink: #f2edf7;
+    --ink-dim: #9a8fb8;
+    --glass: rgba(255,255,255,.055);
+    --glass-edge: rgba(255,255,255,.16);
+    --panel: #2b2342;
+    --accent: #f0b35e;
+    --asphalt: #211b33;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { height:100%; overflow:hidden; }
+  body {
+    font-family:'Outfit', sans-serif;
+    background-image: linear-gradient(var(--bg-deep), var(--bg-deep));
+    color: var(--ink);
+    touch-action: manipulation;
+    user-select:none; -webkit-user-select:none;
+    display:flex; flex-direction:column;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+
+  /* ---- atmosphere ---- */
+  .sky { position:fixed; inset:0; z-index:-2;
+    background:
+      radial-gradient(120% 90% at 80% -10%, #3a2b55 0%, transparent 55%),
+      radial-gradient(90% 70% at 10% 110%, #232a4d 0%, transparent 60%),
+      linear-gradient(170deg, var(--bg-mid) 0%, var(--bg-deep) 70%);
+  }
+  .orb { position:fixed; border-radius:50%; filter:blur(70px); opacity:.32; z-index:-1; pointer-events:none; }
+  .orb.a { width:46vw; height:46vw; background-image:linear-gradient(#7c5cad,#7c5cad); top:-12vw; right:-10vw; animation:drift 19s ease-in-out infinite alternate; }
+  .orb.b { width:38vw; height:38vw; background-image:linear-gradient(#3d6ea5,#3d6ea5); bottom:6vh; left:-14vw; animation:drift 24s ease-in-out infinite alternate-reverse; }
+  @keyframes drift { from{transform:translateY(0) scale(1)} to{transform:translateY(26px) scale(1.07)} }
+  body::after { content:""; position:fixed; inset:0; z-index:50; pointer-events:none; opacity:.05;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='0.6'/%3E%3C/svg%3E"); }
+
+  /* ---- header ---- */
+  header { display:flex; align-items:center; justify-content:space-between;
+    padding: clamp(12px,2.4vh,22px) 20px 6px; }
+  .brand { font-family:'Fraunces', serif; font-weight:650; font-size:1.35rem; letter-spacing:.01em;
+    color:inherit; text-decoration:none; }
+  .brand em { font-style:normal; color:var(--accent); }
+  .brand .back { color:var(--ink-dim); font-weight:500; margin-right:1px; }
+  .meta { text-align:center; }
+  .meta .lvl { font-family:'Fraunces', serif; font-weight:650; font-size:1.5rem; line-height:1.1; font-variant-numeric:tabular-nums; }
+  .meta .moves { font-size:.72rem; font-weight:300; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-dim); }
+  .controls { display:flex; gap:8px; }
+  .icon-btn { width:44px; height:44px; border-radius:14px; border:1px solid var(--glass-edge);
+    background-color:transparent; background-image:linear-gradient(var(--panel),var(--panel));
+    color:var(--ink); font-size:1.05rem; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    transition:transform .15s ease; }
+  .icon-btn:active { transform:scale(.92); }
+  .icon-btn:disabled { opacity:.3; }
+  .icon-btn svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+
+  .tagline { text-align:center; font-size:.7rem; font-weight:300; letter-spacing:.2em;
+    text-transform:uppercase; color:var(--ink-dim); padding:2px 0 0; }
+
+  /* ---- level + goal strip ---- */
+  .goal { display:flex; align-items:center; gap:10px; align-self:center;
+    margin:12px auto 0; padding:8px 16px; border-radius:99px;
+    border:1px solid var(--glass-edge);
+    background-image:linear-gradient(var(--panel),var(--panel));
+    font-size:.82rem; font-weight:300; letter-spacing:.03em; color:var(--ink); }
+  .lvlchip { font-family:'Fraunces',serif; font-weight:650; font-size:.82rem; color:var(--accent); letter-spacing:.02em; }
+  .goal-sep { width:1px; height:16px; background:var(--glass-edge); }
+  .goal-txt b { font-weight:600; font-variant-numeric:tabular-nums; }
+  .goal-prog { width:54px; height:6px; border-radius:99px; flex:none; overflow:hidden;
+    background-image:linear-gradient(rgba(255,255,255,.13),rgba(255,255,255,.13)); }
+  .goal-prog i { display:block; height:100%; width:0;
+    background-image:linear-gradient(var(--accent),var(--accent)); transition:width .3s ease; }
+
+  /* ---- stage ---- */
+  main { flex:1; display:flex; align-items:stretch; justify-content:center; padding:8px 12px 12px; min-height:0; }
+  .stage { width:min(94vw, 460px); display:flex; flex-direction:column; min-height:0; }
+
+  /* queue of waiting passengers */
+  .queue { display:flex; align-items:center; gap:5px; justify-content:flex-start;
+    padding:6px 10px; margin-bottom:8px; min-height:34px; overflow:hidden;
+    border-radius:14px; border:1px solid var(--glass-edge);
+    background-image:linear-gradient(var(--glass),var(--glass)); }
+  .qlabel { font-size:.6rem; font-weight:300; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--ink-dim); flex:none; margin-right:2px; }
+  .qpax { width:18px; height:18px; flex:none; border-radius:46% 46% 32% 32%;
+    display:flex; align-items:center; justify-content:center;
+    box-shadow: inset 0 -2px 3px rgba(0,0,0,.22), inset 0 2px 2px rgba(255,255,255,.3);
+    transition:transform .2s ease, opacity .2s ease; }
+  .qpax svg { width:60%; height:60%; fill:rgba(255,255,255,.85); }
+  .qpax.head { box-shadow: inset 0 -2px 3px rgba(0,0,0,.22), inset 0 2px 2px rgba(255,255,255,.3), 0 0 0 2px rgba(255,255,255,.55); }
+  .qpax.go { transform:translateY(-14px) scale(.5); opacity:0; }
+  .qmore { font-size:.66rem; color:var(--ink-dim); flex:none; margin-left:2px; font-variant-numeric:tabular-nums; }
+
+  /* boarding bays */
+  .bays { display:flex; gap:12px; justify-content:center; align-items:flex-end; margin-bottom:10px; }
+  .bay { width:84px; height:50px; flex:none; border-radius:11px;
+    border:1.5px dashed rgba(255,255,255,.2);
+    background-image:linear-gradient(rgba(255,255,255,.03),rgba(255,255,255,.03));
+    display:flex; align-items:center; justify-content:center; position:relative; }
+  .bay.full { border-style:none; background:none; }
+  /* side-view bus pulled up to board */
+  .baybus { width:84px; height:42px; border-radius:9px 13px 7px 7px; position:relative;
+    background-image:linear-gradient(160deg, color-mix(in srgb, var(--bc) 88%, #fff 12%), color-mix(in srgb, var(--bc) 78%, #1a1426 22%));
+    box-shadow: inset 0 -4px 7px rgba(0,0,0,.3), inset 0 2px 4px rgba(255,255,255,.32), 0 7px 15px -7px rgba(0,0,0,.6);
+    transition:transform .4s ease, opacity .4s ease; }
+  .baybus.leaving { transform:translateX(150%) rotate(3deg); opacity:0; }
+  .baybus .seats { position:absolute; top:7px; left:9px; right:14px; height:15px; display:flex; gap:4px; }
+  .baybus .seat { flex:1; border-radius:3px; overflow:hidden;
+    background-image:linear-gradient(rgba(10,8,18,.5),rgba(10,8,18,.5));
+    display:flex; align-items:flex-end; justify-content:center; }
+  .baybus .seat.on { background-image:linear-gradient(rgba(202,224,255,.95),rgba(170,198,245,.85)); }
+  .baybus .seat.on svg { width:88%; height:88%; fill:color-mix(in srgb, var(--bc) 50%, #221a30 50%); }
+  .baybus .seat.fill { animation:pop .26s cubic-bezier(.3,1.5,.5,1); }
+  .baybus .wheel { position:absolute; bottom:-4px; width:12px; height:12px; border-radius:50%;
+    background-image:linear-gradient(#2a2336,#2a2336); border:2px solid rgba(255,255,255,.16); }
+  .baybus .wheel.l { left:13px; } .baybus .wheel.r { right:17px; }
+  .baybus .nose { position:absolute; right:5px; top:8px; width:6px; bottom:11px; border-radius:3px;
+    background-image:linear-gradient(rgba(255,255,255,.22),rgba(255,255,255,.1)); }
+  .bay-tag { text-align:center; font-size:.6rem; font-weight:300; letter-spacing:.16em;
+    text-transform:uppercase; color:var(--ink-dim); margin-bottom:8px; }
+  @keyframes pop { from{transform:scale(.4)} to{transform:scale(1)} }
+
+  /* the lot (jam) — isometric / 2.5D */
+  .lotwrap { flex:1; display:flex; align-items:center; justify-content:center; min-height:0;
+    perspective: 1200px; perspective-origin: 50% 38%; }
+  #lot { position:relative; border-radius:8px; transform-style:preserve-3d;
+    transform: rotateX(54deg) rotateZ(-13deg);
+    background-image:
+      repeating-linear-gradient(0deg, rgba(255,255,255,.05) 0 1px, transparent 1px var(--cell)),
+      repeating-linear-gradient(90deg, rgba(255,255,255,.05) 0 1px, transparent 1px var(--cell)),
+      linear-gradient(160deg, #251e3a, var(--asphalt));
+    box-shadow: 0 36px 54px -22px rgba(0,0,0,.75), inset 0 0 0 1.5px var(--glass-edge); }
+  /* each bus is a real extruded cuboid: bright roof + shaded walls.
+     footprint = --w (x) by --d (y), height --h. Windows live on the two LONG sides only. */
+  .buz { position:absolute; --lx:0px; --ly:0px; transform-style:preserve-3d;
+    transform: translate3d(var(--px), var(--py), 0);
+    transition: transform .42s cubic-bezier(.4,0,.5,1), opacity .42s ease; cursor:pointer; }
+  .buz.gone { opacity:0; }
+  .box { position:absolute; width:var(--w); height:var(--d); transform-style:preserve-3d;
+    transform: translateZ(calc(var(--h) / 2)); }
+  .buz.jam .box { animation:jam .42s ease; }
+  @keyframes jam {
+    0%,100%{ transform:translateZ(calc(var(--h)/2)) }
+    16%{ transform:translateZ(calc(var(--h)/2)) translate(var(--lx),var(--ly)) }
+    34%{ transform:translateZ(calc(var(--h)/2)) translate(calc(var(--lx)*-.55),calc(var(--ly)*-.55)) }
+    52%{ transform:translateZ(calc(var(--h)/2)) translate(calc(var(--lx)*.4),calc(var(--ly)*.4)) }
+    70%{ transform:translateZ(calc(var(--h)/2)) translate(calc(var(--lx)*-.22),calc(var(--ly)*-.22)) }
+    85%{ transform:translateZ(calc(var(--h)/2)) translate(calc(var(--lx)*.1),calc(var(--ly)*.1)) }
+  }
+  .face { position:absolute; left:50%; top:50%; border-radius:3px;
+    background-image:linear-gradient(color-mix(in srgb,var(--bc) 56%,#1a1426 44%),color-mix(in srgb,var(--bc) 42%,#1a1426 58%)); }
+  .f-top { width:var(--w); height:var(--d);
+    transform: translate(-50%,-50%) translateZ(calc(var(--h) / 2));
+    background-image: radial-gradient(circle at 30% 22%, rgba(255,255,255,.5), transparent 62%), linear-gradient(var(--bc),var(--bc));
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.2);
+    display:flex; align-items:center; justify-content:center; }
+  .f-top .arr { width:min(40%,26px); height:min(40%,26px); }
+  .f-top .arr svg { width:100%; height:100%; fill:rgba(255,255,255,.94); }
+  .f-front,.f-back { width:var(--w); height:var(--h); }
+  .f-left,.f-right { width:var(--h); height:var(--d); }
+  .f-front { transform: translate(-50%,-50%) rotateX(90deg)  translateZ(calc(var(--d) / 2)); }
+  .f-back  { transform: translate(-50%,-50%) rotateX(-90deg) translateZ(calc(var(--d) / 2)); filter:brightness(.86); }
+  .f-left  { transform: translate(-50%,-50%) rotateY(-90deg) translateZ(calc(var(--w) / 2)); }
+  .f-right { transform: translate(-50%,-50%) rotateY(90deg)  translateZ(calc(var(--w) / 2)); filter:brightness(.9); }
+  /* window band runs ALONG the bus length on the two long sides */
+  .win-h { background-repeat:no-repeat,no-repeat; background-size:100% 34%, 100% 100%; background-position:50% 30%, 0 0;
+    background-image:
+      repeating-linear-gradient(90deg, rgba(206,226,255,.6) 0 11%, transparent 11% 16%),
+      linear-gradient(color-mix(in srgb,var(--bc) 58%,#1a1426 42%),color-mix(in srgb,var(--bc) 44%,#1a1426 56%)); }
+  .win-v { background-repeat:no-repeat,no-repeat; background-size:34% 100%, 100% 100%; background-position:30% 50%, 0 0;
+    background-image:
+      repeating-linear-gradient(0deg, rgba(206,226,255,.6) 0 11%, transparent 11% 16%),
+      linear-gradient(to right, color-mix(in srgb,var(--bc) 58%,#1a1426 42%),color-mix(in srgb,var(--bc) 44%,#1a1426 56%)); }
+  /* windshield on the front (driving) end */
+  .wshield { background-repeat:no-repeat,no-repeat; background-size:66% 44%, 100% 100%; background-position:50% 28%, 0 0;
+    background-image:
+      linear-gradient(rgba(206,226,255,.7),rgba(176,202,240,.6)),
+      linear-gradient(color-mix(in srgb,var(--bc) 64%,#1a1426 36%),color-mix(in srgb,var(--bc) 48%,#1a1426 52%)); }
+
+  .actions { display:flex; justify-content:center; gap:12px; padding: 2px 0 clamp(12px,2vh,20px); }
+  .pill { display:flex; align-items:center; gap:7px; height:42px; padding:0 20px;
+    border-radius:99px; border:1px solid var(--glass-edge);
+    background-color:transparent;
+    background-image:linear-gradient(var(--panel),var(--panel));
+    color:var(--ink); font-family:'Outfit',sans-serif; font-weight:400; font-size:.85rem;
+    letter-spacing:.06em; cursor:pointer; transition:transform .15s ease; }
+  .pill:active { transform:scale(.93); }
+  .pill svg { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+
+  /* ---- overlay ---- */
+  #over { position:fixed; inset:0; z-index:60; display:flex; align-items:center; justify-content:center;
+    background:rgba(16,12,26,.72); backdrop-filter:blur(8px);
+    opacity:0; pointer-events:none; transition:opacity .4s ease; }
+  #over.show { opacity:1; pointer-events:auto; }
+  .over-card { text-align:center; padding:40px 44px; border-radius:28px;
+    background-image:linear-gradient(160deg, #342b52, #251e3d);
+    border:1px solid var(--glass-edge);
+    transform:translateY(16px) scale(.96); transition:transform .45s cubic-bezier(.3,1.4,.5,1); }
+  #over.show .over-card { transform:none; }
+  .over-card h2 { font-family:'Fraunces', serif; font-weight:650; font-size:2rem; margin-bottom:6px; }
+  .over-card p { color:var(--ink-dim); font-weight:300; font-size:.9rem; margin-bottom:24px; }
+  .next-btn { font-family:'Outfit', sans-serif; font-weight:600; font-size:1rem; letter-spacing:.04em;
+    color:#1d1530; background-color:transparent; background-image:linear-gradient(var(--accent),var(--accent)); border:none; border-radius:16px;
+    padding:15px 36px; cursor:pointer; transition:transform .15s ease;
+    box-shadow:0 10px 24px -8px rgba(240,179,94,.5); }
+  .next-btn:active { transform:scale(.94); }
+
+  .confetti { position:fixed; top:-12px; border-radius:3px; z-index:55; pointer-events:none;
+    animation:fall linear forwards; }
+  @keyframes fall { to { transform: translateY(110vh) rotate(660deg); opacity:.7; } }
+
+  #toast { position:fixed; bottom:calc(24px + env(safe-area-inset-bottom)); left:50%;
+    transform:translate(-50%, 60px); z-index:70; padding:10px 20px; border-radius:99px;
+    background:rgba(255,255,255,.12); border:1px solid var(--glass-edge); backdrop-filter:blur(8px);
+    font-size:.8rem; font-weight:300; letter-spacing:.05em; opacity:0; transition:.35s ease; pointer-events:none; }
+  #toast.show { opacity:1; transform:translate(-50%,0); }
+
+  /* ---- how-to-play tutorial ---- */
+  #tut { position:fixed; inset:0; z-index:80; display:flex; align-items:center; justify-content:center;
+    background:rgba(16,12,26,.8); backdrop-filter:blur(8px);
+    opacity:0; pointer-events:none; transition:opacity .35s ease;
+    padding: calc(env(safe-area-inset-top) + 14px) 18px calc(env(safe-area-inset-bottom) + 14px); }
+  #tut.show { opacity:1; pointer-events:auto; }
+  .tut-card { width:min(92vw,380px); border-radius:26px; padding:20px;
+    background-image:linear-gradient(160deg,#342b52,#251e3d); border:1px solid var(--glass-edge);
+    box-shadow:0 24px 48px -20px rgba(0,0,0,.7);
+    transform:translateY(14px) scale(.97); transition:transform .4s cubic-bezier(.3,1.4,.5,1); }
+  #tut.show .tut-card { transform:none; }
+  .tut-illo { width:100%; aspect-ratio:16/10; border-radius:18px;
+    background-image:linear-gradient(160deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+    border:1px solid var(--glass-edge); display:flex; align-items:center; justify-content:center;
+    overflow:hidden; margin-bottom:14px; }
+  .tut-illo svg { width:92%; height:92%; }
+  .tut-title { font-family:'Fraunces',serif; font-weight:650; font-size:1.18rem; text-align:center; }
+  .tut-text { color:var(--ink-dim); font-weight:300; font-size:.86rem; line-height:1.5;
+    text-align:center; margin-top:5px; min-height:3.8em; }
+  .tut-nav { display:flex; align-items:center; justify-content:space-between; margin-top:6px; }
+  .tut-back { background:none; border:none; cursor:pointer; color:var(--ink-dim);
+    font-family:'Outfit',sans-serif; font-weight:300; font-size:.85rem; padding:8px 2px; min-width:54px; text-align:left; }
+  .tut-back[disabled] { opacity:0; pointer-events:none; }
+  .tut-dots { display:flex; gap:6px; }
+  .tut-dots i { width:7px; height:7px; border-radius:50%; background:rgba(255,255,255,.25); transition:.25s ease; }
+  .tut-dots i.on { background:var(--accent); width:18px; border-radius:4px; }
+  .tut-next { font-family:'Outfit',sans-serif; font-weight:600; font-size:.9rem;
+    color:#1d1530; background-image:linear-gradient(var(--accent),var(--accent)); border:none;
+    border-radius:13px; padding:11px 20px; cursor:pointer; min-width:54px;
+    transition:transform .15s ease; box-shadow:0 8px 20px -8px rgba(240,179,94,.5); }
+  .tut-next:active { transform:scale(.94); }
+</style>
+</head>
+<body>
+<div class="sky"></div><div class="orb a"></div><div class="orb b"></div>
+
+<header>
+  <a class="brand" href="../" aria-label="All games"><span class="back">‹</span> bus<em>.</em></a>
+  <div class="meta">
+    <div class="lvl" id="leftLabel">0</div>
+    <div class="moves">in the lot</div>
+  </div>
+  <div class="controls">
+    <button class="icon-btn" id="undoBtn" aria-label="Undo move" title="Undo">
+      <svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg>
+    </button>
+    <button class="icon-btn" id="infoBtn" aria-label="How to play" title="How to play">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16.5"/><line x1="12" y1="7.4" x2="12" y2="7.6"/></svg>
+    </button>
+    <button class="icon-btn" id="soundBtn" aria-label="Toggle sound" title="Sound"></button>
+  </div>
+</header>
+<div class="tagline">tap a bus to drive it out · board the riders</div>
+
+<div class="goal" id="goalBar">
+  <span class="lvlchip">level <b id="lvlNum">1</b></span>
+  <span class="goal-sep"></span>
+  <span class="goal-txt"><b id="busDone">0</b>/<b id="busTotal">0</b> away</span>
+  <span class="goal-prog"><i id="goalFill"></i></span>
+</div>
+
+<main>
+  <div class="stage">
+    <div class="queue" id="queue"></div>
+    <div class="bays" id="bays"></div>
+    <div class="bay-tag">boarding bays</div>
+    <div class="lotwrap">
+      <div id="lot" aria-label="bus lot"></div>
+    </div>
+  </div>
+</main>
+
+<nav class="actions">
+  <button class="pill" id="newBtn" aria-label="Restart level">
+    <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.3"/><path d="M21 3v6h-6"/></svg>
+    Restart
+  </button>
+</nav>
+
+<div id="over" role="dialog" aria-label="Result">
+  <div class="over-card">
+    <h2 id="overTitle">Level cleared.</h2>
+    <p id="overSub">next one’s up</p>
+    <button class="next-btn" id="contBtn">Keep going →</button>
+  </div>
+</div>
+<div id="toast"></div>
+
+<div id="tut" role="dialog" aria-label="How to play">
+  <div class="tut-card">
+    <div class="tut-illo" id="tutIllo"></div>
+    <div class="tut-title" id="tutTitle"></div>
+    <div class="tut-text" id="tutText"></div>
+    <div class="tut-nav">
+      <button class="tut-back" id="tutBack">‹ back</button>
+      <div class="tut-dots" id="tutDots"></div>
+      <button class="tut-next" id="tutNext">Next ›</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---- how-to-play tutorial (illustration-led, self-contained) ---- */
+(function(){
+  const A='#ff6f69',M='#ffc857',G='#5fc97e',B='#5b8def',acc='#f0b35e';
+  const S=i=>`<svg viewBox="0 0 200 130">${i}</svg>`;
+  // a little bus cell with a direction arrow (dir: 0=up 1=right 2=down 3=left)
+  const car=(x,y,c,dir,w)=>{ w=w||26; const h=w; const rot={0:0,1:90,2:180,3:270}[dir||0];
+    return `<g transform="translate(${x},${y})"><rect x="${-w/2}" y="${-h/2}" width="${w}" height="${h}" rx="5" fill="${c}"/>`
+      + `<g transform="rotate(${rot})"><path d="M0 ${-h*0.28} L${w*0.2} ${h*0.02} L${w*0.07} ${h*0.02} L${w*0.07} ${h*0.26} L${-w*0.07} ${h*0.26} L${-w*0.07} ${h*0.02} L${-w*0.2} ${h*0.02} Z" fill="rgba(255,255,255,.92)"/></g></g>`; };
+  const pax=(x,y,c)=>`<rect x="${x-7}" y="${y-7}" width="14" height="14" rx="5" fill="${c}"/><circle cx="${x}" cy="${y-2}" r="2.4" fill="#fff" opacity=".85"/>`;
+  const TUT=[
+    { illo:S(`<rect x="40" y="20" width="120" height="92" rx="10" fill="#211b33"/>`
+        + car(70,90,A,0)+car(100,90,G,3)+car(130,90,M,0)
+        + car(70,58,B,0)+car(130,58,A,1)
+        + `<polyline points="70,40 70,16" fill="none" stroke="${acc}" stroke-width="3" stroke-linecap="round"/><polyline points="64,24 70,16 76,24" fill="none" stroke="${acc}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>`),
+      title:'Tap a bus to drive it out', text:'Each bus points a way. Tap one and it drives straight out of the lot in its arrow’s direction.' },
+    { illo:S(`<rect x="40" y="20" width="120" height="92" rx="10" fill="#211b33"/>`
+        + car(70,58,B,0) + car(70,30,M,0)
+        + `<line x1="58" y1="44" x2="82" y2="20" stroke="#ff6f69" stroke-width="3" stroke-linecap="round"/><line x1="82" y1="44" x2="58" y2="20" stroke="#ff6f69" stroke-width="3" stroke-linecap="round"/>`
+        + car(130,58,G,0)
+        + `<polyline points="130,40 130,16" fill="none" stroke="${acc}" stroke-width="3" stroke-linecap="round"/><polyline points="124,24 130,16 136,24" fill="none" stroke="${acc}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>`),
+      title:'Only if the lane is clear', text:'A bus can leave only when nothing blocks the path ahead. Move blockers out of the way first.' },
+    { illo:S(`<rect x="58" y="22" width="84" height="34" rx="8" fill="${A}"/>`
+        + `<rect x="70" y="33" width="12" height="12" rx="3" fill="#fff"/><rect x="94" y="33" width="12" height="12" rx="3" fill="#fff"/><rect x="118" y="33" width="12" height="12" rx="3" fill="rgba(0,0,0,.3)"/>`
+        + pax(60,92,A)+pax(84,92,A)+pax(108,92,B)+pax(132,92,M)
+        + `<polyline points="100,80 100,62" fill="none" stroke="${acc}" stroke-width="3" stroke-linecap="round"/><polyline points="94,70 100,62 106,70" fill="none" stroke="${acc}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>`),
+      title:'Riders board at the bays', text:'A bus that leaves pulls into a boarding bay. Riders of its colour hop on — fill every seat and it drives away for good.' }
+  ];
+  const el=document.getElementById('tut'),illoEl=document.getElementById('tutIllo'),titleEl=document.getElementById('tutTitle'),textEl=document.getElementById('tutText'),dotsEl=document.getElementById('tutDots'),backEl=document.getElementById('tutBack'),nextEl=document.getElementById('tutNext'),info=document.getElementById('infoBtn');
+  let p=0;
+  function render(){ illoEl.innerHTML=TUT[p].illo; titleEl.textContent=TUT[p].title; textEl.textContent=TUT[p].text; let d=''; for(let i=0;i<TUT.length;i++) d+=`<i class="${i===p?'on':''}"></i>`; dotsEl.innerHTML=d; backEl.disabled=p===0; nextEl.textContent=p===TUT.length-1?'Got it':'Next ›'; }
+  function openTut(){ p=0; render(); el.classList.add('show'); }
+  function closeTut(){ el.classList.remove('show'); }
+  if(info) info.addEventListener('click',openTut);
+  backEl.addEventListener('click',()=>{ if(p>0){p--;render();} });
+  nextEl.addEventListener('click',()=>{ if(p<TUT.length-1){p++;render();} else closeTut(); });
+  el.addEventListener('click',e=>{ if(e.target===el) closeTut(); });
+  try{ if(!localStorage.getItem('bus.tut')){ localStorage.setItem('bus.tut','1'); setTimeout(openTut,600); } }catch(e){}
+})();
+</script>
+
+<script src="../sync.js"></script>
+<script>
+'use strict';
+/* ============================================================================
+   bus. — drive-out jam + boarding (the "bus fever" loop)
+   The lot is jammed with buses, each facing a direction. Tap a bus to drive it
+   straight out of the lot in its arrow's direction — only if the lane ahead is
+   clear. It pulls into a boarding bay; the matching-colour riders waiting in the
+   queue fill its seats, and a full bus drives off for good. Clear the lot to win.
+   Jams are GENERATED SOLVABLE: buses are "driven in" from the edges, so reversing
+   that is always a valid clear order; the rider queue follows that order.
+   ============================================================================ */
+const COLOR = ['#ff6f69','#ffc857','#5fc97e','#5b8def','#c07ce8','#e08bb1'];
+const PERSON = '<svg viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="4"/><path d="M4.5 21c0-4.2 3.4-6.8 7.5-6.8S19.5 16.8 19.5 21z"/></svg>';
+const ARROW  = '<svg viewBox="0 0 24 24"><path d="M12 3 L20 12 L15 12 L15 21 L9 21 L9 12 L4 12 Z"/></svg>';
+const BAYS = 3;
+// direction vectors: 0=up,1=right,2=down,3=left
+const DR=[-1,0,1,0], DC=[0,1,0,-1];
+
+let R=5, C=5, level=1;
+let grid = [];                 // grid[r][c] = busId or 0
+let busList = new Map();       // id -> {id,c,dir,r,col,ord}
+let bays = [];                 // [null | {id,c,seated}]
+let queue = [];                // [colorIndex,...] front = index 0
+let totalBuses = 0, departed = 0;
+let nextId = 1, busy = false, over = false, undoState = null, gen = 0;
+let soundOn = localStorage.getItem('bus.sound') !== 'off';
+try { level = Math.max(1, parseInt(localStorage.getItem('bus.level')||'1',10)||1); } catch(e){}
+
+const lotEl   = document.getElementById('lot');
+const baysEl  = document.getElementById('bays');
+const queueEl = document.getElementById('queue');
+const overEl  = document.getElementById('over');
+const soundBtn= document.getElementById('soundBtn');
+const undoBtn = document.getElementById('undoBtn');
+const busEls  = new Map();     // id -> element
+
+/* ---------- audio / haptics ---------- */
+let actx = null;
+function note(freq, dur=.16, vol=.1, type='sine'){
+  if(!soundOn) return;
+  try{
+    actx = actx || new (window.AudioContext||window.webkitAudioContext)();
+    if(actx.state==='suspended') actx.resume();
+    const o=actx.createOscillator(), g=actx.createGain();
+    o.type=type; o.frequency.setValueAtTime(freq, actx.currentTime);
+    g.gain.setValueAtTime(vol, actx.currentTime);
+    g.gain.exponentialRampToValueAtTime(.0001, actx.currentTime+dur);
+    o.connect(g).connect(actx.destination);
+    o.start(); o.stop(actx.currentTime+dur);
+  }catch(e){}
+}
+function departSound(){ [523,659,784].forEach((f,i)=>setTimeout(()=>note(f,.18,.08,'triangle'),i*70)); }
+function winSound(){ [392,494,587,784].forEach((f,i)=>setTimeout(()=>note(f,.3,.1),i*110)); }
+function buzz(ms){ if(navigator.vibrate) navigator.vibrate(ms); }
+const delay = ms => new Promise(r=>setTimeout(r,ms));
+function renderSoundIcon(){
+  soundBtn.innerHTML = soundOn
+    ? '<svg viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg>'
+    : '<svg viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="m16 9 5 5m0-5-5 5"/></svg>';
+}
+function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=(Math.random()*(i+1))|0; const t=a[i]; a[i]=a[j]; a[j]=t; } return a; }
+
+/* ---------- generation (multi-cell buses, solvable by reverse construction) ---------- */
+function randSeats(){ return 2 + ((Math.random()*2)|0); }    // 2 or 3 seats — independent of bus size
+function levelParams(lv){
+  const G = Math.min(4 + Math.floor((lv-1)/3), 6);            // 4 -> 6 grid (every 3 levels)
+  const K = Math.min(3 + Math.floor((lv-1)/3), 6);            // 3 -> 6 colours
+  const frac = Math.min(0.36 + (lv-1)*0.02, 0.56);          // fraction of lot cells filled
+  const lens = lv<=2 ? [2] : (lv<=5 ? [2,2,3] : [2,3,3]);    // shorter buses in early levels
+  return { G, K, frac, lens };
+}
+function makeCells(r0, c0, len, dir){      // cells a bus occupies; horizontal if facing left/right
+  const horiz = (dir===1||dir===3), cells=[];
+  for(let i=0;i<len;i++) cells.push(horiz ? {r:r0, c:c0+i} : {r:r0+i, c:c0});
+  return cells;
+}
+function frontCell(cells, dir){            // the leading cell in the driving direction
+  let f=cells[0];
+  for(const p of cells){
+    if(dir===0 && p.r<f.r) f=p; else if(dir===2 && p.r>f.r) f=p;
+    else if(dir===3 && p.c<f.c) f=p; else if(dir===1 && p.c>f.c) f=p;
+  }
+  return f;
+}
+function laneClear(occ, fr, fc, dir){      // is the lane from a front cell to the edge empty?
+  let rr=fr+DR[dir], cc=fc+DC[dir];
+  while(rr>=0 && rr<R && cc>=0 && cc<C){ if(occ[rr][cc]) return false; rr+=DR[dir]; cc+=DC[dir]; }
+  return true;
+}
+function genLevel(lv){
+  const { G, K, frac, lens } = levelParams(lv);
+  R=G; C=G;
+  let ok=false, guard=0;
+  while(!ok && guard++<60){
+    const occ = Array.from({length:R},()=>new Array(C).fill(0));
+    const addOrder=[];
+    const targetCells = Math.max(4, Math.round(R*C*frac));
+    let used=0, attempts=0;
+    while(used<targetCells && attempts++<R*C*60){
+      const dir=(Math.random()*4)|0;
+      const len=lens[(Math.random()*lens.length)|0];
+      const horiz=(dir===1||dir===3);
+      const w=horiz?len:1, h=horiz?1:len;
+      if(w>C || h>R) continue;
+      const c0=(Math.random()*(C-w+1))|0, r0=(Math.random()*(R-h+1))|0;
+      const cells=makeCells(r0,c0,len,dir);
+      if(cells.some(p=>occ[p.r][p.c])) continue;
+      const f=frontCell(cells,dir);
+      if(!laneClear(occ, f.r, f.c, dir)) continue;          // must have a clear lane out when removed
+      cells.forEach(p=>occ[p.r][p.c]=1); used+=cells.length;
+      addOrder.push({ dir, len, cells, col:(Math.random()*K)|0, seats:randSeats() });
+    }
+    if(addOrder.length<2) continue;
+    // assign colours so every colour is shared by >= 2 buses, so a colour's rider
+    // count in the queue is the SUM across its buses — never a single bus's seat count
+    const n=addOrder.length, Kc=Math.max(1, Math.min(K, Math.floor(n/2)));
+    const cols=[]; for(let c=0;c<Kc;c++) cols.push(c,c);
+    while(cols.length<n) cols.push((Math.random()*Kc)|0);
+    shuffle(cols);
+    addOrder.forEach((b,idx)=>{ b.col=cols[idx]; });
+    // reverse of add-order is a valid drive-out order
+    const solveSeq = addOrder.slice().reverse();
+    grid=Array.from({length:R},()=>new Array(C).fill(0));
+    busList=new Map();
+    solveSeq.forEach((b,i)=>{
+      const id=nextId++;
+      busList.set(id, { id, c:b.col, dir:b.dir, len:b.len, cap:b.seats, cells:b.cells.map(p=>({...p})), ord:i });
+      b.cells.forEach(p=>grid[p.r][p.c]=id);
+    });
+    // rider pool = every bus's seats, SHUFFLED so the queue is not grouped 1:1 by bus
+    // (a colour's count in line = sum across all its buses, never a single bus's seat count)
+    const pool=[];
+    for(const bus of busList.values()) for(let s=0;s<bus.cap;s++) pool.push(bus.c);
+    queue = shuffle(pool);
+    ok=true;
+  }
+  bays = new Array(BAYS).fill(null);
+  totalBuses = busList.size; departed = 0;
+  undoState = null;
+}
+
+/* ---------- geometry / lot rendering ---------- */
+let cell = 56, gap = 5;
+function layoutMetrics(){
+  const wrap = lotEl.parentElement;
+  const availW = wrap.clientWidth, availH = wrap.clientHeight;
+  // the lot is tilted back, so it needs less screen height than its true height — allow extra
+  cell = Math.max(34, Math.min(Math.floor(availW * 0.82 / C), Math.floor(availH * 1.18 / R), 74));
+  gap = Math.round(cell*0.1);
+  lotEl.style.width  = (C*cell)+'px';
+  lotEl.style.height = (R*cell)+'px';
+  lotEl.style.setProperty('--cell', cell+'px');
+}
+function busExtent(b){
+  let minR=99,minC=99,maxR=-1,maxC=-1;
+  for(const p of b.cells){ if(p.r<minR)minR=p.r; if(p.r>maxR)maxR=p.r; if(p.c<minC)minC=p.c; if(p.c>maxC)maxC=p.c; }
+  return { minR, minC, maxR, maxC };
+}
+function placeBus(el, b){
+  const e = busExtent(b);
+  el.style.setProperty('--px', (e.minC*cell + gap)+'px');
+  el.style.setProperty('--py', (e.minR*cell + gap)+'px');
+}
+function styleBus(el, b){
+  const e = busExtent(b);
+  el.style.setProperty('--w', ((e.maxC-e.minC+1)*cell - gap*2)+'px');
+  el.style.setProperty('--d', ((e.maxR-e.minR+1)*cell - gap*2)+'px');
+  el.style.setProperty('--h', Math.round(cell*0.5)+'px');
+  el.style.setProperty('--bc', COLOR[b.c]);
+  el.querySelector('.arr').style.transform = `rotate(${b.dir*90}deg)`;
+  // windows belong only on the two LONG sides; a windshield marks the driving end
+  const q = s => el.querySelector(s);
+  q('.f-front').className='face f-front'; q('.f-back').className='face f-back';
+  q('.f-left').className='face f-left';   q('.f-right').className='face f-right';
+  if(b.dir===1 || b.dir===3){ q('.f-front').classList.add('win-h'); q('.f-back').classList.add('win-h'); }
+  else { q('.f-left').classList.add('win-v'); q('.f-right').classList.add('win-v'); }
+  q({0:'.f-back',1:'.f-right',2:'.f-front',3:'.f-left'}[b.dir]).classList.add('wshield');
+}
+function buildLot(){
+  for(const el of busEls.values()) el.remove();
+  busEls.clear();
+  layoutMetrics();
+  for(const b of busList.values()){
+    const el = document.createElement('div');
+    el.className = 'buz';
+    el.dataset.id = b.id;
+    el.innerHTML =
+      '<div class="box">'+
+        '<div class="face f-back"></div><div class="face f-front"></div>'+
+        '<div class="face f-left"></div><div class="face f-right"></div>'+
+        `<div class="face f-top"><span class="arr">${ARROW}</span></div>`+
+      '</div>';
+    styleBus(el, b);
+    placeBus(el, b);
+    lotEl.appendChild(el);
+    busEls.set(b.id, el);
+  }
+}
+function pathClear(b){     // can this bus drive out right now?
+  const f = frontCell(b.cells, b.dir);
+  let rr=f.r+DR[b.dir], cc=f.c+DC[b.dir];
+  while(rr>=0 && rr<R && cc>=0 && cc<C){ if(grid[rr][cc]) return false; rr+=DR[b.dir]; cc+=DC[b.dir]; }
+  return true;
+}
+
+/* ---------- bays + queue rendering ----------
+   Each bay is a persistent slot updated on its own (renderBay) so concurrent
+   boarding in one bay never clobbers another bay's in-flight animation. */
+function bayInner(b, opts){
+  if(!b) return '';
+  let seats='';
+  for(let s=0;s<b.cap;s++){
+    const on = s<b.seated;
+    const justFilled = opts && opts.fill && s===b.seated-1;
+    seats += `<div class="seat ${on?'on':''}${justFilled?' fill':''}">${on?PERSON:''}</div>`;
+  }
+  return `<div class="baybus${opts&&opts.pop?' pop':''}" style="--bc:${COLOR[b.c]}"><div class="seats">${seats}</div><div class="nose"></div><div class="wheel l"></div><div class="wheel r"></div></div>`;
+}
+function renderBays(){
+  baysEl.innerHTML='';
+  for(let i=0;i<BAYS;i++){
+    const slot=document.createElement('div');
+    slot.className='bay'+(bays[i]?' full':'');
+    slot.innerHTML=bayInner(bays[i]);
+    baysEl.appendChild(slot);
+  }
+}
+function renderBay(i, opts){
+  const slot=baysEl.children[i];
+  if(!slot){ renderBays(); return; }
+  slot.className='bay'+(bays[i]?' full':'');
+  slot.innerHTML=bayInner(bays[i], opts);
+}
+function renderQueue(){
+  const shown = queue.slice(0, 14);
+  let html = '<span class="qlabel">queue</span>';
+  shown.forEach((c,i)=>{
+    html += `<div class="qpax${i===0?' head':''}" style="background-image:radial-gradient(circle at 34% 26%,rgba(255,255,255,.5),transparent 55%),linear-gradient(${COLOR[c]},${COLOR[c]})">${PERSON}</div>`;
+  });
+  if(queue.length>shown.length) html += `<span class="qmore">+${queue.length-shown.length}</span>`;
+  if(queue.length===0) html += '<span class="qmore">— all aboard</span>';
+  queueEl.innerHTML = html;
+}
+
+/* ---------- meta ---------- */
+function updateMeta(){
+  document.getElementById('leftLabel').textContent = busList.size;
+  document.getElementById('lvlNum').textContent = level;
+  document.getElementById('busDone').textContent = departed;
+  document.getElementById('busTotal').textContent = totalBuses;
+  document.getElementById('goalFill').style.width = (totalBuses? departed/totalBuses*100 : 0)+'%';
+  undoBtn.disabled = !undoState || busy || over;
+}
+
+/* ---------- persistence ---------- */
+function busToData(b){ const e=busExtent(b); return {c:b.c,d:b.dir,l:b.len,s:b.cap,r:e.minR,k:e.minC,o:b.ord}; }
+function save(){
+  try{
+    localStorage.setItem('bus.state', JSON.stringify({
+      lv:level, R, C, lot:[...busList.values()].map(busToData),
+      bays:bays.map(b=>b?{c:b.c,cap:b.cap,s:b.seated}:null),
+      q:queue, tot:totalBuses, dep:departed, u:undoState
+    }));
+    localStorage.setItem('bus.level', level);
+  }catch(e){}
+}
+function rebuildFrom(lot){
+  busList = new Map(); grid = Array.from({length:R},()=>new Array(C).fill(0));
+  lot.forEach(b=>{ const id=nextId++; const cells=makeCells(b.r,b.k,b.l,b.d);
+    busList.set(id,{id,c:b.c,dir:b.d,len:b.l,cap:b.s,cells,ord:b.o});
+    cells.forEach(p=>grid[p.r][p.c]=id); });
+}
+function restore(){
+  try{
+    const s = JSON.parse(localStorage.getItem('bus.state')||'null');
+    if(!s || !Array.isArray(s.lot) || (s.lot[0] && s.lot[0].s===undefined)) return false;  // ignore older saves
+    level=s.lv||1; R=s.R||5; C=s.C||5;
+    rebuildFrom(s.lot);
+    bays = (s.bays||[]).map(b=>b?{id:nextId++,c:b.c,cap:b.cap,seated:b.s}:null);
+    while(bays.length<BAYS) bays.push(null);
+    queue = s.q||[]; totalBuses=s.tot||busList.size; departed=s.dep||0;
+    undoState = (s.u && Array.isArray(s.u.lot)) ? s.u : null;
+    return true;
+  }catch(e){ return false; }
+}
+
+/* ---------- interaction ---------- */
+function snapshot(){
+  return { lot:[...busList.values()].map(busToData),
+           bays:bays.map(b=>b?{c:b.c,cap:b.cap,s:b.seated}:null), q:queue.slice(),
+           tot:totalBuses, dep:departed, lv:level, R, C };
+}
+function freeBayIndex(){ return bays.findIndex(b=>!b); }
+
+function animateDriveOff(b){
+  const el = busEls.get(b.id); if(!el) return delay(0);
+  const e = busExtent(b);
+  // distance to drive the whole bus fully off the lot edge in its direction
+  let steps;
+  if(b.dir===0) steps = e.maxR+1.5;
+  else if(b.dir===2) steps = (R-e.minR)+0.5;
+  else if(b.dir===3) steps = e.maxC+1.5;
+  else steps = (C-e.minC)+0.5;
+  const x = (e.minC + DC[b.dir]*steps)*cell + gap;
+  const y = (e.minR + DR[b.dir]*steps)*cell + gap;
+  el.style.setProperty('--px', x+'px');
+  el.style.setProperty('--py', y+'px');
+  el.classList.add('gone');
+  note(300+ (3-b.dir)*40, .14, .06);
+  buzz(8);
+  return delay(330);
+}
+/* boarding runs in the BACKGROUND (not under the input lock) so you can keep
+   tapping buses while riders board. It's pool-based: a bay pulls its own colour
+   from anywhere in the queue, so it never stalls. A `gen` token cancels any
+   in-flight boarding when the board is reset (undo / restart / level change). */
+async function boardBay(i, myGen){
+  while(true){
+    if(gen!==myGen) return;
+    const bay = bays[i];
+    if(!bay || bay.seated >= bay.cap) break;
+    const qi = queue.indexOf(bay.c);
+    if(qi<0) break;                                     // no rider of this colour right now
+    queue.splice(qi,1); bay.seated++;
+    renderQueue(); renderBay(i, {fill:true});
+    note(560+bay.seated*40, .1, .07); buzz(5);
+    await delay(120);
+  }
+  if(gen!==myGen) return;
+  if(bays[i] && bays[i].seated >= bays[i].cap){         // full → drive away
+    departSound(); buzz([12,30,12]);
+    const bb = baysEl.children[i] && baysEl.children[i].querySelector('.baybus');
+    if(bb) bb.classList.add('leaving');
+    await delay(320);
+    if(gen!==myGen) return;
+    bays[i]=null; departed++;
+    renderBay(i); updateMeta(); save();
+  }
+  if(gen!==myGen) return;
+  if(busList.size===0 && bays.every(x=>!x) && !over) await levelClear();   // lot cleared → win
+}
+function resumeBoarding(){                              // restart boarding for any half-loaded bay
+  for(let i=0;i<BAYS;i++) if(bays[i] && bays[i].seated<bays[i].cap) boardBay(i, gen);
+}
+async function tapBus(id){
+  if(busy||over) return;
+  const b = busList.get(id); if(!b) return;
+  const el = busEls.get(id);
+  if(!pathClear(b)){                                    // jammed — it shudders but can't leave
+    if(el){
+      el.style.setProperty('--lx', (DC[b.dir]*7)+'px');
+      el.style.setProperty('--ly', (DR[b.dir]*7)+'px');
+      el.classList.remove('jam'); void el.offsetWidth; el.classList.add('jam');
+    }
+    note(150,.16,.07,'sawtooth'); buzz([12,28,12]); return;
+  }
+  if(freeBayIndex()<0){ toast('bays are full'); note(200,.12,.06,'sawtooth'); return; }
+
+  const myGen = gen;
+  busy=true; undoState = snapshot();
+  // remove from lot (clear every cell the bus occupies)
+  b.cells.forEach(p=>grid[p.r][p.c]=0); busList.delete(id);
+  await animateDriveOff(b);
+  if(gen!==myGen){ busy=false; return; }                // board was reset mid-drive
+  if(el){ el.remove(); busEls.delete(id); }
+  // into a bay
+  const bi = freeBayIndex();
+  bays[bi] = { id:nextId++, c:b.c, cap:b.cap, seated:0 };
+  renderBay(bi, {pop:true});
+  updateMeta(); save();
+  busy=false;                                           // release input immediately
+  boardBay(bi, myGen);                                  // board in the background
+}
+lotEl.addEventListener('click', e=>{
+  const t = e.target.closest('.buz'); if(!t) return;
+  tapBus(parseInt(t.dataset.id,10));
+});
+
+/* ---------- end states ---------- */
+function showOver(title, sub, label){
+  over = true;
+  document.getElementById('overTitle').textContent = title;
+  document.getElementById('overSub').textContent = sub;
+  const btn = document.getElementById('contBtn'); btn.textContent = label;
+  overEl.classList.add('show');
+  return new Promise(res=>{
+    const h=()=>{ overEl.classList.remove('show'); btn.removeEventListener('click',h); over=false; res(); };
+    btn.addEventListener('click', h);
+  });
+}
+async function levelClear(){
+  const cleared = level;
+  winSound(); buzz([20,50,20]); confetti();
+  level++; localStorage.setItem('bus.level', level);
+  if(window.PlaySync) PlaySync.push();
+  await delay(140);
+  await showOver('Level '+cleared+' cleared.', 'lot empty · level '+level+' next', 'Keep going →');
+  startLevel(level);
+}
+
+/* ---------- effects ---------- */
+function confetti(){
+  for(let k=0;k<60;k++){
+    const p=document.createElement('div'); p.className='confetti';
+    const sz=4+Math.random()*7, cc=COLOR[(Math.random()*COLOR.length)|0];
+    p.style.cssText = `left:${Math.random()*100}vw;width:${sz}px;height:${sz*1.4}px;`+
+      `background-image:linear-gradient(${cc},${cc});`+
+      `animation-duration:${2.2+Math.random()*2.4}s;animation-delay:${Math.random()*.7}s;`;
+    document.body.appendChild(p);
+    setTimeout(()=>p.remove(),6000);
+  }
+}
+let _toastT;
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(_toastT); _toastT=setTimeout(()=>t.classList.remove('show'),1700);
+}
+
+/* ---------- flow ---------- */
+function renderAll(){ buildLot(); renderBays(); renderQueue(); updateMeta(); resumeBoarding(); }
+function startLevel(lv){ gen++; level=lv; genLevel(lv); renderAll(); save(); }
+function doUndo(){
+  if(busy||over||!undoState) return;
+  gen++;                                              // cancel any in-flight boarding
+  const u = undoState; undoState=null;
+  R=u.R; C=u.C; rebuildFrom(u.lot);
+  bays = u.bays.map(b=>b?{id:nextId++,c:b.c,cap:b.cap,seated:b.s}:null);
+  while(bays.length<BAYS) bays.push(null);
+  queue=u.q.slice(); totalBuses=u.tot; departed=u.dep; level=u.lv;
+  renderAll(); save(); note(330,.1,.06);
+}
+
+soundBtn.addEventListener('click', ()=>{
+  soundOn=!soundOn; localStorage.setItem('bus.sound', soundOn?'on':'off');
+  renderSoundIcon(); if(soundOn) note(520,.1,.07);
+});
+undoBtn.addEventListener('click', doUndo);
+document.getElementById('newBtn').addEventListener('click', ()=>{ if(!busy&&!over) startLevel(level); });
+window.addEventListener('resize', ()=>{ if(!busy){ buildLot(); } });
+
+/* ---------- boot ---------- */
+renderSoundIcon();
+if(restore()){ renderAll(); }
+else { startLevel(level); }
+
+if(window.PlaySync){
+  PlaySync.init({
+    game: 'bus',
+    onRemote: ()=>{
+      const cl = parseInt(localStorage.getItem('bus.level')||'1',10);
+      if(cl>level && !busy && departed===0){ startLevel(cl); }
+      updateMeta();
+    }
+  });
+}
+</script>
+</body>
+</html>

@@ -14,7 +14,7 @@ catch-up for any new session.
 - **Local working copy:** `C:\Users\user\Desktop\AGENT\Others\Games\Pour\`
   (folder is still named `Pour` for historical reasons — it is the **whole-site repo**, not just Pour)
 - **Deploy:** push to `main`. GitHub Pages serves `main` at root `/`. No build step.
-- **Games:** Pour, Sudoku, Codeword, 2048, Drop, Ember, Sweets, Dots — 8 total.
+- **Games:** Pour, Sudoku, Codeword, 2048, Drop, Ember, Sweets, Dots, Bus — 9 total.
 - **Cross-device sync:** optional, offline-first, via Firebase (project `play-ee089`). One
   Google sign-in **on the hub** mirrors every game's progress across devices. Signed out,
   the games are unchanged and fully offline. See **Cross-device cloud sync** below.
@@ -52,7 +52,7 @@ build, no dependencies, no framework. Only external resources are Google Fonts
   rule. Each is a rounded `#231c3a` tile + the game's motif in palette accents (the hub is a
   play-triangle). `#`→`%23`, `<`→`%3C`, `>`→`%3E`, single-quoted attrs. New games get one too.
 
-### How-to-play tutorial (shared component, all 8 games)
+### How-to-play tutorial (shared component, all 9 games)
 Each game has an **info (ⓘ) button** in the header that opens a `#tut` pop-up: an
 **illustration-led, multi-page** how-to (2–4 pages), navigated by ‹back / Next / Got it with
 page dots; tap the backdrop to close. It auto-opens **once** on first visit (flag `<game>.tut`
@@ -79,6 +79,7 @@ touches another:
 | Ember    | `/ember/`    | `ember.level`, `ember.meta`, `ember.run`, `ember.sound` |
 | Sweets   | `/sweets/`   | `sweets.state`, `sweets.best`, `sweets.level`, `sweets.sound` |
 | Dots     | `/dots/`     | `dots.state`, `dots.best`, `dots.level`, `dots.sound` |
+| Bus      | `/bus/`      | `bus.state`, `bus.level`, `bus.sound`, `bus.tut` |
 
 The hub (`/index.html`) reads these **read-only** to show a progress chip on each card.
 
@@ -147,6 +148,7 @@ JSON object.
 | Ember    | `ember.level`, `ember.meta`    | max, maxmap (gold)|
 | Sweets   | `sweets.level`, `sweets.best`  | max, max         |
 | Dots     | `dots.level`, `dots.best`      | max, max         |
+| Bus      | `bus.level`                    | max              |
 
 ### Wiring a game (what each game does)
 - Loads `../sync.js` before its main `<script>`.
@@ -360,8 +362,18 @@ undo snapshot}. Path/loop logic lives in the `pointerdown/move/up` handlers + `r
 
 ---
 
-_Last updated after: added **cross-device cloud sync** (Firebase project `play-ee089`,
-offline-first, one Google sign-in on the hub, shared `sync.js` with a per-game REGISTRY) —
-live across all 8 games, syncing only monotonic progress markers. See the **Cross-device
-cloud sync** section. Prior: added Sweets (match-3) and Dots (connect-the-dots) with gentle
-levels, plus inline-SVG favicons. 8 games live._
+_Last updated after: added **Bus** (`/bus/`) — a drive-out jam + boarding game (the "bus
+fever" loop: the lot is jammed with buses, each facing a direction; tap a bus to drive it
+straight out IF the lane to the edge is clear; it pulls into one of 3 boarding bays and
+the matching-colour riders in the queue fill its 3 seats; a full bus leaves; clear the lot
+to win; jammed = bays full with no bus able to reach the rider up next). Levels are
+procedurally generated and **always solvable by construction** — buses are "driven in"
+from the edges, so reversing that order is a valid clear, and the rider queue follows that
+order. **Rectangular multi-cell buses** (1×2 → 4 seats, 1×3 → 6 seats) on a 4×4→6×6 grid;
+lot fills ~42→60% of cells. **Isometric/2.5D look** (CSS `perspective` + `rotateX/rotateZ`
+on the lot; each bus is a real extruded cuboid — bright roof with a direction arrow,
+window bands only on the two LONG sides, a windshield on the driving end; boarding-bay
+buses drawn side-on with one window per seat). Blocked buses are NOT dimmed — tapping a
+jammed one plays a shudder (`.jam` keyframe lunging in its facing direction). Syncs
+`bus.level` (max).
+Prior: cross-device cloud sync (Firebase `play-ee089`), Sweets, Dots. 9 games live._

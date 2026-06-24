@@ -265,6 +265,25 @@
     <span class="prog fresh" id="dotsProg">new</span>
     <span class="go">›</span>
   </a>
+
+  <a class="card" href="bus/">
+    <div class="art">
+      <svg viewBox="0 0 36 36" fill="none">
+        <rect x="5"  y="11" width="26" height="15" rx="4" fill="#f0b35e"/>
+        <rect x="8"  y="14" width="5" height="4.5" rx="1.4" fill="#231c3a"/>
+        <rect x="15.5" y="14" width="5" height="4.5" rx="1.4" fill="#231c3a"/>
+        <rect x="23" y="14" width="5" height="4.5" rx="1.4" fill="#231c3a"/>
+        <circle cx="12" cy="27.5" r="2.6" fill="#5b8def"/>
+        <circle cx="24" cy="27.5" r="2.6" fill="#5b8def"/>
+      </svg>
+    </div>
+    <div class="info">
+      <h2>bus<em>.</em></h2>
+      <p>drive out of the jam</p>
+    </div>
+    <span class="prog fresh" id="busProg">new</span>
+    <span class="go">›</span>
+  </a>
 </main>
 
 <footer id="foot">progress saves on this device · sign in to sync</footer>
@@ -315,6 +334,10 @@ function renderChips() {
   try {
     const lv = parseInt(localStorage.getItem('dots.level') || '1', 10);
     if (lv > 1) setChip('dotsProg', 'level ' + lv);
+  } catch(e) {}
+  try {
+    const lv = parseInt(localStorage.getItem('bus.level') || '1', 10);
+    if (lv > 1) setChip('busProg', 'level ' + lv);
   } catch(e) {}
 }
 renderChips();

@@ -61,6 +61,7 @@ window.PlaySync = (function () {
                 "sweets.best":    { merge: "max" } },
     dots:     { "dots.level":     { merge: "max" },
                 "dots.best":      { merge: "max" } },
+    bus:      { "bus.level":      { merge: "max" } },                 // furthest level
   };
 
   const enc = (k) => k.replace(/\./g, "__"); // localStorage key -> Firestore field
