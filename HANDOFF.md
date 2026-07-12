@@ -364,7 +364,21 @@ undo snapshot}. Path/loop logic lives in the `pointerdown/move/up` handlers + `r
 
 ---
 
-_Last updated after: added **Bus** (`/bus/`) — a drive-out jam + boarding game (the "bus
+_Last updated after (2026-07-12): **Bus bug-fix pass** — three gameplay bugs found and fixed
+in `bus/index.html`, verified by playing through in a browser: (1) **false "Bays clogged"
+race** — a bus tapped out of the lot spends ~330ms animating before it lands in a bay; the
+background boarding loop could run its stuck-check in that window, see the needed bus in
+neither lot nor bay, and wrongly end the level. Now a `driving` counter defers stuck/win
+checks until in-flight buses park. (2) **Restart could land mid-game** — restart rewound to
+`history[0]`, but saves trim undo history to 150 entries, so after a reload on a long level
+"restart" restored a mid-game state. Now a pristine `startSnap` (level-start snapshot) is
+kept and persisted in `bus.state` (`start` field); Restart AND the jam dialog's "Retry
+level" both restore the SAME board from its true start (retry previously regenerated a
+different board, contradicting its label). (3) **Skip synced stale progress** — `skip()`
+called `PlaySync.push()` before `startLevel()` saved the new `bus.level`, so the cloud got
+the old value; reordered. Also added `Others/Games/.claude/launch.json` (`games-static`,
+`py -m http.server 8642`) for local browser testing.
+Prior: added **Bus** (`/bus/`) — a drive-out jam + boarding game (the "bus
 fever" loop: a packed lot of buses each facing a direction; tap a bus to drive it straight
 out IF the lane to the edge is clear; it pulls into one of 3 boarding bays; clear the lot to
 win). **Spatial jam is always solvable by construction** (buses are "driven in" from the

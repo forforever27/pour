@@ -458,6 +458,8 @@ let queue = [];                // [colorIndex,...] front = index 0
 let totalBuses = 0, departed = 0;
 let nextId = 1, busy = false, over = false, gen = 0, progress = 1;
 let history = [];              // unlimited undo: stack of pre-move snapshots
+let startSnap = null;          // pristine level-start snapshot (survives history trimming)
+let driving = 0;               // buses mid drive-off animation (left the lot, not yet in a bay)
 let soundOn = localStorage.getItem('bus.sound') !== 'off';
 try { progress = Math.max(1, parseInt(localStorage.getItem('bus.level')||'1',10)||1); } catch(e){}
 level = progress;              // furthest unlocked (progress) vs the level currently in play (level)
@@ -728,7 +730,7 @@ function save(){
     localStorage.setItem('bus.state', JSON.stringify({
       lv:level, prog:progress, R, C, lot:[...busList.values()].map(busToData),
       bays:bays.map(b=>b?{c:b.c,cap:b.cap,s:b.seated}:null),
-      q:queue, tot:totalBuses, dep:departed, hist:history.slice(-150)
+      q:queue, tot:totalBuses, dep:departed, hist:history.slice(-150), start:startSnap
     }));
     localStorage.setItem('bus.level', progress);     // bus.level = furthest unlocked (synced)
   }catch(e){}
@@ -749,6 +751,7 @@ function restore(){
     while(bays.length<BAYS) bays.push(null);
     queue = s.q||[]; totalBuses=s.tot||busList.size; departed=s.dep||0;
     history = Array.isArray(s.hist) ? s.hist : [];
+    startSnap = s.start || null;
     return true;
   }catch(e){ return false; }
 }
@@ -811,13 +814,14 @@ async function runBoarding(myGen){
     }
   } finally { boarding = false; }
   if(gen!==myGen) return;
-  if(busList.size===0 && bays.every(x=>!x) && queue.length===0 && !over) await levelClear();
+  if(busList.size===0 && !driving && bays.every(x=>!x) && queue.length===0 && !over) await levelClear();
   else if(isStuck() && !over) await jammed();
 }
 // stuck = the front rider's bus can never reach a bay: all bays are clogged with
 // non-matching buses (or no bus of that colour is left in the lot).
 function isStuck(){
   if(queue.length===0) return false;
+  if(driving) return false;    // a bus is mid drive-off — it re-checks once it lands in a bay
   const X = queue[0];
   if(bays.some(b=>b && b.c===X && b.seated<b.cap)) return false;   // a bay is boarding them
   if(bays.some(b=>!b)) return [...busList.values()].every(b=>b.c!==X);  // free bay: stuck only if no X bus remains
@@ -841,7 +845,9 @@ async function tapBus(id){
   busy=true; history.push(snapshot()); clearHint();      // unlimited undo
   // remove from lot (clear every cell the bus occupies)
   b.cells.forEach(p=>grid[p.r][p.c]=0); busList.delete(id);
+  driving++;                                            // in neither the lot nor a bay yet
   await animateDriveOff(b);
+  driving--;
   if(gen!==myGen){ busy=false; return; }                // board was reset mid-drive
   if(el){ el.remove(); busEls.delete(id); }
   // into a bay
@@ -889,7 +895,10 @@ async function jammed(){
   await delay(140);
   // offer to step back the move that clogged the bays, or retry the level fresh
   const choice = await showOver('Bays clogged.', 'no bus for the rider up front — undo your last move and try another', '↩ Undo last move', 'Retry level');
-  if(choice==='alt' || !history.length) startLevel(level);
+  if(choice==='alt' || !history.length){                // retry = SAME board from the start
+    if(startSnap || history.length) resetToStart(); else startLevel(level);
+    toast('level restarted');
+  }
   else doUndo();
 }
 
@@ -914,7 +923,7 @@ function toast(msg){
 
 /* ---------- flow ---------- */
 function renderAll(){ buildLot(); renderBays(); renderQueue(); updateMeta(); runBoarding(gen); }
-function startLevel(lv){ gen++; level=lv; genLevel(lv); history=[]; clearHint(); renderAll(); save(); }
+function startLevel(lv){ gen++; level=lv; genLevel(lv); history=[]; startSnap=snapshot(); clearHint(); renderAll(); save(); }
 // restore a saved snapshot into the live state (shared by undo & restart)
 function applySnap(u){
   R=u.R; C=u.C; rebuildFrom(u.lot);
@@ -929,12 +938,18 @@ function doUndo(){
   applySnap(history.pop());                           // unlimited — step back one move
   renderAll(); save(); note(330,.1,.06);
 }
+// back to the start of this level (same board). startSnap survives saves even when
+// the undo history gets trimmed, so restart never lands on a mid-game state.
+function resetToStart(){
+  gen++; clearHint();
+  applySnap(startSnap || history[0]); history=[];
+  if(!startSnap) startSnap = snapshot();              // old save without a start snapshot
+  renderAll(); save();
+}
 function restart(){
   if(busy||over) return;
   if(!history.length){ toast('already fresh ✦'); return; }
-  gen++; clearHint();
-  applySnap(history[0]); history=[];                  // back to the start of this level (same board)
-  renderAll(); save(); note(260,.12,.07); toast('level restarted');
+  resetToStart(); note(260,.12,.07); toast('level restarted');
 }
 
 /* ---- hint: the next bus in the canonical solve order is the lowest-ord bus still
@@ -955,8 +970,9 @@ function doHint(){
 function skip(){
   if(busy||over) return;
   level++; progress=Math.max(progress, level);        // free skip unlocks the next level
+  startLevel(level);                                  // saves bus.level BEFORE the cloud push
   if(window.PlaySync) PlaySync.push();
-  startLevel(level); toast('level skipped ✦');
+  toast('level skipped ✦');
 }
 
 /* ---- level select: replay any unlocked level ---- */
