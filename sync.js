@@ -65,6 +65,10 @@ window.PlaySync = (function () {
     dots:     { "dots.level":     { merge: "max" },
                 "dots.best":      { merge: "max" } },
     bus:      { "bus.level":      { merge: "max" } },                 // furthest level
+    blocks:   { "blocks.best":    { merge: "maxmap" } },              // best per mode {gentle,classic,bold}
+    hanoi:    { "hanoi.level":    { merge: "max" } },                 // furthest level
+    stack:    { "stack.best":     { merge: "max" } },                 // best floors
+    wings:    { "wings.best":     { merge: "max" } },                 // best gates
   };
 
   const enc = (k) => k.replace(/\./g, "__"); // localStorage key -> Firestore field

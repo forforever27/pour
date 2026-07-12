@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#191527">
+<meta name="color-scheme" content="only light">
+<title>hanoi — rebuild the tower</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23231c3a'/%3E%3Crect x='11' y='8' width='10' height='5' rx='2.5' fill='%23ff6f69'/%3E%3Crect x='8.5' y='14.5' width='15' height='5' rx='2.5' fill='%23ffc857'/%3E%3Crect x='6' y='21' width='20' height='5' rx='2.5' fill='%235b8def'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650&family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: only light;
+    --bg-deep: #14101f;
+    --bg-mid: #1f1833;
+    --ink: #f2edf7;
+    --ink-dim: #9a8fb8;
+    --glass: rgba(255,255,255,.055);
+    --glass-edge: rgba(255,255,255,.16);
+    --panel: #2b2342;
+    --accent: #f0b35e;
+    --wood: #7d5f46;
+    --wood-dark: #63482f;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { height:100%; overflow:hidden; }
+  body {
+    font-family:'Outfit', sans-serif;
+    background-image: linear-gradient(var(--bg-deep), var(--bg-deep));
+    color: var(--ink);
+    touch-action: manipulation;
+    user-select:none; -webkit-user-select:none;
+    display:flex; flex-direction:column;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+
+  /* ---- atmosphere ---- */
+  .sky { position:fixed; inset:0; z-index:-2;
+    background:
+      radial-gradient(120% 90% at 80% -10%, #3a2b55 0%, transparent 55%),
+      radial-gradient(90% 70% at 10% 110%, #232a4d 0%, transparent 60%),
+      linear-gradient(170deg, var(--bg-mid) 0%, var(--bg-deep) 70%);
+  }
+  .orb { position:fixed; border-radius:50%; filter:blur(70px); opacity:.32; z-index:-1; pointer-events:none; }
+  .orb.a { width:46vw; height:46vw; background-image:linear-gradient(#7c5cad,#7c5cad); top:-12vw; right:-10vw; animation:drift 19s ease-in-out infinite alternate; }
+  .orb.b { width:38vw; height:38vw; background-image:linear-gradient(#3d6ea5,#3d6ea5); bottom:6vh; left:-14vw; animation:drift 24s ease-in-out infinite alternate-reverse; }
+  @keyframes drift { from{transform:translateY(0) scale(1)} to{transform:translateY(26px) scale(1.07)} }
+  body::after { content:""; position:fixed; inset:0; z-index:50; pointer-events:none; opacity:.05;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='0.6'/%3E%3C/svg%3E"); }
+
+  /* ---- header ---- */
+  header { display:flex; align-items:center; justify-content:space-between;
+    padding: clamp(12px,2.4vh,22px) 20px 6px; }
+  .brand { font-family:'Fraunces', serif; font-weight:650; font-size:1.35rem; letter-spacing:.01em;
+    color:inherit; text-decoration:none; }
+  .brand em { font-style:normal; color:var(--accent); }
+  .brand .back { color:var(--ink-dim); font-weight:500; margin-right:1px; }
+  .meta { text-align:center; }
+  .meta .lvl { font-family:'Fraunces', serif; font-weight:650; font-size:1.5rem; line-height:1.1; font-variant-numeric:tabular-nums; }
+  .meta .sub { font-size:.72rem; font-weight:300; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-dim); }
+  .controls { display:flex; gap:8px; }
+  .icon-btn { width:44px; height:44px; border-radius:14px; border:1px solid var(--glass-edge);
+    background-color:transparent; background-image:linear-gradient(var(--panel),var(--panel));
+    color:var(--ink); font-size:1.05rem; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    transition:transform .15s ease; }
+  .icon-btn:active { transform:scale(.92); }
+  .icon-btn:disabled { opacity:.3; }
+  .icon-btn svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+
+  .tagline { text-align:center; font-size:.7rem; font-weight:300; letter-spacing:.2em;
+    text-transform:uppercase; color:var(--ink-dim); padding:2px 0 0; }
+
+  /* ---- goal strip ---- */
+  .goal { display:flex; align-items:center; gap:10px; align-self:center;
+    margin:12px auto 0; padding:8px 16px; border-radius:99px;
+    border:1px solid var(--glass-edge);
+    background-image:linear-gradient(var(--panel),var(--panel));
+    font-size:.82rem; font-weight:300; letter-spacing:.03em; color:var(--ink); }
+  .lvlchip { font-family:'Fraunces',serif; font-weight:650; font-size:.82rem; color:var(--accent); letter-spacing:.02em; }
+  .goal-sep { width:1px; height:16px; background:var(--glass-edge); }
+  .goal-txt b { font-weight:600; font-variant-numeric:tabular-nums; }
+
+  /* ---- stage / board ---- */
+  main { flex:1; display:flex; align-items:stretch; justify-content:center; padding:8px 12px 12px; min-height:0; }
+  .stage { width:min(92vw, 420px); display:flex; flex-direction:column; min-height:0; }
+  .boardwrap { flex:1; display:flex; align-items:flex-end; justify-content:center; min-height:0; }
+  #board { position:relative; touch-action:none; }
+
+  .home { position:absolute; text-align:center; color:var(--accent); font-size:1.05rem;
+    text-shadow:0 0 12px rgba(240,179,94,.65); pointer-events:none;
+    animation:homefloat 2.6s ease-in-out infinite; }
+  @keyframes homefloat { 0%,100%{transform:translateY(0);opacity:.85} 50%{transform:translateY(-5px);opacity:1} }
+  .peg { position:absolute; border-radius:5px 5px 2px 2px;
+    background-image:linear-gradient(var(--wood),var(--wood));
+    box-shadow: inset 2px 0 3px rgba(255,255,255,.14), inset -2px 0 4px rgba(0,0,0,.3);
+    transition:box-shadow .25s ease; }
+  .peg.hintp { box-shadow: inset 2px 0 3px rgba(255,255,255,.14), inset -2px 0 4px rgba(0,0,0,.3),
+    0 0 0 3px var(--accent), 0 0 20px 5px rgba(240,179,94,.55);
+    animation:pegpulse .75s ease-in-out infinite; }
+  @keyframes pegpulse { 0%,100%{filter:brightness(1)} 50%{filter:brightness(1.35)} }
+  .base { position:absolute; border-radius:8px;
+    background-image:linear-gradient(var(--wood-dark),var(--wood-dark));
+    box-shadow: inset 0 2px 3px rgba(255,255,255,.14), inset 0 -3px 5px rgba(0,0,0,.35), 0 10px 22px -10px rgba(0,0,0,.7); }
+
+  .disc { position:absolute; left:0; top:0; border-radius:99px; cursor:pointer;
+    box-shadow: inset 0 3px 4px rgba(255,255,255,.35), inset 0 -4px 6px rgba(0,0,0,.32), 0 5px 12px -5px rgba(0,0,0,.55);
+    transition: transform .26s cubic-bezier(.35,1.15,.45,1), width .2s ease, opacity .3s ease; }
+  .disc.drag { transition:none; z-index:8; }
+  .disc.lifted { z-index:7; }
+  .disc.hintd { animation:discpulse .75s ease-in-out infinite; }
+  @keyframes discpulse {
+    0%,100%{ box-shadow: inset 0 3px 4px rgba(255,255,255,.35), inset 0 -4px 6px rgba(0,0,0,.32), 0 0 0 3px var(--accent), 0 0 16px 4px rgba(240,179,94,.5); }
+    50%{ box-shadow: inset 0 3px 4px rgba(255,255,255,.35), inset 0 -4px 6px rgba(0,0,0,.32), 0 0 0 3px var(--accent), 0 0 26px 9px rgba(240,179,94,.7); } }
+  .disc.shake { animation:shake .4s ease; }
+  @keyframes shake {
+    0%,100%{ margin-left:0 } 18%{ margin-left:-8px } 38%{ margin-left:7px }
+    56%{ margin-left:-5px } 74%{ margin-left:3px } 88%{ margin-left:-1px } }
+
+  .actions { display:flex; justify-content:center; gap:12px; padding: 10px 0 clamp(12px,2vh,20px); }
+  .pill { display:flex; align-items:center; gap:7px; height:42px; padding:0 20px;
+    border-radius:99px; border:1px solid var(--glass-edge);
+    background-color:transparent;
+    background-image:linear-gradient(var(--panel),var(--panel));
+    color:var(--ink); font-family:'Outfit',sans-serif; font-weight:400; font-size:.85rem;
+    letter-spacing:.06em; cursor:pointer; transition:transform .15s ease; }
+  .pill:active { transform:scale(.93); }
+  .pill svg { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+
+  /* ---- overlay ---- */
+  #over { position:fixed; inset:0; z-index:60; display:flex; align-items:center; justify-content:center;
+    background:rgba(16,12,26,.72); backdrop-filter:blur(8px);
+    opacity:0; pointer-events:none; transition:opacity .4s ease; }
+  #over.show { opacity:1; pointer-events:auto; }
+  .over-card { text-align:center; padding:40px 44px; border-radius:28px;
+    background-image:linear-gradient(160deg, #342b52, #251e3d);
+    border:1px solid var(--glass-edge);
+    transform:translateY(16px) scale(.96); transition:transform .45s cubic-bezier(.3,1.4,.5,1); }
+  #over.show .over-card { transform:none; }
+  .over-card h2 { font-family:'Fraunces', serif; font-weight:650; font-size:2rem; margin-bottom:6px; }
+  .over-card p { color:var(--ink-dim); font-weight:300; font-size:.9rem; margin-bottom:24px; }
+  .flawless { display:inline-block; margin-bottom:16px; padding:7px 16px; border-radius:99px;
+    font-family:'Fraunces',serif; font-weight:650; font-size:.92rem; color:#1d1530;
+    background-image:linear-gradient(var(--accent),var(--accent));
+    box-shadow:0 8px 22px -8px rgba(240,179,94,.6);
+    animation:flawin .6s cubic-bezier(.3,1.5,.5,1); }
+  @keyframes flawin { from{ transform:scale(.4) rotate(-6deg); opacity:0 } to{ transform:none; opacity:1 } }
+  .next-btn { font-family:'Outfit', sans-serif; font-weight:600; font-size:1rem; letter-spacing:.04em;
+    color:#1d1530; background-color:transparent; background-image:linear-gradient(var(--accent),var(--accent)); border:none; border-radius:16px;
+    padding:15px 36px; cursor:pointer; transition:transform .15s ease;
+    box-shadow:0 10px 24px -8px rgba(240,179,94,.5); }
+  .next-btn:active { transform:scale(.94); }
+
+  .confetti { position:fixed; top:-12px; border-radius:3px; z-index:55; pointer-events:none;
+    animation:fall linear forwards; }
+  @keyframes fall { to { transform: translateY(110vh) rotate(660deg); opacity:.7; } }
+
+  #toast { position:fixed; bottom:calc(24px + env(safe-area-inset-bottom)); left:50%;
+    transform:translate(-50%, 60px); z-index:70; padding:10px 20px; border-radius:99px;
+    background:rgba(255,255,255,.12); border:1px solid var(--glass-edge); backdrop-filter:blur(8px);
+    font-size:.8rem; font-weight:300; letter-spacing:.05em; opacity:0; transition:.35s ease; pointer-events:none; }
+  #toast.show { opacity:1; transform:translate(-50%,0); }
+
+  /* ---- level select ---- */
+  #levels { position:fixed; inset:0; z-index:62; display:flex; align-items:center; justify-content:center;
+    background:rgba(16,12,26,.72); backdrop-filter:blur(8px);
+    opacity:0; pointer-events:none; transition:opacity .35s ease; }
+  #levels.show { opacity:1; pointer-events:auto; }
+  .levels-card { width:min(86vw,360px); max-height:72vh; display:flex; flex-direction:column;
+    border-radius:24px; padding:20px 18px;
+    background-image:linear-gradient(160deg,#342b52,#251e3d); border:1px solid var(--glass-edge);
+    transform:translateY(14px) scale(.97); transition:transform .4s cubic-bezier(.3,1.4,.5,1); }
+  #levels.show .levels-card { transform:none; }
+  .levels-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
+  .levels-head h2 { font-family:'Fraunces',serif; font-weight:650; font-size:1.3rem; }
+  #levelGrid { overflow-y:auto; display:grid; grid-template-columns:repeat(5,1fr); gap:9px; padding:2px;
+    overscroll-behavior:contain; }
+  .lvl-chip { height:48px; border-radius:14px; border:1px solid var(--glass-edge);
+    background-color:transparent; background-image:linear-gradient(var(--panel),var(--panel));
+    color:var(--ink); font-family:'Outfit',sans-serif; font-size:.9rem; cursor:pointer;
+    transition:transform .12s ease; }
+  .lvl-chip:active { transform:scale(.92); }
+  .lvl-chip.done { border-color:rgba(240,179,94,.45); color:var(--accent); }
+  .lvl-chip.now { border-color:var(--accent);
+    background-image:linear-gradient(var(--accent),var(--accent)); color:#1d1530; font-weight:600; }
+  .lvl-chip.lock { opacity:.32; }
+  .lvl-chip.playing { outline:2px solid rgba(255,255,255,.45); outline-offset:2px; }
+
+  /* ---- how-to-play tutorial ---- */
+  #tut { position:fixed; inset:0; z-index:80; display:flex; align-items:center; justify-content:center;
+    background:rgba(16,12,26,.8); backdrop-filter:blur(8px);
+    opacity:0; pointer-events:none; transition:opacity .35s ease;
+    padding: calc(env(safe-area-inset-top) + 14px) 18px calc(env(safe-area-inset-bottom) + 14px); }
+  #tut.show { opacity:1; pointer-events:auto; }
+  .tut-card { width:min(92vw,380px); border-radius:26px; padding:20px;
+    background-image:linear-gradient(160deg,#342b52,#251e3d); border:1px solid var(--glass-edge);
+    box-shadow:0 24px 48px -20px rgba(0,0,0,.7);
+    transform:translateY(14px) scale(.97); transition:transform .4s cubic-bezier(.3,1.4,.5,1); }
+  #tut.show .tut-card { transform:none; }
+  .tut-illo { width:100%; aspect-ratio:16/10; border-radius:18px;
+    background-image:linear-gradient(160deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+    border:1px solid var(--glass-edge); display:flex; align-items:center; justify-content:center;
+    overflow:hidden; margin-bottom:14px; }
+  .tut-illo svg { width:92%; height:92%; }
+  .tut-title { font-family:'Fraunces',serif; font-weight:650; font-size:1.18rem; text-align:center; }
+  .tut-text { color:var(--ink-dim); font-weight:300; font-size:.86rem; line-height:1.5;
+    text-align:center; margin-top:5px; min-height:3.8em; }
+  .tut-nav { display:flex; align-items:center; justify-content:space-between; margin-top:6px; }
+  .tut-back { background:none; border:none; cursor:pointer; color:var(--ink-dim);
+    font-family:'Outfit',sans-serif; font-weight:300; font-size:.85rem; padding:8px 2px; min-width:54px; text-align:left; }
+  .tut-back[disabled] { opacity:0; pointer-events:none; }
+  .tut-dots { display:flex; gap:6px; }
+  .tut-dots i { width:7px; height:7px; border-radius:50%; background:rgba(255,255,255,.25); transition:.25s ease; }
+  .tut-dots i.on { background:var(--accent); width:18px; border-radius:4px; }
+  .tut-next { font-family:'Outfit',sans-serif; font-weight:600; font-size:.9rem;
+    color:#1d1530; background-image:linear-gradient(var(--accent),var(--accent)); border:none;
+    border-radius:13px; padding:11px 20px; cursor:pointer; min-width:54px;
+    transition:transform .15s ease; box-shadow:0 8px 20px -8px rgba(240,179,94,.5); }
+  .tut-next:active { transform:scale(.94); }
+</style>
+</head>
+<body>
+<div class="sky"></div><div class="orb a"></div><div class="orb b"></div>
+
+<header>
+  <a class="brand" href="../" aria-label="All games"><span class="back">‹</span> hanoi<em>.</em></a>
+  <div class="meta">
+    <div class="lvl" id="lvlBig">1</div>
+    <div class="sub">level</div>
+  </div>
+  <div class="controls">
+    <button class="icon-btn" id="undoBtn" aria-label="Undo move" title="Undo">
+      <svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg>
+    </button>
+    <button class="icon-btn" id="restartBtn" aria-label="Restart level" title="Restart">
+      <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.3"/><path d="M21 3v6h-6"/></svg>
+    </button>
+    <button class="icon-btn" id="infoBtn" aria-label="How to play" title="How to play">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16.5"/><line x1="12" y1="7.4" x2="12" y2="7.6"/></svg>
+    </button>
+    <button class="icon-btn" id="soundBtn" aria-label="Toggle sound" title="Sound"></button>
+  </div>
+</header>
+<div class="tagline">rebuild the tower on the right peg</div>
+
+<div class="goal" id="goalBar">
+  <span class="lvlchip"><b id="discNum">3</b> discs</span>
+  <span class="goal-sep"></span>
+  <span class="goal-txt">moves <b id="moveNum">0</b> · best possible <b id="bestNum">7</b></span>
+</div>
+
+<main>
+  <div class="stage">
+    <div class="boardwrap">
+      <div id="board" aria-label="towers"></div>
+    </div>
+  </div>
+</main>
+
+<nav class="actions">
+  <button class="pill" id="hintBtn" aria-label="Show a hint">
+    <svg viewBox="0 0 24 24"><path d="M9 18h6m-5 3h4"/><path d="M12 3a6 6 0 0 1 3.5 10.9c-.8.6-1.5 1.2-1.5 2.1h-4c0-.9-.7-1.5-1.5-2.1A6 6 0 0 1 12 3z"/></svg>
+    Hint
+  </button>
+  <button class="pill" id="levelsBtn" aria-label="All levels">
+    <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>
+    Levels
+  </button>
+  <button class="pill" id="skipBtn" aria-label="Skip this level">
+    Skip
+    <svg viewBox="0 0 24 24"><path d="m6 5 7 7-7 7"/><path d="M17 5v14"/></svg>
+  </button>
+</nav>
+
+<div id="levels" role="dialog" aria-label="Level select">
+  <div class="levels-card">
+    <div class="levels-head">
+      <h2>Levels</h2>
+      <button class="icon-btn" id="levelsClose" aria-label="Close">
+        <svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div id="levelGrid"></div>
+  </div>
+</div>
+
+<div id="over" role="dialog" aria-label="Result">
+  <div class="over-card">
+    <h2 id="overTitle">Tower rebuilt.</h2>
+    <div id="overFlaw" style="display:none"><span class="flawless">flawless ✦</span></div>
+    <p id="overSub">next one’s up</p>
+    <button class="next-btn" id="contBtn">Keep going →</button>
+  </div>
+</div>
+<div id="toast"></div>
+
+<div id="tut" role="dialog" aria-label="How to play">
+  <div class="tut-card">
+    <div class="tut-illo" id="tutIllo"></div>
+    <div class="tut-title" id="tutTitle"></div>
+    <div class="tut-text" id="tutText"></div>
+    <div class="tut-nav">
+      <button class="tut-back" id="tutBack">‹ back</button>
+      <div class="tut-dots" id="tutDots"></div>
+      <button class="tut-next" id="tutNext">Next ›</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---- how-to-play tutorial (illustration-led, self-contained) ---- */
+(function(){
+  const A='#ff6f69',M='#ffc857',G='#5fc97e',B='#5b8def',acc='#f0b35e',wd='#7d5f46';
+  const S=i=>`<svg viewBox="0 0 200 130">${i}</svg>`;
+  const peg=(x)=>`<rect x="${x-3}" y="42" width="6" height="66" rx="3" fill="${wd}"/>`;
+  const dsc=(x,y,w,c)=>`<rect x="${x-w/2}" y="${y}" width="${w}" height="12" rx="6" fill="${c}"/><rect x="${x-w/2+5}" y="${y+2.4}" width="${w-10}" height="3" rx="1.5" fill="rgba(255,255,255,.35)"/>`;
+  const arrow=(x1,y1,x2,y2)=>`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${acc}" stroke-width="3" stroke-linecap="round"/><polyline points="${x2-7},${y2-2} ${x2},${y2} ${x2-4},${y2-8}" fill="none" stroke="${acc}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>`;
+  const base=`<rect x="14" y="106" width="172" height="10" rx="5" fill="#63482f"/>`;
+  const TUT=[
+    { illo:S(base+peg(45)+peg(100)+peg(155)
+        + dsc(45,94,52,B)+dsc(45,82,40,G)
+        + dsc(45,26,28,A)
+        + `<path d="M 58 32 Q 100 6 142 30" fill="none" stroke="${acc}" stroke-width="3" stroke-linecap="round" stroke-dasharray="1 7"/>`
+        + arrow(128,24,146,32)),
+      title:'Tap to lift, tap to drop', text:'Tap a peg to lift its top disc — it hovers. Tap another peg to drop it there, or drag a disc straight over. Tap the same peg to put it back.' },
+    { illo:S(base+peg(65)+peg(135)
+        + dsc(65,94,34,G)
+        + dsc(65,60,56,M)
+        + `<line x1="46" y1="44" x2="84" y2="80" stroke="#ff6f69" stroke-width="4" stroke-linecap="round"/><line x1="84" y1="44" x2="46" y2="80" stroke="#ff6f69" stroke-width="4" stroke-linecap="round"/>`
+        + dsc(135,94,56,M)+dsc(135,82,34,G)
+        + `<circle cx="135" cy="66" r="9" fill="none" stroke="${G}" stroke-width="3"/><polyline points="130,66 134,70 141,61" fill="none" stroke="${G}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>`),
+      title:'Bigger never sits on smaller', text:'A disc can only rest on a bigger one. An impossible drop just shakes it back — no penalty, ever.' },
+    { illo:S(base+peg(45)+peg(100)+peg(155)
+        + dsc(155,94,56,B)+dsc(155,82,44,G)+dsc(155,70,32,A)
+        + `<path d="M155 48 l3.5 7.5 8 1-6 5.7 1.6 8-7.1-4.2-7.1 4.2 1.6-8-6-5.7 8-1z" fill="${acc}"/>`
+        + `<circle cx="42" cy="30" r="2.4" fill="${acc}"/><circle cx="70" cy="18" r="1.8" fill="${acc}" opacity=".7"/><circle cx="120" cy="24" r="2" fill="${acc}" opacity=".8"/>`),
+      title:'Rebuild it on the right', text:'Move the whole tower to the right-hand peg. Take all the moves you like — undo is unlimited, and Hint shows the next best move.' }
+  ];
+  const el=document.getElementById('tut'),illoEl=document.getElementById('tutIllo'),titleEl=document.getElementById('tutTitle'),textEl=document.getElementById('tutText'),dotsEl=document.getElementById('tutDots'),backEl=document.getElementById('tutBack'),nextEl=document.getElementById('tutNext'),info=document.getElementById('infoBtn');
+  let p=0;
+  function render(){ illoEl.innerHTML=TUT[p].illo; titleEl.textContent=TUT[p].title; textEl.textContent=TUT[p].text; let d=''; for(let i=0;i<TUT.length;i++) d+=`<i class="${i===p?'on':''}"></i>`; dotsEl.innerHTML=d; backEl.disabled=p===0; nextEl.textContent=p===TUT.length-1?'Got it':'Next ›'; }
+  function openTut(){ p=0; render(); el.classList.add('show'); }
+  function closeTut(){ el.classList.remove('show'); }
+  if(info) info.addEventListener('click',openTut);
+  backEl.addEventListener('click',()=>{ if(p>0){p--;render();} });
+  nextEl.addEventListener('click',()=>{ if(p<TUT.length-1){p++;render();} else closeTut(); });
+  el.addEventListener('click',e=>{ if(e.target===el) closeTut(); });
+  try{ if(!localStorage.getItem('hanoi.tut')){ localStorage.setItem('hanoi.tut','1'); setTimeout(openTut,600); } }catch(e){}
+})();
+</script>
+
+<script src="../sync.js"></script>
+<script>
+'use strict';
+/* ============================================================================
+   hanoi. — Tower of Hanoi, the calm way.
+   Three pegs; rebuild the whole tower on the right-hand peg. Level 1 = 3 discs,
+   each level adds one, capped at 10 (higher levels repeat 10 with a fresh coat
+   of colours). Tap-tap OR drag to move. Unlimited undo, a solver-powered hint
+   that works from ANY position, free skip. Extra moves still win — matching the
+   optimal 2^n−1 earns a "flawless ✦" flourish.
+   ============================================================================ */
+const COLOR = ['#ff6f69','#ffc857','#5fc97e','#5b8def','#c07ce8','#e08bb1'];
+const TARGET = 2;                 // right-hand peg
+const discsFor = lv => Math.min(2 + lv, 10);
+const optimalFor = n => Math.pow(2, n) - 1;
+
+let level = 1, progress = 1;      // level = in play; progress = furthest unlocked (synced)
+let n = 3;                        // disc count this level
+let pegs = [[],[],[]];            // pegs[p] = disc sizes bottom -> top (n = biggest)
+let hist = [];                    // move history for undo: {f,t}
+let moves = 0;
+let sel = -1;                     // peg with a tap-lifted disc, or -1
+let busy = false, over = false;
+let soundOn = true;
+try { soundOn = localStorage.getItem('hanoi.sound') !== 'off'; } catch(e){}
+try { progress = Math.max(1, parseInt(localStorage.getItem('hanoi.level')||'1',10)||1); } catch(e){}
+level = progress;
+
+const boardEl = document.getElementById('board');
+const overEl  = document.getElementById('over');
+const soundBtn= document.getElementById('soundBtn');
+const undoBtn = document.getElementById('undoBtn');
+const discEls = new Map();        // size -> element
+
+/* ---------- audio / haptics ---------- */
+let actx = null;
+function note(freq, dur=.16, vol=.1, type='sine'){
+  if(!soundOn) return;
+  try{
+    actx = actx || new (window.AudioContext||window.webkitAudioContext)();
+    if(actx.state==='suspended') actx.resume();
+    const o=actx.createOscillator(), g=actx.createGain();
+    o.type=type; o.frequency.setValueAtTime(freq, actx.currentTime);
+    g.gain.setValueAtTime(vol, actx.currentTime);
+    g.gain.exponentialRampToValueAtTime(.0001, actx.currentTime+dur);
+    o.connect(g).connect(actx.destination);
+    o.start(); o.stop(actx.currentTime+dur);
+  }catch(e){}
+}
+function thud(){ note(110,.14,.09,'sawtooth'); }
+function winSound(){ [392,494,587,784].forEach((f,i)=>setTimeout(()=>note(f,.3,.1),i*110)); }
+function buzz(ms){ if(navigator.vibrate) navigator.vibrate(ms); }
+const delay = ms => new Promise(r=>setTimeout(r,ms));
+function renderSoundIcon(){
+  soundBtn.innerHTML = soundOn
+    ? '<svg viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg>'
+    : '<svg viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="m16 9 5 5m0-5-5 5"/></svg>';
+}
+
+/* ---------- geometry ---------- */
+let W=320, H=300, colW=106, discH=22, baseH=14, pegH=200, pegTopY=60, liftY=6;
+function layout(){
+  const wrap = boardEl.parentElement;
+  W = Math.min(wrap.clientWidth, 420);
+  const availH = wrap.clientHeight;
+  colW = W/3;
+  const slots = Math.max(n+1, 4);               // scale to this level's tower height
+  discH = Math.max(13, Math.min(Math.floor((availH-56)/(slots+2.6)), 34));
+  baseH = Math.max(10, Math.round(discH*.55));
+  pegH  = slots*discH + Math.round(discH*.6);
+  H = Math.min(availH, pegH + baseH + Math.round(discH*2.1) + 10);
+  pegTopY = H - baseH - pegH;
+  liftY = Math.max(4, pegTopY - Math.round(discH*1.35));
+  boardEl.style.width = W+'px';
+  boardEl.style.height = H+'px';
+}
+function discW(s){
+  const maxW = colW - 10, minW = Math.max(30, maxW*.34);
+  return Math.round(minW + (maxW-minW)*(s-1)/Math.max(n-1,1));
+}
+function discXY(s, p, i){                        // x,y for disc size s on peg p at stack index i
+  return [ Math.round(p*colW + (colW-discW(s))/2), H - baseH - (i+1)*discH ];
+}
+function setPos(el, x, y){ el.style.transform = `translate3d(${x}px,${y}px,0)`; }
+function placeDisc(s){                           // settle a disc at its slot in the model
+  const el = discEls.get(s); if(!el) return;
+  for(let p=0;p<3;p++){ const i=pegs[p].indexOf(s); if(i>=0){ const [x,y]=discXY(s,p,i); setPos(el,x,y); return; } }
+}
+function liftDisc(s, p){                         // hover the disc above peg p
+  const el = discEls.get(s); if(!el) return;
+  el.classList.add('lifted');
+  setPos(el, Math.round(p*colW + (colW-discW(s))/2), liftY);
+}
+function buildBoard(){
+  layout();
+  boardEl.innerHTML='';
+  discEls.clear();
+  for(let p=0;p<3;p++){
+    const pw = Math.max(8, Math.round(discH*.42));
+    const peg = document.createElement('div');
+    peg.className='peg'; peg.dataset.p=p;
+    peg.style.cssText = `left:${Math.round(p*colW+colW/2-pw/2)}px;top:${pegTopY}px;width:${pw}px;height:${pegH}px;`;
+    boardEl.appendChild(peg);
+  }
+  // the goal peg must be unmistakable — a soft accent star floats above it
+  const home = document.createElement('div');
+  home.className = 'home';
+  home.textContent = '✦';
+  home.style.cssText = `left:${Math.round(TARGET*colW)}px;top:${Math.max(0, pegTopY-26)}px;width:${Math.round(colW)}px;`;
+  boardEl.appendChild(home);
+  const base = document.createElement('div');
+  base.className='base';
+  base.style.cssText = `left:2px;right:2px;bottom:0;height:${baseH}px;`;
+  boardEl.appendChild(base);
+  for(let s=1;s<=n;s++){
+    const el = document.createElement('div');
+    el.className='disc'; el.dataset.s=s;
+    const c = COLOR[(s-1 + (level-1)) % COLOR.length];   // fresh coat: palette shifts per level
+    el.style.width = discW(s)+'px';
+    el.style.height = (discH-3)+'px';
+    el.style.backgroundImage = `radial-gradient(ellipse at 32% 24%, rgba(255,255,255,.42), transparent 58%), linear-gradient(${c},${c})`;
+    boardEl.appendChild(el);
+    discEls.set(s, el);
+    placeDisc(s);
+  }
+  if(sel>=0 && pegs[sel].length) liftDisc(pegs[sel][pegs[sel].length-1], sel);
+}
+
+/* ---------- meta ---------- */
+function updateMeta(){
+  document.getElementById('lvlBig').textContent = level;
+  document.getElementById('discNum').textContent = n;
+  document.getElementById('moveNum').textContent = moves;
+  document.getElementById('bestNum').textContent = optimalFor(n);
+  undoBtn.disabled = !hist.length || busy || over;
+}
+
+/* ---------- persistence ---------- */
+function save(){
+  try{
+    localStorage.setItem('hanoi.state', JSON.stringify({ lv:level, prog:progress, pegs, m:moves, h:hist.slice(-600) }));
+    localStorage.setItem('hanoi.level', progress);   // hanoi.level = furthest unlocked (synced)
+  }catch(e){}
+}
+function validPegs(pg, count){
+  if(!Array.isArray(pg) || pg.length!==3) return false;
+  const seen = new Set();
+  for(const peg of pg){
+    if(!Array.isArray(peg)) return false;
+    for(let i=0;i<peg.length;i++){
+      const s = peg[i];
+      if(!Number.isInteger(s) || s<1 || s>count || seen.has(s)) return false;
+      if(i>0 && peg[i-1] <= s) return false;       // must shrink upward
+      seen.add(s);
+    }
+  }
+  return seen.size === count;
+}
+function restore(){
+  try{
+    const s = JSON.parse(localStorage.getItem('hanoi.state')||'null');
+    if(!s) return false;
+    const lv = Math.max(1, parseInt(s.lv,10)||0); if(!lv) return false;
+    const count = discsFor(lv);
+    if(!validPegs(s.pegs, count)) return false;
+    level = lv; n = count;
+    progress = Math.max(progress, parseInt(s.prog,10)||1);
+    pegs = s.pegs.map(p=>p.slice());
+    moves = Math.max(0, parseInt(s.m,10)||0);
+    hist = Array.isArray(s.h) ? s.h.filter(mv=>mv && Number.isInteger(mv.f) && Number.isInteger(mv.t) && mv.f>=0 && mv.f<3 && mv.t>=0 && mv.t<3) : [];
+    return true;
+  }catch(e){ return false; }
+}
+
+/* ---------- solver: optimal next move from ANY legal position ----------
+   pos[d] = the peg holding disc d (1 = smallest .. n = biggest).
+   To bring discs 1..d onto `target`: find the biggest disc not already there;
+   everything smaller must first clear onto the spare peg — recurse. When the
+   recursion has nothing left to clear, moving that disc to `target` is the
+   optimal (and always legal) next move. */
+function nextMove(pos, d, target){
+  if(d===0) return null;                          // everything already home
+  if(pos[d]===target) return nextMove(pos, d-1, target);
+  const spare = 3 - pos[d] - target;
+  return nextMove(pos, d-1, spare) || { f:pos[d], t:target };
+}
+function currentHint(){
+  const pos = new Array(n+1);
+  for(let p=0;p<3;p++) for(const s of pegs[p]) pos[s]=p;
+  return nextMove(pos, n, TARGET);
+}
+
+/* ---------- moving ---------- */
+function topOf(p){ return pegs[p].length ? pegs[p][pegs[p].length-1] : 0; }
+function legal(s, to){ const t = topOf(to); return !t || t > s; }
+function shakeDisc(s){
+  const el = discEls.get(s); if(!el) return;
+  el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake');
+  thud(); buzz([12,26,12]);
+}
+async function commitMove(f, t, s){
+  busy = true;
+  try{
+    clearHint();
+    pegs[f].pop(); pegs[t].push(s);
+    hist.push({f,t}); moves = hist.length;
+    const el = discEls.get(s);
+    if(el) el.classList.remove('lifted','drag');
+    placeDisc(s);
+    note(430 + s*26, .12, .07); buzz(6);
+    updateMeta(); save();
+    await delay(240);
+    if(pegs[TARGET].length === n && !over) await levelWin();
+    else if(pegs[t].length === n && t !== TARGET) toast('lovely — now bring it to the ✦ peg');
+  } finally {
+    busy = false;
+    updateMeta();   // re-enable undo etc. — meta was painted while busy was still true
+  }
+}
+function settle(s, p){                            // put a lifted/dragged disc back
+  const el = discEls.get(s);
+  if(el) el.classList.remove('lifted','drag');
+  placeDisc(s);
+}
+async function attemptDrop(s, from, to, keepLifted){
+  if(to===from){ settle(s, from); sel=-1; note(300,.08,.05); return; }
+  if(!legal(s, to)){
+    shakeDisc(s);
+    if(keepLifted){ liftDisc(s, from); sel=from; }     // stay hovering — try another peg
+    else { settle(s, from); sel=-1; }
+    return;
+  }
+  sel = -1;
+  await commitMove(from, to, s);
+}
+
+/* ---------- pointer input: tap-tap AND drag ---------- */
+let drag = null;                                  // {s, from, pid, moved, x0, y0}
+function colAt(clientX){
+  const r = boardEl.getBoundingClientRect();
+  return Math.max(0, Math.min(2, Math.floor((clientX - r.left) / colW)));
+}
+boardEl.addEventListener('pointerdown', e=>{
+  if(busy || over || drag) return;
+  const c = colAt(e.clientX);
+  if(sel >= 0){                                   // second tap resolves the lifted disc
+    const s = topOf(sel); if(!s){ sel=-1; return; }
+    attemptDrop(s, sel, c, true);
+    return;
+  }
+  if(!pegs[c].length){ note(200,.07,.04); return; }
+  const s = topOf(c);
+  drag = { s, from:c, pid:e.pointerId, moved:false, x0:e.clientX, y0:e.clientY };
+  try{ boardEl.setPointerCapture(e.pointerId); }catch(err){}
+  liftDisc(s, c);
+  note(520,.07,.05);
+});
+boardEl.addEventListener('pointermove', e=>{
+  if(!drag || e.pointerId !== drag.pid) return;
+  if(!drag.moved){
+    if(Math.hypot(e.clientX-drag.x0, e.clientY-drag.y0) < 9) return;
+    drag.moved = true;
+    const el = discEls.get(drag.s); if(el) el.classList.add('drag');
+  }
+  const r = boardEl.getBoundingClientRect();
+  const el = discEls.get(drag.s); if(!el) return;
+  const w = discW(drag.s);
+  setPos(el,
+    Math.round(Math.max(-w/2, Math.min(W-w/2, e.clientX - r.left - w/2))),
+    Math.round(Math.max(0, e.clientY - r.top - discH*1.7)));
+});
+boardEl.addEventListener('pointerup', e=>{
+  if(!drag || e.pointerId !== drag.pid) return;
+  const d = drag; drag = null;
+  if(!d.moved){ sel = d.from; return; }           // plain tap → disc keeps hovering
+  const el = discEls.get(d.s); if(el) el.classList.remove('drag');
+  attemptDrop(d.s, d.from, colAt(e.clientX), false);
+});
+boardEl.addEventListener('pointercancel', e=>{
+  if(!drag || e.pointerId !== drag.pid) return;
+  const d = drag; drag = null;
+  settle(d.s, d.from); sel = -1;
+});
+
+/* ---------- win / overlay ---------- */
+function showOver(title, sub, label, flaw){
+  over = true;
+  document.getElementById('overTitle').textContent = title;
+  document.getElementById('overSub').textContent = sub;
+  document.getElementById('overFlaw').style.display = flaw ? 'block' : 'none';
+  const btn = document.getElementById('contBtn'); btn.textContent = label;
+  overEl.classList.add('show');
+  return new Promise(res=>{
+    const done=()=>{ overEl.classList.remove('show'); btn.removeEventListener('click',done); over=false; res(); };
+    btn.addEventListener('click', done);
+  });
+}
+async function levelWin(){
+  const cleared = level, best = optimalFor(n), flaw = moves === best;
+  progress = Math.max(progress, level+1);
+  try{ localStorage.setItem('hanoi.level', progress); }catch(e){}   // write FIRST…
+  save();
+  winSound(); buzz([20,50,20]); confetti();
+  if(window.PlaySync) PlaySync.push();                              // …THEN push
+  await delay(140);
+  const sub = flaw ? `solved in ${moves} — the perfect ${best} ✦`
+                   : `solved in ${moves} moves · best possible ${best}`;
+  await showOver('Tower rebuilt.', sub, 'Keep going →', flaw);
+  startLevel(cleared+1);
+}
+
+/* ---------- effects ---------- */
+function confetti(){
+  for(let k=0;k<60;k++){
+    const p=document.createElement('div'); p.className='confetti';
+    const sz=4+Math.random()*7, cc=COLOR[(Math.random()*COLOR.length)|0];
+    p.style.cssText = `left:${Math.random()*100}vw;width:${sz}px;height:${sz*1.4}px;`+
+      `background-image:linear-gradient(${cc},${cc});`+
+      `animation-duration:${2.2+Math.random()*2.4}s;animation-delay:${Math.random()*.7}s;`;
+    document.body.appendChild(p);
+    setTimeout(()=>p.remove(),6000);
+  }
+}
+let _toastT;
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(_toastT); _toastT=setTimeout(()=>t.classList.remove('show'),1700);
+}
+
+/* ---------- flow ---------- */
+function startLevel(lv){
+  level = lv; n = discsFor(lv);
+  pegs = [[],[],[]];
+  for(let s=n; s>=1; s--) pegs[0].push(s);
+  hist = []; moves = 0; sel = -1; drag = null;
+  clearHint(); buildBoard(); updateMeta(); save();
+}
+function doUndo(){
+  if(busy || over || !hist.length) return;
+  clearHint();
+  if(sel>=0){ const s=topOf(sel); if(s) settle(s, sel); sel=-1; }
+  const mv = hist.pop();
+  const s = topOf(mv.t);
+  if(s){ pegs[mv.t].pop(); pegs[mv.f].push(s); placeDisc(s); }
+  moves = hist.length;
+  updateMeta(); save(); note(330,.1,.06);
+}
+function restart(){
+  if(busy || over) return;
+  if(!moves && !hist.length){ toast('already fresh ✦'); return; }
+  startLevel(level); note(260,.12,.07); toast('level restarted');
+}
+function skip(){
+  if(busy || over) return;
+  level++; progress = Math.max(progress, level);
+  startLevel(level);                              // saves hanoi.level BEFORE the cloud push
+  if(window.PlaySync) PlaySync.push();
+  toast('level skipped ✦');
+}
+
+/* ---- hint: highlight the optimal next move FROM THE CURRENT POSITION ---- */
+let hintTimer=null;
+function clearHint(){
+  clearTimeout(hintTimer);
+  for(const el of discEls.values()) el.classList.remove('hintd');
+  boardEl.querySelectorAll('.peg.hintp').forEach(p=>p.classList.remove('hintp'));
+}
+function doHint(){
+  if(busy || over) return;
+  const mv = currentHint();
+  if(!mv) return;
+  clearHint();
+  const s = topOf(mv.f);
+  const el = discEls.get(s); if(el) el.classList.add('hintd');
+  const pegEl = boardEl.querySelector(`.peg[data-p="${mv.t}"]`);
+  if(pegEl) pegEl.classList.add('hintp');
+  note(620,.1,.05);
+  hintTimer = setTimeout(clearHint, 2400);
+}
+
+/* ---- level select: replay any unlocked level ---- */
+const levelsEl=document.getElementById('levels'), levelGrid=document.getElementById('levelGrid');
+function openLevels(){
+  levelGrid.innerHTML='';
+  const maxShown=Math.max(progress+12, 25);
+  for(let nn=1;nn<=maxShown;nn++){
+    const b=document.createElement('button');
+    b.className='lvl-chip '+(nn<progress?'done':nn===progress?'now':'lock');
+    if(nn===level) b.classList.add('playing');
+    b.textContent=nn;
+    b.setAttribute('aria-label','Level '+nn+(nn>progress?' (locked)':''));
+    if(nn<=progress) b.addEventListener('click', ()=>{ startLevel(nn); closeLevels(); note(480,.08,.05); });
+    else b.addEventListener('click', ()=>{ toast('finish level '+progress+' to unlock'); buzz(20); });
+    levelGrid.appendChild(b);
+  }
+  levelsEl.classList.add('show');
+  const now=levelGrid.querySelector('.now'); if(now) now.scrollIntoView({block:'center'});
+}
+function closeLevels(){ levelsEl.classList.remove('show'); }
+
+soundBtn.addEventListener('click', ()=>{
+  soundOn=!soundOn;
+  try{ localStorage.setItem('hanoi.sound', soundOn?'on':'off'); }catch(e){}
+  renderSoundIcon(); if(soundOn) note(520,.1,.07);
+});
+undoBtn.addEventListener('click', doUndo);
+document.getElementById('restartBtn').addEventListener('click', restart);
+document.getElementById('hintBtn').addEventListener('click', doHint);
+document.getElementById('skipBtn').addEventListener('click', skip);
+document.getElementById('levelsBtn').addEventListener('click', ()=>{ if(!busy) openLevels(); });
+document.getElementById('levelsClose').addEventListener('click', closeLevels);
+levelsEl.addEventListener('click', e=>{ if(e.target===levelsEl) closeLevels(); });
+window.addEventListener('resize', ()=>{ if(!drag) buildBoard(); });
+
+/* ---------- boot ---------- */
+renderSoundIcon();
+if(restore()){ buildBoard(); updateMeta(); if(pegs[TARGET].length===n && n>0){ startLevel(level); } }
+else { startLevel(level); }
+
+if(window.PlaySync){
+  PlaySync.init({
+    game: 'hanoi',
+    onRemote: ()=>{
+      let cl = 1;
+      try{ cl = parseInt(localStorage.getItem('hanoi.level')||'1',10)||1; }catch(e){}
+      if(cl > progress){ progress = cl; updateMeta(); toast('progress synced — up to level '+progress+' ☁'); }
+    }
+  });
+}
+</script>
+</body>
+</html>

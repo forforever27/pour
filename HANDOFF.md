@@ -364,7 +364,70 @@ undo snapshot}. Path/loop logic lives in the `pointerdown/move/up` handlers + `r
 
 ---
 
-_Last updated after (2026-07-12, second pass): **full-site audit — every game + sync.js
+_Last updated after (2026-07-12, sixth pass — blocks juice per owner): while dragging a
+piece, if the hovered spot would complete a line, the WHOLE row/column now lights up with
+a subtle amber glow (`willSet` + `.cell.will`, cleared on drop/cancel/undo/restart) on top
+of the existing gold ghost; and clears now pop a floating Fraunces celebration word over
+the board — ×2 "combo! · ×2", ×3 "lovely!", ×4 "gorgeous!", ×5+ "unreal!" — plus a
+"streak ×k ✦" line for consecutive clearing placements (session-local `streak`, resets on
+non-clearing moves/restart/undo). Verified in browser: hover lights exactly the closing
+row, clears after drag ends, "combo! · ×2" pops on a double clear, no console errors.
+Prior (same day, fifth pass — blocks rework per owner): **blocks is now
+8×8** (was 9×9; all hardcoded 81s swept to N*N — one lurked in `paintBoard` and crashed
+until fixed), **cell corner radius reduced** (22%→10%, board + tray pieces), and it has a
+**sudoku-style 3-mode picker**: gentle (small friendly pieces, no 3×3 monster), classic
+(standard mix), bold (big pieces weighted up). Mode = piece-mix only, calm features
+identical. Forced picker on first visit; "Mode" pill switches anytime — switching starts a
+fresh board but IS undoable (snapshots carry `f:diff`; picker uses `freshBoard()` which
+preserves undoStack, unlike `newGame()`). **`blocks.best` is now a per-mode JSON map**
+{gentle,classic,bold} — old scalar saves migrate into classic; sync REGISTRY rule changed
+max→maxmap; hub chip shows the max across modes. Verified in browser: 64-cell board, row
+clear on 8×8, gentle never rolls the 9-cell piece / bold does, best saved as map, mode
+switch + undo-across-switch, no console errors.
+Prior (same day, fourth pass — owner feedback round on the new games):
+**blocks**: 3×3-box clearing REMOVED per owner — only full rows/columns clear now
+(`findClears` boxes branch deleted, tutorial text updated, board seams made uniform so
+the grid no longer suggests boxes matter). **hanoi**: fixed undo button dead after every
+move (updateMeta painted the disabled state while `busy` was still true and nothing
+repainted after — now `finally{busy=false; updateMeta()}`); the target peg is now marked
+with a floating accent ✦ above the right peg, and assembling the tower on a wrong peg
+toasts "lovely — now bring it to the ✦ peg" (the win logic itself was verified
+right-peg-only by scripted replay; the owner's middle-peg win report was most likely
+target ambiguity — watch for it recurring). **glide RENAMED → wings** per owner (folder
+`wings/`, keys `wings.best/sound/tut`, REGISTRY + hub card/chip updated; safe because
+never pushed, no player data existed). Wings difficulty now ramps VERY gradually on
+three dials: scroll speed +0.55/gate over 160 gates, gap eases 34%→30% floor, and
+consecutive gap centres wander further apart vertically (walk step ±0.10 → ±0.28 by gate
+120). All three re-verified in browser (blocks: box=0 clears/row=1 clear; hanoi: undo
+enabled+working, ✦ marker present; wings: title/keys/ramp confirmed, no console errors).
+Still NOT pushed.
+Prior (same day): **FOUR NEW GAMES ADDED — 13 games total**,
+built to the owner's calm ethos (generous chances/lives/undos, non-stressful), each
+verified by playing in a browser. **blocks** (`/blocks/`, 887 lines) — Blockudoku-style
+9×9, NOT tetris: drag 3 tray pieces, full rows/cols/3×3 boxes clear; unlimited undo
+(restores exact tray+charges), Re-roll (2 charges, +1 per 5 clears, cap 3), and NO hard
+game over — a "board is full" rescue offers Tidy up (clears 2 fullest rows, 3/run) before
+the run can end. Keys `blocks.state/best/sound/tut`. **hanoi** (`/hanoi/`, ~740 lines) —
+Tower of Hanoi, level 1 = 3 discs, +1/level, cap 10; tap-tap AND drag moves, unlimited
+undo (survives reload), solver-powered Hint correct from ANY position, free Skip,
+bus-style level select; "flawless ✦" badge for optimal-move wins. Keys
+`hanoi.state/level/sound/tut` (`hanoi.level` = furthest unlocked, synced max like bus).
+**stack** (`/stack/`, 727 lines) — Stack-style iso tower on canvas: tap to drop, overhang
+slices off; generous 18% perfect-snap, 5-perfect streak regrows the slab, speed eases
+after mistakes, and 3 HEARTS per run — a full miss or sliver respawns instead of ending.
+Keys `stack.best/sound/tut`. **glide** (`/glide/`, 809 lines) — calm flappy reskin: a
+firefly drifts between paper-lantern chains; floaty physics, ≥30% gaps, 3 hearts with
+1.5s ghosting on hit, a CHECKPOINT arch every 10 gates with one free hearts-refilled
+resume each, auto-pause on backgrounding. Keys `glide.best/sound/tut`. **Wiring done in
+the same pass:** hub cards + progress chips for all four in `index.html`; sync REGISTRY
+entries in `sync.js` (`blocks.best`/`stack.best`/`glide.best` max, `hanoi.level` max);
+all four call `PlaySync.init` and follow the save-BEFORE-push rule. Verified: all four
+load clean (no console errors), correct localStorage namespaces, registry resolves all
+four (a local stale-cache warning during testing was a red herring — the served sync.js
+is correct; GitHub Pages caches only 10 min). NOT yet pushed. Future wishlist discussed
+with owner: loop (Infinity-Loop rotate-tiles), picross, pairs (memory), lanes
+(Mini-Metro-ish).
+Prior (same day): **full-site audit — every game + sync.js
 reviewed end-to-end, all confirmed bugs fixed** (verified by driving each game in a browser).
 **sync.js (affects everything):** (1) account-switch leak — sign-out never cleared
 localStorage, so the NEXT Google account to sign in on a shared device inherited and

@@ -284,6 +284,83 @@
     <span class="prog fresh" id="busProg">new</span>
     <span class="go">›</span>
   </a>
+
+  <a class="card" href="blocks/">
+    <div class="art">
+      <svg viewBox="0 0 36 36" fill="none">
+        <rect x="4" y="4" width="28" height="28" rx="4" stroke="rgba(255,255,255,.35)" stroke-width="1.5"/>
+        <rect x="7" y="7" width="7" height="7" rx="1.6" fill="#5b8def"/>
+        <rect x="15" y="7" width="7" height="7" rx="1.6" fill="#5b8def"/>
+        <rect x="7" y="15" width="7" height="7" rx="1.6" fill="#ffc857"/>
+        <rect x="22" y="15" width="7" height="7" rx="1.6" fill="#5fc97e"/>
+        <rect x="22" y="23" width="7" height="7" rx="1.6" fill="#5fc97e"/>
+        <rect x="15" y="23" width="7" height="7" rx="1.6" fill="#ff6f69"/>
+      </svg>
+    </div>
+    <div class="info">
+      <h2>blocks<em>.</em></h2>
+      <p>fit, clear, breathe</p>
+    </div>
+    <span class="prog fresh" id="blocksProg">new</span>
+    <span class="go">›</span>
+  </a>
+
+  <a class="card" href="hanoi/">
+    <div class="art">
+      <svg viewBox="0 0 36 36" fill="none">
+        <path d="M18 6v22" stroke="rgba(255,255,255,.3)" stroke-width="2" stroke-linecap="round"/>
+        <rect x="6" y="26" width="24" height="4" rx="2" fill="#4a3b2c"/>
+        <rect x="8"  y="21" width="20" height="4.6" rx="2.3" fill="#5b8def"/>
+        <rect x="11" y="15.8" width="14" height="4.6" rx="2.3" fill="#ffc857"/>
+        <rect x="14" y="10.6" width="8" height="4.6" rx="2.3" fill="#ff6f69"/>
+      </svg>
+    </div>
+    <div class="info">
+      <h2>hanoi<em>.</em></h2>
+      <p>move the tower, one ring at a time</p>
+    </div>
+    <span class="prog fresh" id="hanoiProg">new</span>
+    <span class="go">›</span>
+  </a>
+
+  <a class="card" href="stack/">
+    <div class="art">
+      <svg viewBox="0 0 36 36" fill="none">
+        <path d="M18 3 L28 8.5 L18 14 L8 8.5 Z" fill="#efe3c4"/>
+        <path d="M8 8.5 L18 14 L18 20 L8 14.5 Z" fill="#c9b98e"/>
+        <path d="M28 8.5 L18 14 L18 20 L28 14.5 Z" fill="#a89767"/>
+        <path d="M8 15.5 L18 21 L18 27 L8 21.5 Z" fill="#7fae91"/>
+        <path d="M28 15.5 L18 21 L18 27 L28 21.5 Z" fill="#5f8a70"/>
+        <path d="M8 22.5 L18 28 L18 34 L8 28.5 Z" fill="#6f8fc0"/>
+        <path d="M28 22.5 L18 28 L18 34 L28 28.5 Z" fill="#54709c"/>
+      </svg>
+    </div>
+    <div class="info">
+      <h2>stack<em>.</em></h2>
+      <p>drop it just right</p>
+    </div>
+    <span class="prog fresh" id="stackProg">new</span>
+    <span class="go">›</span>
+  </a>
+
+  <a class="card" href="wings/">
+    <div class="art">
+      <svg viewBox="0 0 36 36" fill="none">
+        <rect x="7" y="4" width="6" height="10" rx="3" fill="#c07ce8" opacity=".8"/>
+        <rect x="7" y="24" width="6" height="8" rx="3" fill="#c07ce8" opacity=".8"/>
+        <rect x="24" y="4" width="6" height="7" rx="3" fill="#5fc97e" opacity=".8"/>
+        <rect x="24" y="21" width="6" height="11" rx="3" fill="#5fc97e" opacity=".8"/>
+        <circle cx="18" cy="18" r="5.5" fill="rgba(240,179,94,.25)"/>
+        <circle cx="18" cy="18" r="3" fill="#f0b35e"/>
+      </svg>
+    </div>
+    <div class="info">
+      <h2>wings<em>.</em></h2>
+      <p>a firefly between the lanterns</p>
+    </div>
+    <span class="prog fresh" id="wingsProg">new</span>
+    <span class="go">›</span>
+  </a>
 </main>
 
 <footer id="foot">progress saves on this device · sign in to sync</footer>
@@ -338,6 +415,25 @@ function renderChips() {
   try {
     const lv = parseInt(localStorage.getItem('bus.level') || '1', 10);
     if (lv > 1) setChip('busProg', 'level ' + lv);
+  } catch(e) {}
+  try {
+    const raw = localStorage.getItem('blocks.best') || '0';
+    let b = 0;
+    if (raw.trim().startsWith('{')) b = Math.max(0, ...Object.values(JSON.parse(raw)).map(v=>parseInt(v,10)||0));
+    else b = parseInt(raw, 10) || 0;
+    if (b > 0) setChip('blocksProg', 'best ' + b);
+  } catch(e) {}
+  try {
+    const lv = parseInt(localStorage.getItem('hanoi.level') || '1', 10);
+    if (lv > 1) setChip('hanoiProg', 'level ' + lv);
+  } catch(e) {}
+  try {
+    const b = parseInt(localStorage.getItem('stack.best') || '0', 10);
+    if (b > 0) setChip('stackProg', b + ' floors');
+  } catch(e) {}
+  try {
+    const b = parseInt(localStorage.getItem('wings.best') || '0', 10);
+    if (b > 0) setChip('wingsProg', b + ' gates');
   } catch(e) {}
 }
 renderChips();
