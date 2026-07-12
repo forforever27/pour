@@ -558,6 +558,7 @@ function requestGen(lv){
 
 /* ---------- state ---------- */
 let progress = parseInt(localStorage.getItem('pour.level')||'1',10); // furthest unlocked level
+if(!Number.isFinite(progress) || progress < 1) progress = 1;         // a corrupt save must not build a NaN board
 let level = progress;                                                 // level currently being played
 let tubes = [], history = [], moves = 0, selected = -1, busy = false;
 let soundOn = localStorage.getItem('pour.sound') !== 'off';
@@ -804,8 +805,9 @@ document.getElementById('hintBtn').addEventListener('click', ()=>{
 document.getElementById('skipBtn').addEventListener('click', ()=>{
   if(busy) return;
   level++; progress = Math.max(progress, level);
-  if(window.PlaySync) PlaySync.push();              // mirror to cloud if signed in
-  loadLevel(); toast('Level skipped ✦');
+  loadLevel();                                      // writes pour.level to localStorage
+  if(window.PlaySync) PlaySync.push();              // mirror to cloud AFTER the write
+  toast('Level skipped ✦');
 });
 
 /* ---- level select ---- */

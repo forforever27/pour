@@ -56,7 +56,10 @@ window.PlaySync = (function () {
     "2048":   { "2048.best":      { merge: "max" } },                  // best score
     drop:     { "drop.best":      { merge: "max" } },                  // best score
     ember:    { "ember.level":    { merge: "max" },                    // furthest level
-                "ember.meta":     { merge: "maxmap" } },               // {gold} — keep the most money
+                // {gold} — gold is SPENDABLE, so it must never max-merge (a cloud
+                // copy from before a purchase would refund the money). localWins
+                // keys keep the device's own value; cloud only seeds fresh devices.
+                "ember.meta":     { merge: "maxmap", localWins: ["gold"] } },
     sweets:   { "sweets.level":   { merge: "max" },
                 "sweets.best":    { merge: "max" } },
     dots:     { "dots.level":     { merge: "max" },
@@ -78,10 +81,12 @@ window.PlaySync = (function () {
     buttons: [], // [{el, render}]
     applyingRemote: false,
     startPromise: null,
+    unsub: null, // active onSnapshot unsubscribe
   };
 
   /* ---------- merge helpers ---------- */
-  function mergeValue(rule, localRaw, cloudVal) {
+  function mergeValue(spec, localRaw, cloudVal) {
+    const rule = spec.merge || "latest";
     if (cloudVal === undefined || cloudVal === null) return localRaw;
     if (localRaw === null || localRaw === undefined) return cloudVal;
     if (rule === "max")
@@ -92,27 +97,41 @@ window.PlaySync = (function () {
       let l = {}, c = {};
       try { l = JSON.parse(localRaw) || {}; } catch (_) {}
       try { c = JSON.parse(cloudVal) || {}; } catch (_) {}
+      const localWins = spec.localWins || [];
       const out = Object.assign({}, l);
-      for (const k in c) out[k] = Math.max(Number(out[k]) || 0, Number(c[k]) || 0);
+      for (const k in c) {
+        if (localWins.indexOf(k) >= 0) {                 // spendable — this device's value stands
+          if (!(k in out)) out[k] = c[k];                // cloud only seeds a fresh device
+        } else {
+          out[k] = Math.max(Number(out[k]) || 0, Number(c[k]) || 0);
+        }
+      }
       return JSON.stringify(out);
     }
     return cloudVal; // 'latest' / default
   }
 
-  // Merge one game's cloud fields into localStorage. Returns true if changed.
+  // Merge one game's cloud fields into localStorage.
+  // Returns {changed, localAhead}: changed = localStorage was updated from the
+  // cloud; localAhead = local already beat a cloud value (cloud needs a push).
   function applyGame(game, fields, docData) {
     const mine = (docData && docData[game]) || {};
-    let changed = false;
+    let changed = false, localAhead = false;
     for (const key in fields) {
-      const rule = fields[key].merge || "latest";
       const localRaw = localStorage.getItem(key);
-      const winner = mergeValue(rule, localRaw, mine[enc(key)]);
+      const cloudVal = mine[enc(key)];
+      const winner = mergeValue(fields[key], localRaw, cloudVal);
       if (winner !== null && winner !== undefined && String(winner) !== localRaw) {
         localStorage.setItem(key, String(winner));
         changed = true;
+      } else if (
+        cloudVal !== undefined && cloudVal !== null &&
+        localRaw !== null && String(cloudVal) !== String(localRaw)
+      ) {
+        localAhead = true;
       }
     }
-    return changed;
+    return { changed, localAhead };
   }
 
   // Build the Firestore payload for the games registered on this page.
@@ -153,20 +172,40 @@ window.PlaySync = (function () {
   }
 
   /* ---------- auth lifecycle ---------- */
+  // If a DIFFERENT Google account signs in on this device, the previous
+  // account's synced progress must not leak into (and be uploaded to) the new
+  // one. Local keys are cleared only on an actual account CHANGE — never on
+  // sign-out or first-ever sign-in, so offline-first behaviour is unchanged.
+  function clearSyncedKeysOnUserChange(uid) {
+    let prev = null;
+    try { prev = localStorage.getItem("playsync.uid"); } catch (_) {}
+    if (prev && prev !== uid) {
+      for (const game in REGISTRY)
+        for (const key in REGISTRY[game]) {
+          try { localStorage.removeItem(key); } catch (_) {}
+        }
+    }
+    try { localStorage.setItem("playsync.uid", uid); } catch (_) {}
+  }
+
   async function handleAuth(user) {
     S.user = user;
     paintButtons();
+    // onAuthStateChanged fires on every sign-in AND token refresh — always tear
+    // down the previous live listener so they never stack or outlive their user.
+    if (S.unsub) { try { S.unsub(); } catch (_) {} S.unsub = null; }
     if (!user) {
       S.ref = null;
       return;
     }
+    clearSyncedKeysOnUserChange(user.uid);
     S.ref = S.fs.doc(S.db, "users", user.uid);
     try {
       const snap = await S.fs.getDoc(S.ref);
       const data = snap.exists() ? snap.data() : null;
       const fired = [];
       for (const t of S.targets) {
-        if (applyGame(t.game, t.fields, data)) fired.push(t);
+        if (applyGame(t.game, t.fields, data).changed) fired.push(t);
       }
       await push(); // upload the merged result so the cloud is current
       for (const t of fired) if (typeof t.onRemote === "function") t.onRemote();
@@ -174,15 +213,22 @@ window.PlaySync = (function () {
       console.warn("[PlaySync] initial read failed", e);
     }
     // Live updates from other devices.
-    S.fs.onSnapshot(S.ref, (snap) => {
+    S.unsub = S.fs.onSnapshot(S.ref, (snap) => {
       if (!snap.exists() || S.applyingRemote) return;
       S.applyingRemote = true;
-      const data = snap.data();
-      for (const t of S.targets) {
-        if (applyGame(t.game, t.fields, data) && typeof t.onRemote === "function")
-          t.onRemote();
+      let behind = false;
+      try {
+        const data = snap.data();
+        for (const t of S.targets) {
+          const res = applyGame(t.game, t.fields, data);
+          if (res.localAhead) behind = true;
+          if (res.changed && typeof t.onRemote === "function") t.onRemote();
+        }
+      } finally {
+        // without this, one throwing onRemote would freeze sync until reload
+        S.applyingRemote = false;
       }
-      S.applyingRemote = false;
+      if (behind) push(); // local already beat the cloud — bring the cloud up
     });
   }
 

@@ -319,12 +319,21 @@ function restore(){
 function resize(){
   const rect = wrap.getBoundingClientRect();
   const dpr = window.devicePixelRatio || 1;
+  const oldS = S, oldH = H;
   W = rect.width; H = rect.height;
   S = W / BASE_W;
   lineY = Math.max(86, H*0.16);
   holdY = lineY - 28;
   cv.width = W*dpr; cv.height = H*dpr;
   ctx.setTransform(dpr,0,0,dpr,0,0);
+  // radii follow S, so positions must too — otherwise a rotation leaves the
+  // pile overlapping itself and same-tier neighbours mass-merge for free points
+  if(oldS && oldS !== S){
+    for(const b of circles){
+      b.x = b.x / oldS * S;
+      b.y = H - (oldH - b.y) / oldS * S;   // keep height-above-floor proportional
+    }
+  }
 }
 
 /* ---------- physics ---------- */
@@ -379,11 +388,13 @@ function merge(a, b){
   a.vx = (a.vx+b.vx)/2; a.vy = (a.vy+b.vy)/2 - 60*S;
   a.t++; a.age = 0;
   score += POINTS(a.t);
-  if(score > best){ best = score; if(window.PlaySync) PlaySync.push(); }
+  const newBest = score > best;
+  if(newBest) best = score;
   effects.push({ x:a.x, y:a.y, r:TIERS[a.t].r*S, life:.35 });
   note(240 + a.t*55, .14, .08);
   if(a.t >= 7) buzz(15);
   paintHud(); save();
+  if(newBest && window.PlaySync) PlaySync.push();   // push AFTER save writes drop.best
 }
 
 /* ---------- game over: a settled moon resting above the line ---------- */
@@ -522,7 +533,7 @@ cv.addEventListener('pointerup', e=>{
 
 function newGame(){
   circles = []; effects = [];
-  score = 0; over = false; overTime = 0;
+  score = 0; over = false; overTime = 0; canDrop = true;
   cur = randTier(); next = randTier();
   overEl.classList.remove('show');
   paintHud(); save();

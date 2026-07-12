@@ -364,7 +364,43 @@ undo snapshot}. Path/loop logic lives in the `pointerdown/move/up` handlers + `r
 
 ---
 
-_Last updated after (2026-07-12): **Bus bug-fix pass** — three gameplay bugs found and fixed
+_Last updated after (2026-07-12, second pass): **full-site audit — every game + sync.js
+reviewed end-to-end, all confirmed bugs fixed** (verified by driving each game in a browser).
+**sync.js (affects everything):** (1) account-switch leak — sign-out never cleared
+localStorage, so the NEXT Google account to sign in on a shared device inherited and
+uploaded the previous account's progress; now a stored `playsync.uid` detects an account
+CHANGE and clears all synced keys first (sign-out / first sign-in unchanged, still
+offline-first). (2) Firestore `onSnapshot` listeners stacked on every re-auth/token refresh
+and survived sign-out; now unsubscribed via `S.unsub`. (3) one throwing `onRemote` froze
+sync until reload (`applyingRemote` stuck true); now try/finally. (4) **ember gold dup
+exploit**: spendable gold was max-merged, so buy→refresh refunded the money while keeping
+the upgrade; `maxmap` now supports `localWins:["gold"]` — the device's own wallet stands,
+cloud only seeds fresh devices. (5) when local was ahead of cloud, nothing pushed — snapshot
+handler now pushes back if local won. **Per game:** 2048 — best pushed BEFORE saved (cloud
+best lagged one improvement forever; reordered), win overlay could be swallowed by a
+same-move game-over (keep-going now hands over), moves accepted in the 600ms pre-overlay
+win gap (winPending flag). Drop — same stale-best push (reordered); resize/rotate rescaled
+radii but not positions → spurious mass-merges (positions now rescale); restart during the
+420ms drop cooldown left the first drop dead (canDrop reset). Dots — `pointercancel`
+COMMITTED a half-drawn path as a move (now aborts); a second finger corrupted the active
+path (pointerId ownership); levelUp/remote-level-adopt now clear undo + regenerate the
+goal (undo fought the cloud's monotonic level; goal used to lag the adopted level). Pour —
+Skip pushed stale `pour.level` (the same bug Bus inherited; reordered), NaN guard on a
+corrupt saved level (empty soft-locked board). Ember — `gold|0` 32-bit coercion (wallet
+>2.1B would wrap to 0; now Number()), sub-$1 wallet remainder unspendable (`>=1`→`>0`).
+Codeword — hardware keyboard typed onto the board under the Levels/How-to-play modals and
+during the 500ms post-win gap (shared `uiLocked()` guard + `won` flag), Ctrl/Cmd/Alt
+shortcuts consumed as letters. Sudoku — no already-won guard: double-tapping the winning
+digit within the 500ms pre-overlay gap counted the solve twice into synced stats (`solved`
+flag, board locks instantly); `n` notes-toggle worked under modals. Sweets — a cascade
+kept crediting the NEXT level's goal after a mid-cascade level-up (`goalFrozen` until the
+cascade drains); remote level adopt kept the old goal (regenerated + undo cleared); stale
+tap-selection survived undo/restart/shuffle (unintended swaps; `clearSel()`); `busy` could
+stick on a throw (try/finally in trySwap + shuffle). NOT fixed (accepted): best-score only
+pushed on level-up in dots/sweets (max-merge reconciles on next login), drop's game-over
+jitter threshold, sweets packGrid null/color-0 latent collision, pour deep-level generator
+fallback. All changes local, NOT yet pushed to GitHub Pages.
+Prior: **Bus bug-fix pass** — three gameplay bugs found and fixed
 in `bus/index.html`, verified by playing through in a browser: (1) **false "Bays clogged"
 race** — a bus tapped out of the lot spends ~330ms animating before it lands in a bay; the
 background boarding loop could run its stuck-check in that window, see the needed bus in

@@ -317,7 +317,7 @@ let soundOn = localStorage.getItem('ember.sound') !== 'off';
 try { progress = parseInt(localStorage.getItem('ember.level')||'1',10) || 1; } catch(e){}
 try {
   const m = JSON.parse(localStorage.getItem('ember.meta')||'null');
-  if(m) wallet = Math.max(0, m.gold|0);
+  if(m) wallet = Math.max(0, Math.round(Number(m.gold) || 0));   // |0 would wrap a huge balance negative
 } catch(e){}
 function saveMeta(){ try {
   localStorage.setItem('ember.meta', JSON.stringify({ gold: Math.round(wallet) }));
@@ -694,7 +694,7 @@ function update(dt){
       continue;
     }
     if(Math.hypot(player.x-p.x, player.y-p.y) < 38){
-      if(wallet >= 1){
+      if(wallet > 0){                    // let the last fractional coin finish a purchase
         const rate = Math.max(60, info.cost/1.5);
         const amt = Math.min(rate*dt, info.cost - p.pour, wallet);
         if(amt > 0){
@@ -1245,7 +1245,8 @@ if(window.PlaySync){
       const c = parseInt(localStorage.getItem('ember.level')||'1',10);
       if(c > progress){ progress = c; ch=true; }
       try{ const m = JSON.parse(localStorage.getItem('ember.meta')||'null');
-           if(m && (m.gold|0) > wallet){ wallet = m.gold|0; ch=true; } }catch(e){}
+           const g = Math.round(Number(m && m.gold) || 0);
+           if(g > wallet){ wallet = g; ch=true; } }catch(e){}
       if(ch){ saveMeta(); if(mode==='menu') openMenu(); }   // refresh menu/money; don't disturb a live run
     }
   });

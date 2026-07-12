@@ -269,6 +269,7 @@ const TILE_STYLE = {
 
 let grid = Array(16).fill(null);   // {id, v} or null
 let score = 0, best = 0, won = false, over = false;
+let justWon = false, winPending = false;   // the winning move / gap before its overlay shows
 let undoStack = [];                // snapshots {b, s}, newest last — supports many undos
 const UNDO_CAP = 50;
 let nextId = 1, busy = false;
@@ -422,7 +423,8 @@ function lines(dir){
   return out;
 }
 function move(dir){
-  if(busy || over || overEl.classList.contains('show')) return;
+  if(busy || over || winPending || overEl.classList.contains('show')) return;
+  justWon = false;
   const prev = { b: grid.map(t=>t?t.v:0), s: score };
   const newGrid = Array(16).fill(null);
   const moves = [];   // {el-tile, from, to}
@@ -476,22 +478,26 @@ function move(dir){
       if(el){ styleTile(el, m.t, m.to); el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); }
       if(m.t.v >= 8) note(200 + Math.log2(m.t.v)*60, .1, .07);
       if(m.t.v === 2048 && !won){
-        won = true;
+        won = true; justWon = true; winPending = true;   // block input until the overlay is up
         winSound(); buzz([30,60,30]); confetti();
         document.getElementById('overTitle').textContent = '2048.';
         document.getElementById('overSub').textContent = 'The night is yours · score ' + (score+gained);
         document.getElementById('keepBtn').style.display = 'block';
         document.getElementById('undoAlt').style.display = 'none';
-        setTimeout(()=>overEl.classList.add('show'), 600);
+        setTimeout(()=>{ if(winPending){ overEl.classList.add('show'); winPending = false; } }, 600);
       }
     }
     if(merges.length) buzz(12);
     score += gained;
-    if(score > best){ best = score; if(window.PlaySync) PlaySync.push(); }
+    const newBest = score > best;
+    if(newBest) best = score;
     spawn();
     save(); paintHud();
+    if(newBest && window.PlaySync) PlaySync.push();      // push AFTER save writes 2048.best
     busy = false;
-    if(!canMove()){ buzz(40); showGameOver(); }
+    // a move that both wins and fills the board: let the win overlay stand —
+    // "keep going" re-checks and hands over to the game-over screen
+    if(!canMove() && !justWon){ buzz(40); showGameOver(); }
   }, 140);
 }
 function showGameOver(){
@@ -516,7 +522,7 @@ function confetti(){
 }
 function newGame(){
   grid = Array(16).fill(null);
-  score = 0; won = false; over = false; undoStack = [];
+  score = 0; won = false; over = false; justWon = false; winPending = false; undoStack = [];
   overEl.classList.remove('show');
   for(const el of tileEls.values()) el.remove();
   tileEls.clear();
@@ -549,7 +555,10 @@ soundBtn.addEventListener('click', ()=>{
 });
 document.getElementById('newBtn').addEventListener('click', ()=>{ if(!busy) newGame(); });
 document.getElementById('againBtn').addEventListener('click', newGame);
-document.getElementById('keepBtn').addEventListener('click', ()=>overEl.classList.remove('show'));
+document.getElementById('keepBtn').addEventListener('click', ()=>{
+  overEl.classList.remove('show');
+  if(!canMove()) showGameOver();   // won on a board that was already dead
+});
 
 document.addEventListener('keydown', e=>{
   const map = { ArrowLeft:0, ArrowRight:1, ArrowUp:2, ArrowDown:3, a:0, d:1, w:2, s:3 };

@@ -502,15 +502,17 @@ function drawLink(){
   linkLine.setAttribute('opacity', looped ? '0.9' : '0.75');
 }
 
+let activePointer = null;   // one finger owns the path — a second touch is ignored
 board.addEventListener('pointerdown', e=>{
-  if(busy) return;
+  if(busy || (activePointer!==null && path.length)) return;
   const i = dotUnder(e.clientX, e.clientY); if(i<0) return;
   board.setPointerCapture(e.pointerId);
+  activePointer = e.pointerId;
   path=[i]; pathColor=grid[i].c; looped=false;
   refreshClasses(); drawLink(); note(380,.06,.06);
 });
 board.addEventListener('pointermove', e=>{
-  if(busy || path.length===0 || looped) return;
+  if(busy || path.length===0 || looped || e.pointerId!==activePointer) return;
   const u = dotUnder(e.clientX, e.clientY);
   if(u<0) return;
   const last = path[path.length-1];
@@ -530,10 +532,17 @@ board.addEventListener('pointermove', e=>{
   path.push(u); refreshClasses(); drawLink();
   note(360 + Math.min(path.length,12)*28, .05, .06); buzz(6);
 });
-board.addEventListener('pointerup', resolve);
-board.addEventListener('pointercancel', resolve);
+board.addEventListener('pointerup', e=>{ if(e.pointerId===activePointer) resolve(); });
+// an interrupted drag (notification, OS gesture, second-finger cancel) must
+// ABORT the path, never commit it as if the player had released deliberately
+board.addEventListener('pointercancel', e=>{
+  if(e.pointerId!==activePointer) return;
+  activePointer=null; path=[]; pathColor=-1; looped=false;
+  refreshClasses(); drawLink();
+});
 
 async function resolve(){
+  activePointer = null;
   if(busy || path.length===0) return;
   let toClear;
   const wasLoop = looped;
@@ -582,7 +591,9 @@ async function levelUp(){
   winSound(); buzz([20,50,20]); confetti();
   document.getElementById('overTitle').textContent = 'Level ' + cleared + ' cleared.';
   document.getElementById('overSub').textContent = '+' + bonus + ' · level ' + level + ' up next';
-  goal = makeGoal(level); paint(); save();
+  goal = makeGoal(level); paint();
+  undoState = null;                                 // the pushed level is monotonic — undoing
+  save();                                           // past a level-up would fight the cloud
   if(window.PlaySync) PlaySync.push();              // sync level + best on level-up
   overEl.classList.add('show');
   await delay(60);
@@ -665,7 +676,12 @@ if(window.PlaySync){
       const cl = parseInt(localStorage.getItem('dots.level')||'1',10);
       const cb = parseInt(localStorage.getItem('dots.best')||'0',10);
       let ch=false;
-      if(cl > level){ level = cl; ch=true; }      // level counter follows you; current board continues
+      if(cl > level){
+        level = cl; ch=true;
+        goal = makeGoal(level);                   // goal must match the adopted level
+        undoState = null;                         // undo can't cross a synced level jump
+        save();
+      }
       if(cb > best){ best = cb; ch=true; }
       if(ch) paint();
     }

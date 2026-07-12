@@ -599,12 +599,12 @@ async function applyClear(toClear, combo, creations){
   toClear.forEach(i=>{
     const t=grid[i]; if(!t) return;
     gained += 10*combo;
-    if(goal.type==='color' && t.special!=='bomb' && t.c===goal.color) goal.have++;
+    if(!goalFrozen && goal.type==='color' && t.special!=='bomb' && t.c===goal.color) goal.have++;
     const el=gemEls.get(t.id); if(el) el.classList.add('clearing');
     popFx(i, COLOR[t.c] || '#fff');
   });
   score += gained; if(score>best) best=score;
-  if(goal.type==='score') goal.have += gained;
+  if(!goalFrozen && goal.type==='score') goal.have += gained;
   note(360 + combo*40, .1, .07);
   if(combo>1 || creations.length) buzz(creations.length?22:10);
   paint();
@@ -654,6 +654,10 @@ function specialCombo(A, B, a, b){
 }
 
 /* ---------- resolve cascades ---------- */
+// After a level-up MID-cascade, the leftover cascade energy belongs to the
+// finished level — it must not credit the fresh goal, or one big move can
+// clear two levels. Crediting stays frozen until the cascade fully drains.
+let goalFrozen = false;
 async function settle(){
   let combo = 0;
   while(true){
@@ -664,10 +668,11 @@ async function settle(){
     const matched = new Set();
     groups.forEach(g=>{ if(g.len>maxRun) maxRun=g.len; g.cells.forEach(i=>matched.add(i)); });
     const creations = computeCreations(groups);
-    if(goal.type==='special' && maxRun>=4) goal.have++;
+    if(!goalFrozen && goal.type==='special' && maxRun>=4) goal.have++;
     await applyClear(matched, combo, creations);
-    if(goal.have>=goal.need){ await levelUp(); }
+    if(!goalFrozen && goal.have>=goal.need){ await levelUp(); goalFrozen = true; }
   }
+  goalFrozen = false;
   if(!hasMove()){ await reshuffle(true); }
   save();
 }
@@ -718,32 +723,36 @@ function adjacent(a,b){
 async function trySwap(a,b){
   if(busy || a==null || b==null || a===b || !adjacent(a,b)) { clearSel(); return; }
   busy = true; clearSel();
-  const prev = snapshot();   // captured before the swap, committed only if the move sticks
-  const ta=grid[a], tb=grid[b];
-  placeGem(gemEls.get(ta.id), b); placeGem(gemEls.get(tb.id), a);
-  grid[a]=tb; grid[b]=ta;
-  note(300,.07,.05);
-  await delay(160);
-  lastSwap = { a, b };
-  // colour-bomb / special-vs-special combos fire on swap, no normal match needed
-  const comboSet = specialCombo(grid[a], grid[b], a, b);
-  if(comboSet){
+  try {   // finally-guarded: an unexpected throw must never leave input locked
+    const prev = snapshot();   // captured before the swap, committed only if the move sticks
+    const ta=grid[a], tb=grid[b];
+    placeGem(gemEls.get(ta.id), b); placeGem(gemEls.get(tb.id), a);
+    grid[a]=tb; grid[b]=ta;
+    note(300,.07,.05);
+    await delay(160);
+    lastSwap = { a, b };
+    // colour-bomb / special-vs-special combos fire on swap, no normal match needed
+    const comboSet = specialCombo(grid[a], grid[b], a, b);
+    if(comboSet){
+      undoState = prev;
+      note(560,.2,.1,'triangle'); buzz([20,40,20]);
+      await applyClear(comboSet, 1, []);
+      await settle();
+      return;
+    }
+    if(findMatches().cells.size===0){
+      grid[a]=ta; grid[b]=tb;
+      placeGem(gemEls.get(ta.id), a); placeGem(gemEls.get(tb.id), b);
+      note(180,.1,.05,'triangle'); buzz(8);
+      await delay(170);
+      return;
+    }
     undoState = prev;
-    note(560,.2,.1,'triangle'); buzz([20,40,20]);
-    await applyClear(comboSet, 1, []);
     await settle();
-    busy=false; paint(); return;
+  } finally {
+    busy = false;
+    paint();
   }
-  if(findMatches().cells.size===0){
-    grid[a]=ta; grid[b]=tb;
-    placeGem(gemEls.get(ta.id), a); placeGem(gemEls.get(tb.id), b);
-    note(180,.1,.05,'triangle'); buzz(8);
-    await delay(170); busy=false; paint(); return;
-  }
-  undoState = prev;
-  await settle();
-  busy=false;
-  paint();
 }
 board.addEventListener('pointerdown', e=>{
   if(busy) return;
@@ -805,6 +814,7 @@ function toast(msg){
 /* ---------- buttons ---------- */
 function doUndo(){
   if(busy || !undoState) return;
+  clearSel();                       // a selection index into the old board must not survive
   const u = undoState; undoState = null;
   grid = buildGrid(u.b);
   score = u.s; level = u.lv; goal = u.g; lastSwap = null;
@@ -814,6 +824,7 @@ function doUndo(){
   note(330,.1,.06);
 }
 function newGame(){
+  clearSel();
   grid = new Array(N).fill(null);
   score=0; level=1; goal=makeGoal(1); undoState=null; lastSwap=null;
   for(const el of gemEls.values()) el.remove(); gemEls.clear();
@@ -827,7 +838,12 @@ soundBtn.addEventListener('click', ()=>{
 });
 undoBtn.addEventListener('click', doUndo);
 document.getElementById('newBtn').addEventListener('click', ()=>{ if(!busy) newGame(); });
-document.getElementById('shuffleBtn').addEventListener('click', async ()=>{ if(!busy){ busy=true; await reshuffle(false); await settle(); busy=false; } });
+document.getElementById('shuffleBtn').addEventListener('click', async ()=>{
+  if(busy) return;
+  busy=true; clearSel();
+  try { await reshuffle(false); await settle(); }
+  finally { busy=false; }
+});
 window.addEventListener('resize', fullRender);
 
 /* ---------- boot ---------- */
@@ -848,7 +864,12 @@ if(window.PlaySync){
       const cl = parseInt(localStorage.getItem('sweets.level')||'1',10);
       const cb = parseInt(localStorage.getItem('sweets.best')||'0',10);
       let ch=false;
-      if(cl > level){ level = cl; ch=true; }      // level counter follows you; current board continues
+      if(cl > level){
+        level = cl; ch=true;
+        goal = makeGoal(level);                   // goal must match the adopted level
+        undoState = null;                         // undo can't cross a synced level jump
+        save();
+      }
       if(cb > best){ best = cb; ch=true; }
       if(ch) paint();
     }

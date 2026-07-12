@@ -591,8 +591,9 @@ function deny(i){
   if(i>=0){ cellEls[i].classList.add('deny'); setTimeout(()=>cellEls[i].classList.remove('deny'), 320); }
   buzz(20);
 }
+let solved = false;   // locks the board the instant it's solved — the overlay lags 500ms
 function inputDigit(d){
-  if(winEl.classList.contains('show')) return;
+  if(solved || winEl.classList.contains('show')) return;
   if(selected<0){ toast('Tap a square first'); return; }
   if(puzzle[selected]){ deny(selected); return; }
   pushUndo();
@@ -622,7 +623,7 @@ function clearPeerNotes(i, d){
   }
 }
 function eraseCell(){
-  if(selected<0 || winEl.classList.contains('show')) return;
+  if(selected<0 || solved || winEl.classList.contains('show')) return;
   if(puzzle[selected]){ deny(selected); return; }
   if(!board[selected] && !notes[selected]) return;
   pushUndo();
@@ -631,7 +632,7 @@ function eraseCell(){
   save(); paint();
 }
 function hint(){
-  if(winEl.classList.contains('show')) return;
+  if(solved || winEl.classList.contains('show')) return;
   const i = selected;
   // reveal ONLY the square you picked — never a random one
   if(i < 0){ toast('Tap a square first, then hint'); return; }
@@ -647,7 +648,9 @@ function hint(){
   save(); paint(); checkWin();
 }
 function checkWin(){
+  if(solved) return;                                // a solve is counted exactly once
   for(let i=0;i<81;i++) if(board[i]!==solution[i]) return;
+  solved = true;
   stats[diff] = (stats[diff]||0) + 1;
   try { localStorage.setItem('sudoku.stats', JSON.stringify(stats)); } catch(e){}
   if(window.PlaySync) PlaySync.push();              // mirror solved counts to cloud
@@ -682,7 +685,7 @@ function newGame(diffId){
     const { puzzle: p, solution: s } = makePuzzle(cfg.clues);
     puzzle = p.slice(); solution = s; board = p.slice();
     notes = Array(81).fill(0);
-    diff = cfg.id; selected = -1; notesMode = false; undoStack = [];
+    diff = cfg.id; selected = -1; notesMode = false; undoStack = []; solved = false;
     save(); paint();
     document.getElementById('veil').classList.remove('show');
   }, 60);
@@ -736,7 +739,10 @@ document.getElementById('changeBtn').addEventListener('click', ()=>{ winEl.class
 document.addEventListener('keydown', e=>{
   if(e.key>='1' && e.key<='9') inputDigit(+e.key);
   else if(e.key==='Backspace' || e.key==='Delete' || e.key==='0') eraseCell();
-  else if(e.key==='n' || e.key==='N'){ notesMode=!notesMode; paint(); }
+  else if(e.key==='n' || e.key==='N'){
+    if(solved || winEl.classList.contains('show') || pickerEl.classList.contains('show')) return;
+    notesMode=!notesMode; paint();
+  }
   else if(e.key.startsWith('Arrow') && selected>=0){
     const r=rowOf(selected), c=colOf(selected);
     if(e.key==='ArrowUp' && r>0) selected-=9;

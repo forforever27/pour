@@ -393,6 +393,7 @@ function clearSave(){ try { localStorage.removeItem('codeword.state'); } catch(e
 /* ---------- level setup ---------- */
 function setupLevel(lv, savedAssign){
   level = lv;
+  won = false;
   const rows = GRIDS[(lv-1) % GRIDS.length].split('/');
   gridLetters = [];
   for(const row of rows) for(const ch of row) gridLetters.push(ch==='#' ? null : ch);
@@ -525,8 +526,16 @@ function deny(){
   buzz(20);
   if(sel && stripEls[sel]){ stripEls[sel].classList.add('deny'); setTimeout(()=>stripEls[sel].classList.remove('deny'),320); }
 }
+let won = false;   // set the instant the grid is solved — the overlay lags 500ms behind
+// keyboard input must respect the same modality as taps: no edits while the
+// win overlay is pending/shown or while the Levels / How-to-play modals cover the board
+function uiLocked(){
+  if(won || winEl.classList.contains('show')) return true;
+  const lv = document.getElementById('levels'), tut = document.getElementById('tut');
+  return (lv && lv.classList.contains('show')) || (tut && tut.classList.contains('show'));
+}
 function inputLetter(ch){
-  if(winEl.classList.contains('show')) return;
+  if(uiLocked()) return;
   if(!sel){ toast('Tap a numbered square first'); return; }
   if(starters.has(sel)){ deny(); toast('That one was given'); return; }
   const holder = Object.keys(assigned).find(n => assigned[n]===ch);
@@ -538,7 +547,7 @@ function inputLetter(ch){
   save(); paint(); checkWin();
 }
 function eraseSel(){
-  if(winEl.classList.contains('show')) return;
+  if(uiLocked()) return;
   if(!sel) return;
   if(starters.has(sel)){ deny(); toast('That one was given'); return; }
   if(!assigned[sel]) return;
@@ -548,7 +557,7 @@ function eraseSel(){
   save(); paint();
 }
 function hint(){
-  if(winEl.classList.contains('show')) return;
+  if(uiLocked()) return;
   let n = sel;
   if(!n || assigned[n]===numLetter[n]){
     const open = [];
@@ -571,6 +580,7 @@ function checkWin(){
     if(Object.keys(assigned).length===26) toast('All placed — something is miswired ✦');
     return;
   }
+  won = true;                                       // lock the board NOW, not in 500ms
   progress = Math.max(progress, level+1);
   clearSave();
   try { localStorage.setItem('codeword.level', progress); } catch(e){}
@@ -602,14 +612,14 @@ function toast(msg){
 
 /* ---------- controls ---------- */
 undoBtn.addEventListener('click', ()=>{
-  if(!undoStack.length || winEl.classList.contains('show')) return;
+  if(!undoStack.length || uiLocked()) return;
   assigned = undoStack.pop();
   note(330,.1,.06);
   save(); paint();
 });
 soundBtn.addEventListener('click', ()=>{
   soundOn=!soundOn;
-  localStorage.setItem('codeword.sound', soundOn?'on':'off');
+  try { localStorage.setItem('codeword.sound', soundOn?'on':'off'); } catch(e){}
   renderSoundIcon(); if(soundOn) note(520,.1,.07);
 });
 document.getElementById('hintBtn').addEventListener('click', hint);
@@ -619,6 +629,7 @@ document.getElementById('nextBtn').addEventListener('click', ()=>{
   save();
 });
 document.addEventListener('keydown', e=>{
+  if(e.ctrlKey || e.metaKey || e.altKey) return;   // Ctrl+C etc. are shortcuts, not letters
   const ch = e.key.toUpperCase();
   if(/^[A-Z]$/.test(ch) && ch.length===1 && e.key.length===1) inputLetter(ch);
   else if(e.key==='Backspace' || e.key==='Delete') eraseSel();
