@@ -372,6 +372,54 @@ score is how few ripples a level took (shown in the header + win card).
 
 ---
 
+## The "tales." daylight section (added 2026-07-12)
+
+The site now has TWO shelves on one repo/origin:
+- **play.** (`/` — the existing night hub): tiny calm games, night palette.
+- **tales.** (`/tales/`): the DAYLIGHT shelf for story games — bigger rules,
+  little narratives, deliberately breaking the night house style (cream paper
+  `#f4ead6`, ink `#33291c`, postal red/blue/gold, Caveat + Karla + Ma Shan
+  Zheng, wobbly 2px-ink borders + offset shadows). The two hubs cross-link
+  (cream "tales." card at the top of play., night pill at the top of tales.).
+  New story games: new folder + a story-card in `tales/index.html` (with the
+  `.story` blurb) + a read-only progress stamp. They are NOT added to sync.js
+  unless there's a reason.
+
+### Hearsay — `/hearsay/` (the first tale, bilingual EN/中文)
+**Original mechanic:** route a sentence mouth-to-mouth through a town of
+unreliable narrators; every carrier deterministically warps it (echo / forget /
+"not"-toggle / number-doubling / rhyme swaps / name muddling / "lovely"
+inserter / adjective stripper / opposite swapper); the mayor must hear the
+EXACT target sentence. Tap people to lay a red-yarn route (numbered stamps),
+"whisper it" plays hop by hop, failure shows a hop-by-hop trace with bent words
+highlighted — debugging gossip. Win = unlock next; route is KEPT after a fail
+for editing.
+- **Bilingual:** header 中文/EN toggle (`hearsay.lang`). Each language has its
+  own word tables in `TBL` — the Chinese quirks are native: 谐音 homophones
+  (猫↔帽 鱼↔雨 糖↔汤 船↔床 花↔画), 「不」 inserted BEFORE the verb
+  (`notPos:'before'`), names cycle 小美→小芳→小刚, numbers 一两三…→无数.
+  Cast has zh names (阿诚/莎莎/阿涛/薇姨/大宝二宝三宝/诗诗韵韵/伊姨梅姨/丽丽/佩姐/老唐).
+- **12 hand-made levels share ONE graph per level** with per-language
+  start/target/title/note. The console solver `__solve(i, 'en'|'zh')`
+  enumerates every simple path you→mayor; after ANY edit to levels or word
+  tables, re-run it for all 12 × both languages. Verified 2026-07-12: both
+  languages have identical solution structures (lv 1–3,6,10–12 unique; 4,7,8
+  have a spare pass-through-honest-Finn variant; 5,9 accept both orders).
+  Level 12's real solution is unique: ida→gus→vera→lila→may.
+- Quirk fns are GLOBAL per language: the poet swaps EVERY rhyme-table word in
+  the sentence (level 11 exploits this: lake→cake AND noon→moon / 猫→帽 AND
+  糖→汤). Check new sentences against all tables when authoring.
+- **Keys:** `hearsay.unlocked` (furthest level — shared across languages, same
+  graphs), `hearsay.sound`, `hearsay.lang`, `hearsay.intro`. Not cloud-synced.
+- Delivery animation is skippable (tap during delivery). Verdict overlays
+  appear on a 500 ms delay — automated tests must wait for it.
+- History: born as a standalone folder `Games/Hearsay/` (English-only) earlier
+  the same day; moved into the repo + made bilingual when the tales. section
+  was created. The old folder is superseded (its README says so) and safe to
+  delete.
+
+---
+
 ## Tech / workflow notes
 
 - **Preview server:** `.claude/launch.json` defines `games-static` (`py -m http.server 8642`).
@@ -405,7 +453,18 @@ score is how few ripples a level took (shown in the header + win card).
 
 ---
 
-_Last updated after (2026-07-12, ninth pass): **ripple.** (`/ripple/`) built and
+_Last updated after (2026-07-12, tenth pass): **the "tales." daylight section +
+bilingual hearsay** — see the new section above. Owner asked for a Chinese
+version of hearsay and a light-mode shelf for story games on the same repo.
+Built `/tales/` (daylight hub, cross-linked with play.), moved hearsay into the
+repo at `/hearsay/` and rewrote it bilingual (EN/中文 toggle, native Chinese
+word mechanics). Verified: solver clean for all 12 levels × BOTH languages
+(identical solution structures), zh level 5 played end-to-end through the real
+UI (猫在糖罐里 → 帽不在汤罐里), language toggle preserves the route mid-plan,
+map viewBox extended 330→358 to unclip bottom labels, both hubs render clean
+with zero console errors. Pushed live same day (isle again stripped from the
+committed hub page and restored locally — still local-only).
+Prior (same day, ninth pass): **ripple.** (`/ripple/`) built and
 verified — the 15th game, an original invention (tap-to-ripple lantern herding; see
 its section above). Verified in a browser end to end: tutorial pages, level 1 solved
 by simulated waves (3 ripples), a 3-lantern + 2-stone level solved by a naive bot

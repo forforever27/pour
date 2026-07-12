@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#f4ead6">
+<title>tales. — little games with little stories</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4ead6'/%3E%3Ccircle cx='16' cy='12' r='6' fill='%23e9a824'/%3E%3Cpath d='M7 24 Q16 18 25 24' fill='none' stroke='%2333291c' stroke-width='2.2' stroke-linecap='round'/%3E%3Cpath d='M9 28 Q16 23 23 28' fill='none' stroke='%23d0442c' stroke-width='2' stroke-linecap='round' stroke-dasharray='3 3'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Karla:ital,wght@0,400;0,600;0,800;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #f4ead6;
+    --paper-2: #efe2c8;
+    --ink: #33291c;
+    --ink-soft: #7a6a52;
+    --red: #d0442c;
+    --blue: #3a6ea5;
+    --gold: #e9a824;
+    --card: #fdf7ea;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { height:100%; }
+  body {
+    font-family:'Karla', sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    user-select:none; -webkit-user-select:none;
+    display:flex; flex-direction:column; align-items:center;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    overflow-x:hidden;
+  }
+  body::before { content:""; position:fixed; inset:0; z-index:-1; pointer-events:none;
+    background:
+      radial-gradient(60% 40% at 85% -5%, rgba(233,168,36,.28), transparent 70%),
+      radial-gradient(50% 35% at -10% 105%, rgba(58,110,165,.12), transparent 70%);
+  }
+  body::after { content:""; position:fixed; inset:0; z-index:40; pointer-events:none; opacity:.06;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.7'/%3E%3C/svg%3E"); }
+
+  header { text-align:center; padding: clamp(30px,8vh,70px) 24px 6px; }
+  h1 { font-family:'Caveat', cursive; font-weight:700; font-size:2.7rem; line-height:1; }
+  h1 em { font-style:normal; color:var(--red); }
+  .sun { display:inline-block; width:.62em; height:.62em; border-radius:50%;
+    background:var(--gold); box-shadow:0 0 0 4px rgba(233,168,36,.25); margin-right:10px; }
+  .tagline { font-family:'Caveat', cursive; font-size:1.15rem; color:var(--ink-soft); padding:6px 0 0; }
+  .nightlink { display:inline-block; margin-top:14px; font-size:.78rem; font-weight:600; color:var(--ink-soft);
+    text-decoration:none; padding:8px 16px; border-radius:99px; border:2px solid var(--ink);
+    background:#2b2342; color:#f2edf7; box-shadow:2.5px 2.5px 0 rgba(51,41,28,.35);
+    transition:transform .12s ease; }
+  .nightlink:active { transform:translate(2px,2px); box-shadow:none; }
+
+  main { width:min(94vw, 440px); display:flex; flex-direction:column; gap:16px;
+    padding: clamp(18px,4vh,32px) 0 40px; }
+
+  .card { display:block; padding:16px 16px 14px; border-radius:16px; border:2px solid var(--ink);
+    background:var(--card); color:inherit; text-decoration:none; cursor:pointer;
+    box-shadow:4px 4px 0 rgba(51,41,28,.32);
+    transition:transform .14s ease; position:relative; }
+  .card:active { transform:translate(2px,2px); box-shadow:1px 1px 0 rgba(51,41,28,.32); }
+  .card .top { display:flex; align-items:center; gap:14px; }
+  .art { width:56px; height:56px; flex:none; border-radius:14px; border:2px solid var(--ink);
+    background:var(--paper-2); display:flex; align-items:center; justify-content:center; }
+  .art svg { width:38px; height:38px; }
+  .tinfo { flex:1; min-width:0; }
+  .tinfo h2 { font-family:'Caveat', cursive; font-weight:700; font-size:1.6rem; line-height:1; }
+  .tinfo h2 em { font-style:normal; color:var(--red); }
+  .tinfo .kind { font-size:.66rem; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-soft); }
+  .prog { flex:none; font-size:.7rem; font-weight:800; color:var(--red);
+    padding:6px 11px; border-radius:99px; border:2px solid var(--red); background:rgba(208,68,44,.07); }
+  .prog.fresh { color:var(--ink-soft); border-color:rgba(51,41,28,.4); background:transparent; }
+  .story { font-family:'Caveat', cursive; font-size:1.14rem; line-height:1.25; color:var(--ink-soft);
+    margin-top:10px; padding-top:9px; border-top:2px dashed rgba(51,41,28,.25); }
+  .badges { position:absolute; top:-11px; right:14px; display:flex; gap:6px; }
+  .badge { font-size:.62rem; font-weight:800; letter-spacing:.06em; padding:3px 9px;
+    border-radius:99px; border:2px solid var(--ink); background:var(--gold); color:var(--ink); }
+
+  .soon { border-style:dashed; background:transparent; box-shadow:none; cursor:default; opacity:.75; }
+  .soon:active { transform:none; }
+  .soon .art { border-style:dashed; background:transparent; }
+  .soon h2 { color:var(--ink-soft); }
+
+  footer { font-family:'Caveat',cursive; font-size:1rem; color:var(--ink-soft);
+    text-align:center; padding: 0 24px 34px; margin-top:auto; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1><span class="sun"></span>tales<em>.</em></h1>
+  <div class="tagline">little games with little stories · 有故事的小游戏</div>
+  <a class="nightlink" href="../">☾ &nbsp;play. — the quiet night games</a>
+</header>
+
+<main>
+  <a class="card" href="../hearsay/">
+    <div class="badges"><span class="badge">EN · 中文</span></div>
+    <div class="top">
+      <div class="art">
+        <svg viewBox="0 0 36 36" fill="none">
+          <path d="M6 12 Q18 4 30 12" stroke="#d0442c" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="3 4"/>
+          <circle cx="7" cy="16" r="4.5" fill="#e9a824" stroke="#33291c" stroke-width="1.5"/>
+          <circle cx="29" cy="16" r="4.5" fill="#3a6ea5" stroke="#33291c" stroke-width="1.5"/>
+          <path d="M9 27 h18 M9 31 h11" stroke="#33291c" stroke-width="2.2" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="tinfo">
+        <div class="kind">word-routing puzzle</div>
+        <h2>hearsay<em>.</em></h2>
+      </div>
+      <span class="prog fresh" id="hearsayProg">new</span>
+    </div>
+    <div class="story">you and the mayor aren’t on speaking terms (there was a goat). your words must travel mouth to mouth — and every neighbour bends what they hear.</div>
+  </a>
+
+  <div class="card soon">
+    <div class="top">
+      <div class="art">
+        <svg viewBox="0 0 36 36" fill="none">
+          <circle cx="18" cy="18" r="10" stroke="rgba(51,41,28,.45)" stroke-width="2" stroke-dasharray="4 4"/>
+          <text x="18" y="23" font-family="Georgia,serif" font-size="13" fill="rgba(51,41,28,.45)" text-anchor="middle">?</text>
+        </svg>
+      </div>
+      <div class="tinfo">
+        <div class="kind">someday</div>
+        <h2>the next tale…</h2>
+      </div>
+    </div>
+    <div class="story">every game on this shelf gets its own little story and its own strange rules. more are on the way.</div>
+  </div>
+</main>
+
+<footer>the daylight side of <a href="../" style="color:inherit">play.</a> — same town, different hour</footer>
+
+<script>
+'use strict';
+/* the tales hub peeks read-only at each game's keys to show a progress stamp */
+(function(){
+  try {
+    const u = parseInt(localStorage.getItem('hearsay.unlocked') || '1', 10);
+    const el = document.getElementById('hearsayProg');
+    if (u >= 12) { el.textContent = 'all delivered ✦'; el.classList.remove('fresh'); }
+    else if (u > 1) { el.textContent = 'errand ' + u + ' / 12'; el.classList.remove('fresh'); }
+  } catch(e) {}
+})();
+</script>
+</body>
+</html>

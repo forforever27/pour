@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#f4ead6">
+<title>hearsay — a game of broken telephone, played on purpose</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4ead6'/%3E%3Cpath d='M6 10 Q16 4 26 10' fill='none' stroke='%23d0442c' stroke-width='2.2' stroke-linecap='round' stroke-dasharray='3 3'/%3E%3Ccircle cx='7' cy='13' r='4' fill='%23e9a824'/%3E%3Ccircle cx='25' cy='13' r='4' fill='%233a6ea5'/%3E%3Cpath d='M8 22 h16 M8 26 h10' stroke='%2333291c' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Karla:ital,wght@0,400;0,600;0,800;1,400&family=Ma+Shan+Zheng&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #f4ead6;
+    --paper-2: #efe2c8;
+    --ink: #33291c;
+    --ink-soft: #7a6a52;
+    --red: #d0442c;
+    --blue: #3a6ea5;
+    --gold: #e9a824;
+    --green: #5c8a4e;
+    --card: #fdf7ea;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { height:100%; }
+  body {
+    font-family:'Karla', sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    touch-action: manipulation;
+    user-select:none; -webkit-user-select:none;
+    display:flex; flex-direction:column; align-items:center;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    overflow-x:hidden;
+  }
+  /* the handwriting stack: Caveat for latin, Ma Shan Zheng catches the hanzi */
+  .hand, h1, .say, .w, .lvl-name, .said, .tag, .maplab, .sheet h2 { font-family:'Caveat','Ma Shan Zheng',cursive; }
+  body::before { content:""; position:fixed; inset:0; z-index:-1; pointer-events:none;
+    background:
+      radial-gradient(60% 40% at 85% -5%, rgba(233,168,36,.25), transparent 70%),
+      radial-gradient(50% 35% at -10% 105%, rgba(58,110,165,.12), transparent 70%);
+  }
+  body::after { content:""; position:fixed; inset:0; z-index:40; pointer-events:none; opacity:.06;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.7'/%3E%3C/svg%3E"); }
+
+  .page { width:min(96vw, 460px); display:flex; flex-direction:column; min-height:100dvh; padding-bottom:12px; }
+
+  header { display:flex; align-items:baseline; justify-content:space-between; padding:10px 6px 2px; }
+  h1 { font-weight:700; font-size:2.05rem; letter-spacing:.01em; line-height:1; }
+  h1 a { color:var(--ink-soft); text-decoration:none; font-size:1.4rem; }
+  h1 span { color:var(--red); }
+  .hdr-btns { display:flex; gap:8px; }
+  .hbtn { min-width:40px; height:40px; padding:0 10px; border-radius:12px; border:2px solid var(--ink);
+    background:var(--card); color:var(--ink); font-family:'Karla'; font-weight:800; font-size:.8rem;
+    cursor:pointer; box-shadow:2.5px 2.5px 0 rgba(51,41,28,.35); transition:transform .12s ease; }
+  .hbtn:active { transform:translate(2px,2px); box-shadow:none; }
+  .tag { font-size:1.02rem; color:var(--ink-soft); padding:0 6px 6px; }
+
+  .errand { background:var(--card); border:2px solid var(--ink); border-radius:14px;
+    box-shadow:3px 3px 0 rgba(51,41,28,.3); padding:10px 12px; margin:2px 2px 8px; position:relative; }
+  .errand .lvl-name { font-weight:700; font-size:1.25rem; color:var(--red); }
+  .errand .note { font-size:.78rem; color:var(--ink-soft); font-style:italic; line-height:1.35; margin:1px 0 7px; }
+  .msgrow { display:flex; align-items:baseline; gap:7px; margin-top:4px; flex-wrap:wrap; }
+  .msgrow .lbl { flex:none; font-size:.62rem; font-weight:800; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-soft); width:74px; }
+  .words { display:flex; flex-wrap:wrap; gap:3px; flex:1; min-width:0; }
+  .w { font-weight:700; font-size:1.12rem; line-height:1.15;
+    padding:0 4px; border-radius:5px; background:rgba(51,41,28,.05); }
+  .w.diff { background:rgba(208,68,44,.16); color:var(--red); }
+  .msgrow.target .w { background:rgba(58,110,165,.1); }
+  .msgrow.target .w.diff { background:rgba(58,110,165,.22); color:var(--blue); }
+
+  .mapbox { position:relative; background:var(--paper-2); border:2px solid var(--ink); border-radius:16px;
+    box-shadow:3px 3px 0 rgba(51,41,28,.3); overflow:hidden; margin:0 2px; }
+  .mapbox svg { display:block; width:100%; height:auto; }
+  .maplab { position:absolute; top:7px; left:10px; font-size:.95rem; color:var(--ink-soft); pointer-events:none; }
+
+  .actions { display:flex; gap:8px; margin:8px 2px 0; }
+  .btn { flex:1; height:48px; border-radius:13px; border:2px solid var(--ink);
+    font-family:'Karla'; font-weight:800; font-size:.92rem; letter-spacing:.03em;
+    cursor:pointer; box-shadow:3px 3px 0 rgba(51,41,28,.35); transition:transform .12s ease;
+    background:var(--card); color:var(--ink); }
+  .btn:active { transform:translate(2px,2px); box-shadow:none; }
+  .btn.send { background:var(--red); color:#fff7ec; border-color:#8e2d1c; box-shadow:3px 3px 0 rgba(142,45,28,.5); }
+  .btn.send:disabled { opacity:.35; pointer-events:none; }
+  .btn.ghost { flex:0 0 auto; padding:0 16px; }
+
+  .ticker { min-height:46px; margin:8px 2px 0; padding:7px 12px; border-radius:12px;
+    border:2px dashed rgba(51,41,28,.45); background:rgba(253,247,234,.7);
+    display:flex; align-items:center; gap:10px; }
+  .ticker .who { flex:none; width:34px; height:34px; }
+  .ticker .who svg { width:100%; height:100%; }
+  .ticker .say { font-weight:600; font-size:1.18rem; line-height:1.15; }
+  .ticker .say b { color:var(--red); }
+  .ticker .hintline { font-family:'Karla'; font-size:.76rem; color:var(--ink-soft); font-style:italic; }
+
+  footer { display:flex; align-items:center; justify-content:center; gap:14px; padding:10px 0 6px; color:var(--ink-soft); }
+  footer .cnt { font-size:.8rem; font-weight:600; }
+  .navb { width:38px; height:38px; border-radius:50%; border:2px solid var(--ink); background:var(--card);
+    font-size:1rem; font-weight:800; color:var(--ink); cursor:pointer; box-shadow:2px 2px 0 rgba(51,41,28,.3); }
+  .navb:disabled { opacity:.25; pointer-events:none; }
+  .navb:active { transform:translate(1px,1px); box-shadow:none; }
+
+  .veil { position:fixed; inset:0; z-index:60; display:flex; align-items:center; justify-content:center;
+    background:rgba(51,41,28,.4); opacity:0; pointer-events:none; transition:opacity .3s ease; padding:16px; }
+  .veil.show { opacity:1; pointer-events:auto; }
+  .sheet { width:min(94vw, 420px); max-height:84dvh; overflow-y:auto; background:var(--card);
+    border:2.5px solid var(--ink); border-radius:18px; box-shadow:6px 6px 0 rgba(51,41,28,.4);
+    padding:18px 18px 16px; transform:rotate(-.5deg) translateY(10px); transition:transform .35s cubic-bezier(.3,1.5,.5,1); }
+  .veil.show .sheet { transform:rotate(-.5deg) translateY(0); }
+  .sheet h2 { font-weight:700; font-size:1.9rem; line-height:1.05; }
+  .sheet h2.red { color:var(--red); }
+  .sheet h2.green { color:var(--green); }
+  .sheet .sub { font-family:'Karla'; font-size:.85rem; color:var(--ink-soft); font-style:italic; margin:4px 0 10px; line-height:1.45; }
+  .sheet .bigbtn { width:100%; height:50px; margin-top:12px; border-radius:13px; border:2px solid #8e2d1c;
+    background:var(--red); color:#fff7ec; font-family:'Karla'; font-weight:800; font-size:1rem;
+    cursor:pointer; box-shadow:3px 3px 0 rgba(142,45,28,.5); }
+  .sheet .bigbtn:active { transform:translate(2px,2px); box-shadow:none; }
+  .sheet .bigbtn.alt { background:var(--card); color:var(--ink); border-color:var(--ink); box-shadow:3px 3px 0 rgba(51,41,28,.35); }
+
+  .trace { margin-top:8px; display:flex; flex-direction:column; gap:6px; }
+  .hop { display:flex; gap:9px; align-items:flex-start; padding:7px 9px; border-radius:10px;
+    background:rgba(51,41,28,.045); border:1.5px solid rgba(51,41,28,.15); }
+  .hop .who { flex:none; width:32px; height:32px; margin-top:2px; }
+  .hop .who svg { width:100%; height:100%; }
+  .hop .txt { flex:1; min-width:0; }
+  .hop .nm { font-family:'Karla'; font-size:.68rem; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-soft); }
+  .hop .nm i { font-weight:400; text-transform:none; letter-spacing:0; }
+  .hop .said { font-weight:600; font-size:1.15rem; line-height:1.15; }
+  .hop .said b { color:var(--red); font-weight:700; }
+  .hop.good { border-color:rgba(92,138,78,.5); background:rgba(92,138,78,.08); }
+
+  .qk { display:flex; gap:10px; align-items:center; padding:8px 4px; border-bottom:1.5px dashed rgba(51,41,28,.2); }
+  .qk:last-child { border-bottom:none; }
+  .qk .who { flex:none; width:38px; height:38px; }
+  .qk .who svg { width:100%; height:100%; }
+  .qk .nm { font-weight:800; font-size:.85rem; }
+  .qk .ds { font-size:.78rem; color:var(--ink-soft); font-style:italic; line-height:1.3; }
+
+  #toast { position:fixed; bottom:calc(20px + env(safe-area-inset-bottom)); left:50%;
+    transform:translate(-50%, 70px); z-index:70; padding:9px 18px; border-radius:12px;
+    background:var(--ink); color:var(--paper); border:2px solid var(--ink);
+    font-size:.82rem; font-weight:600; opacity:0; transition:.3s ease; pointer-events:none; max-width:86vw; text-align:center; }
+  #toast.show { opacity:1; transform:translate(-50%,0); }
+
+  .edge { stroke:rgba(51,41,28,.4); stroke-width:2; stroke-dasharray:1 7; stroke-linecap:round; fill:none; }
+  .yarn { stroke:var(--red); stroke-width:3.2; fill:none; stroke-linecap:round;
+    filter:drop-shadow(1px 1.5px 0 rgba(142,45,28,.3)); }
+  .node { cursor:pointer; }
+  .node .plate { fill:var(--card); stroke:var(--ink); stroke-width:2; }
+  .node.inpath .plate { stroke:var(--red); stroke-width:3; }
+  .node.you .plate { fill:#fbe9c9; }
+  .node.mayor .plate { fill:#fbdfc9; }
+  .node text { pointer-events:none; }
+  .nname { font-family:'Karla'; font-weight:800; font-size:9.5px; fill:var(--ink); text-anchor:middle;
+    paint-order:stroke; stroke:var(--paper-2); stroke-width:3px; stroke-linejoin:round; }
+  .nquirk { font-family:'Karla'; font-style:italic; font-size:7.6px; fill:#7a6a52; text-anchor:middle;
+    paint-order:stroke; stroke:var(--paper-2); stroke-width:3px; stroke-linejoin:round; }
+  html.zh .nquirk { font-size:8.6px; font-style:normal; }
+  html.zh .nname { font-size:10.5px; }
+  .stepnum { font-family:'Karla'; font-weight:800; font-size:9px; fill:#fff7ec; text-anchor:middle; }
+  @keyframes jig { 0%,100%{transform:rotate(0)} 25%{transform:rotate(-4deg)} 75%{transform:rotate(4deg)} }
+  .node.talking { animation:jig .3s ease infinite; }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-3px)} 75%{transform:translateX(3px)} }
+  .node.no { animation:shake .25s ease 2; }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <h1><a href="../tales/" aria-label="all tales">‹</a> hearsay<span>.</span></h1>
+    <div class="hdr-btns">
+      <button class="hbtn" id="langBtn" title="语言 / language">中文</button>
+      <button class="hbtn" id="bookBtn" title="Everyone's quirks">notebook</button>
+      <button class="hbtn" id="sndBtn" title="Sound">♪</button>
+    </div>
+  </header>
+  <div class="tag" id="tagline">a game of broken telephone, played on purpose</div>
+
+  <div class="errand">
+    <div class="lvl-name" id="lvlName"></div>
+    <div class="note" id="lvlNote"></div>
+    <div class="msgrow"><span class="lbl" id="lblSay">you say</span><span class="words" id="startW"></span></div>
+    <div class="msgrow target"><span class="lbl" id="lblHear">mayor must hear</span><span class="words" id="targetW"></span></div>
+  </div>
+
+  <div class="mapbox">
+    <span class="maplab" id="mapLab">the town</span>
+    <svg id="map" viewBox="0 0 360 358" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+
+  <div class="actions">
+    <button class="btn ghost" id="clearBtn">clear</button>
+    <button class="btn send" id="sendBtn" disabled>whisper it →</button>
+  </div>
+
+  <div class="ticker" id="ticker"></div>
+
+  <footer>
+    <button class="navb" id="prevBtn">‹</button>
+    <span class="cnt" id="lvlCnt">1 / 12</span>
+    <button class="navb" id="nextBtn">›</button>
+  </footer>
+</div>
+
+<div class="veil" id="winV"><div class="sheet">
+  <h2 class="green" id="winTitle">delivered!</h2>
+  <div class="sub" id="winSub"></div>
+  <div class="trace" id="winTrace"></div>
+  <button class="bigbtn" id="winNext">next errand →</button>
+</div></div>
+
+<div class="veil" id="failV"><div class="sheet">
+  <h2 class="red" id="failTitle"></h2>
+  <div class="sub" id="failSub"></div>
+  <div class="trace" id="failTrace"></div>
+  <button class="bigbtn" id="failRetry">let me re-route that</button>
+</div></div>
+
+<div class="veil" id="bookV"><div class="sheet">
+  <h2 id="bookTitle">the notebook</h2>
+  <div class="sub" id="bookSub"></div>
+  <div id="bookList"></div>
+  <button class="bigbtn alt" id="bookClose">got it</button>
+</div></div>
+
+<div class="veil" id="introV"><div class="sheet">
+  <h2 id="introTitle"></h2>
+  <div class="sub" id="introText"></div>
+  <button class="bigbtn" id="introGo"></button>
+</div></div>
+
+<div id="toast"></div>
+
+<script>
+'use strict';
+/* hearsay. — an original game: route a mutating message through a town of
+   unreliable narrators until the mayor hears exactly the right thing.
+   Fully bilingual: EN and 中文 each have their own word tables and levels
+   built on the SAME graphs — the Chinese quirks are native (谐音 homophones,
+   「不」 placed before the verb, 小美→小芳→小刚 name muddling). */
+
+/* =================== word machinery (per language) =================== */
+const TBL = {
+  en: {
+    joiner: ' ',
+    RHYME: { cake:'lake', lake:'cake', cat:'hat', hat:'cat', ring:'king', king:'ring',
+      night:'light', light:'night', moon:'noon', noon:'moon', pie:'sky', sky:'pie',
+      house:'mouse', mouse:'house', rose:'nose', nose:'rose', goat:'coat', coat:'goat',
+      bees:'keys', keys:'bees' },
+    OPP: { day:'night', night:'day', won:'lost', lost:'won', everyone:'nobody',
+      nobody:'everyone', first:'last', last:'first', up:'down', down:'up' },
+    DBL: { one:'two', two:'four', three:'six', four:'eight', five:'ten', six:'twelve',
+      eight:'sixteen', ten:'twenty', twelve:'countless', sixteen:'countless',
+      twenty:'countless', countless:'countless' },
+    NAMES: { anna:'bella', bella:'carl', carl:'anna' },
+    VERBS: ['is','are','was','meet','bring','send','ate','won','lost','likes','wants','found','hid','sings','comes','needs'],
+    NOUNS: ['cake','lake','cat','hat','ring','king','night','light','moon','noon','pie','sky',
+      'house','mouse','rose','nose','goat','coat','bees','keys','party','ball','prize','pies','fish',
+      'coin','game','bet','bridge','fair','wedding','soup','garden','town','dinner','secret'],
+    ADJ: ['big','little','old','new','red','golden','lovely','grand','tiny','baking'],
+    notWord: 'not', notPos: 'after', lovelyWord: 'lovely',
+  },
+  zh: {
+    joiner: '',
+    RHYME: { '猫':'帽','帽':'猫','鱼':'雨','雨':'鱼','糖':'汤','汤':'糖','船':'床','床':'船','花':'画','画':'花' },
+    OPP: { '白天':'黑夜','黑夜':'白天','赢':'输','输':'赢','大家':'没人','没人':'大家','上':'下','下':'上' },
+    DBL: { '一':'两','两':'四','三':'六','四':'八','五':'十','六':'十二','八':'十六',
+      '十':'二十','十二':'无数','十六':'无数','二十':'无数','无数':'无数' },
+    NAMES: { '小美':'小芳','小芳':'小刚','小刚':'小美' },
+    VERBS: ['是','在','去','带','见','吃','喝','赢','输','要','有','来','找','开始','停'],
+    NOUNS: ['庙会','汤','糖','猫','帽','鱼','雨','船','床','花','画','饼','集市','晚饭','红烧鱼','桥','比赛','婚礼','奖品','山羊','秘密','铺'],
+    ADJ: ['大','小','老','新','红','金','可爱的','好看的'],
+    notWord: '不', notPos: 'before', lovelyWord: '可爱的',
+  }
+};
+
+const QUIRKS = {
+  honest:  { fn: (w,T) => w.slice() },
+  echo:    { fn: (w,T) => w.concat(w[w.length-1]) },
+  forget:  { fn: (w,T) => w.length > 2 ? w.slice(0,-1) : w.slice() },
+  not:     { fn: (w,T) => {
+      const i = w.indexOf(T.notWord);
+      if(i >= 0){ const o = w.slice(); o.splice(i,1); return o; }
+      const v = w.findIndex(x => T.VERBS.includes(x));
+      const at = v < 0 ? 1 : (T.notPos === 'before' ? v : v+1);
+      const o = w.slice(); o.splice(at, 0, T.notWord); return o; } },
+  double:  { fn: (w,T) => w.map(x => T.DBL[x] || x) },
+  rhyme:   { fn: (w,T) => w.map(x => T.RHYME[x] || x) },
+  lovely:  { fn: (w,T) => {
+      const n = w.findIndex(x => T.NOUNS.includes(x));
+      const o = w.slice(); o.splice(n >= 0 ? n : o.length, 0, T.lovelyWord); return o; } },
+  plain:   { fn: (w,T) => { const o = w.filter(x => !T.ADJ.includes(x)); return o.length ? o : w.slice(); } },
+  names:   { fn: (w,T) => w.map(x => T.NAMES[x] || x) },
+  opposite:{ fn: (w,T) => w.map(x => T.OPP[x] || x) },
+};
+const QUIRK_TAG = {
+  en: { honest:'repeats it exactly', echo:'says the last word twice', forget:'loses the last word',
+    not:'adds a “not” (or removes one)', double:'doubles every number', rhyme:'swaps words for their rhymes',
+    lovely:'slips in a “lovely”', plain:'strips out fancy words', names:'muddles who it’s about',
+    opposite:'swaps things for opposites' },
+  zh: { honest:'一字不改地转达', echo:'把最后一个词说两遍', forget:'忘掉最后一个词',
+    not:'加个「不」（有就删掉）', double:'数字统统翻倍', rhyme:'把词说成谐音字',
+    lovely:'悄悄塞进「可爱的」', plain:'删掉花哨的形容词', names:'把名字张冠李戴',
+    opposite:'什么都说反' },
+};
+
+/* =================== the cast =================== */
+const CAST = {
+  you:   { name:{en:'you', zh:'你'},        quirk:null,      c:'#e9c886', hair:'cap',    extra:null },
+  mayor: { name:{en:'the mayor', zh:'镇长'}, quirk:null,     c:'#e8b08a', hair:'bald',   extra:'sash' },
+  finn:  { name:{en:'finn', zh:'阿诚'},     quirk:'honest',  c:'#bcd4a2', hair:'flat',   extra:'freckles' },
+  rosa:  { name:{en:'rosa', zh:'莎莎'},     quirk:'echo',    c:'#f0b7ae', hair:'curls',  extra:null },
+  tom:   { name:{en:'tom', zh:'阿涛'},      quirk:'forget',  c:'#b9c8dd', hair:'mess',   extra:'sleepy' },
+  vera:  { name:{en:'vera', zh:'薇姨'},     quirk:'not',     c:'#c9b5d8', hair:'bun',    extra:'glasses' },
+  gus:   { name:{en:'gus', zh:'大宝'},      quirk:'double',  c:'#f2d489', hair:'flat',   extra:'stache' },
+  gil:   { name:{en:'gil', zh:'二宝'},      quirk:'double',  c:'#f2d489', hair:'mess',   extra:'stache' },
+  gud:   { name:{en:'gud', zh:'三宝'},      quirk:'double',  c:'#f2d489', hair:'bald',   extra:'stache' },
+  nina:  { name:{en:'nina', zh:'诗诗'},     quirk:'rhyme',   c:'#a9d8cf', hair:'beret',  extra:null },
+  noor:  { name:{en:'noor', zh:'韵韵'},     quirk:'rhyme',   c:'#a9d8cf', hair:'beret',  extra:'glasses' },
+  ida:   { name:{en:'ida', zh:'伊姨'},      quirk:'names',   c:'#eec1d8', hair:'buns',   extra:null },
+  may:   { name:{en:'may', zh:'梅姨'},      quirk:'names',   c:'#eec1d8', hair:'buns',   extra:'bow' },
+  lila:  { name:{en:'lila', zh:'丽丽'},     quirk:'lovely',  c:'#f4b8c8', hair:'curls',  extra:'bow' },
+  petra: { name:{en:'petra', zh:'佩姐'},    quirk:'plain',   c:'#c8c8b8', hair:'flat',   extra:'sqglasses' },
+  otto:  { name:{en:'otto', zh:'老唐'},     quirk:'opposite',c:'#a8cbe8', hair:'updo',   extra:null },
+};
+
+function avatarSVG(id, r){
+  const c = CAST[id]; const s = r || 20;
+  let inner = '';
+  const skin = '#f6dfc0';
+  inner += `<circle cx="0" cy="0" r="${s*.62}" fill="${skin}" stroke="#33291c" stroke-width="1.4"/>`;
+  const hc = '#5a4632';
+  if(c.hair==='flat')  inner += `<path d="M ${-s*.62} 0 A ${s*.62} ${s*.62} 0 0 1 ${s*.62} 0 L ${s*.5} ${-s*.18} L ${-s*.5} ${-s*.18} Z" fill="${hc}"/>`;
+  if(c.hair==='mess')  inner += `<path d="M ${-s*.6} ${-s*.1} Q ${-s*.5} ${-s*.9} 0 ${-s*.68} Q ${s*.55} ${-s*.9} ${s*.6} ${-s*.1} Q ${s*.3} ${-s*.42} 0 ${-s*.36} Q ${-s*.3} ${-s*.42} ${-s*.6} ${-s*.1} Z" fill="${hc}"/>`;
+  if(c.hair==='curls') inner += `<circle cx="${-s*.4}" cy="${-s*.42}" r="${s*.24}" fill="${hc}"/><circle cx="0" cy="${-s*.56}" r="${s*.26}" fill="${hc}"/><circle cx="${s*.4}" cy="${-s*.42}" r="${s*.24}" fill="${hc}"/>`;
+  if(c.hair==='bun')   inner += `<path d="M ${-s*.6} ${-s*.06} A ${s*.62} ${s*.62} 0 0 1 ${s*.6} ${-s*.06} L 0 ${-s*.2} Z" fill="${hc}"/><circle cx="0" cy="${-s*.72}" r="${s*.2}" fill="${hc}"/>`;
+  if(c.hair==='buns')  inner += `<path d="M ${-s*.6} ${-s*.06} A ${s*.62} ${s*.62} 0 0 1 ${s*.6} ${-s*.06} L 0 ${-s*.2} Z" fill="${hc}"/><circle cx="${-s*.5}" cy="${-s*.55}" r="${s*.18}" fill="${hc}"/><circle cx="${s*.5}" cy="${-s*.55}" r="${s*.18}" fill="${hc}"/>`;
+  if(c.hair==='beret') inner += `<ellipse cx="${-s*.06}" cy="${-s*.46}" rx="${s*.58}" ry="${s*.26}" fill="#3a6ea5"/><circle cx="${-s*.06}" cy="${-s*.7}" r="${s*.08}" fill="#3a6ea5"/>`;
+  if(c.hair==='cap')   inner += `<path d="M ${-s*.55} ${-s*.2} A ${s*.56} ${s*.56} 0 0 1 ${s*.55} ${-s*.2} Z" fill="#d0442c"/><rect x="${-s*.7}" y="${-s*.24}" width="${s*1.0}" height="${s*.12}" rx="${s*.06}" fill="#d0442c"/>`;
+  if(c.hair==='updo')  inner += `<path d="M ${-s*.58} ${-s*.1} Q 0 ${-s*1.05} ${s*.58} ${-s*.1} L ${s*.4} ${-s*.16} Q 0 ${-s*.72} ${-s*.4} ${-s*.16} Z" fill="${hc}"/>`;
+  if(c.hair==='bald')  inner += `<path d="M ${-s*.62} ${-s*.05} A ${s*.62} ${s*.62} 0 0 1 ${-s*.4} ${-s*.46}" fill="none" stroke="${hc}" stroke-width="${s*.1}" stroke-linecap="round"/><path d="M ${s*.62} ${-s*.05} A ${s*.62} ${s*.62} 0 0 0 ${s*.4} ${-s*.46}" fill="none" stroke="${hc}" stroke-width="${s*.1}" stroke-linecap="round"/>`;
+  const ey = -s*.08;
+  if(c.extra==='sleepy'){
+    inner += `<path d="M ${-s*.3} ${ey} h ${s*.18} M ${s*.12} ${ey} h ${s*.18}" stroke="#33291c" stroke-width="1.6" stroke-linecap="round"/>`;
+  } else {
+    inner += `<circle cx="${-s*.22}" cy="${ey}" r="${s*.06}" fill="#33291c"/><circle cx="${s*.22}" cy="${ey}" r="${s*.06}" fill="#33291c"/>`;
+  }
+  if(c.extra==='glasses') inner += `<circle cx="${-s*.22}" cy="${ey}" r="${s*.15}" fill="none" stroke="#33291c" stroke-width="1.2"/><circle cx="${s*.22}" cy="${ey}" r="${s*.15}" fill="none" stroke="#33291c" stroke-width="1.2"/><path d="M ${-s*.07} ${ey} h ${s*.14}" stroke="#33291c" stroke-width="1.2"/>`;
+  if(c.extra==='sqglasses') inner += `<rect x="${-s*.36}" y="${ey-s*.13}" width="${s*.28}" height="${s*.26}" rx="2" fill="none" stroke="#33291c" stroke-width="1.2"/><rect x="${s*.08}" y="${ey-s*.13}" width="${s*.28}" height="${s*.26}" rx="2" fill="none" stroke="#33291c" stroke-width="1.2"/><path d="M ${-s*.08} ${ey} h ${s*.16}" stroke="#33291c" stroke-width="1.2"/>`;
+  if(c.extra==='freckles') inner += `<circle cx="${-s*.34}" cy="${s*.1}" r="1" fill="#c98d5f"/><circle cx="${-s*.26}" cy="${s*.16}" r="1" fill="#c98d5f"/><circle cx="${s*.3}" cy="${s*.12}" r="1" fill="#c98d5f"/>`;
+  if(c.extra==='stache') inner += `<path d="M ${-s*.2} ${s*.2} Q 0 ${s*.3} ${s*.2} ${s*.2} Q 0 ${s*.42} ${-s*.2} ${s*.2} Z" fill="${hc}"/>`;
+  else inner += `<path d="M ${-s*.14} ${s*.26} Q 0 ${s*.38} ${s*.14} ${s*.26}" fill="none" stroke="#33291c" stroke-width="1.5" stroke-linecap="round"/>`;
+  if(c.extra==='bow') inner += `<path d="M ${s*.4} ${-s*.52} l ${s*.2} ${-s*.12} v ${s*.24} Z M ${s*.4} ${-s*.52} l ${-s*.2} ${-s*.12} v ${s*.24} Z" fill="#d0442c"/>`;
+  if(c.extra==='sash') inner += `<path d="M ${-s*.34} ${s*.34} L ${s*.2} ${s*.56}" stroke="#d0442c" stroke-width="${s*.16}" stroke-linecap="round"/><circle cx="${s*.2}" cy="${s*.56}" r="${s*.1}" fill="#e9a824" stroke="#33291c" stroke-width="1"/>`;
+  return inner;
+}
+function avatarTag(id){
+  return `<svg viewBox="-24 -26 48 52" xmlns="http://www.w3.org/2000/svg"><g>${avatarSVG(id, 20)}</g></svg>`;
+}
+
+/* =================== levels: one shared graph, two languages =================== */
+const LEVELS = [
+  { people:{ you:[180,292], finn:[92,182], rosa:[268,182], mayor:[180,62] },
+    edges:[['you','finn'],['you','rosa'],['finn','mayor'],['rosa','mayor']],
+    en:{ title:'a simple errand',
+      note:'Warm-up. The mayor must hear it word for word. One of your neighbours… repeats herself. Read the labels under people.',
+      start:'the party is at noon', target:'the party is at noon' },
+    zh:{ title:'跑个腿',
+      note:'热身。镇长要一字不差地听到。有位邻居……爱复读。看看每个人名字下面的小字。',
+      start:'庙会 中午 开始', target:'庙会 中午 开始' } },
+
+  { people:{ you:[180,292], finn:[92,182], vera:[268,182], mayor:[180,62] },
+    edges:[['you','finn'],['you','vera'],['finn','mayor'],['vera','mayor']],
+    en:{ title:'the soup incident',
+      note:'The mayor must NOT come to dinner tonight. You cannot lie. Vera, bless her, can’t help it.',
+      start:'the soup is ready', target:'the soup is not ready' },
+    zh:{ title:'晚饭的风波',
+      note:'今晚千万别让镇长来吃饭。你不会说谎——但薇姨忍不住。',
+      start:'晚饭 是 红烧鱼', target:'晚饭 不 是 红烧鱼' } },
+
+  { people:{ you:[180,296], rosa:[82,218], tom:[82,108], vera:[276,172], mayor:[180,58] },
+    edges:[['you','rosa'],['you','tom'],['you','vera'],['rosa','tom'],['tom','mayor'],['vera','mayor']],
+    en:{ title:'the old bridge',
+      note:'Every road to the mayor passes trouble. Hint: what if the message carried a spare word — one it could afford to lose?',
+      start:'meet me at the old bridge', target:'meet me at the old bridge' },
+    zh:{ title:'老桥之约',
+      note:'条条路上都有麻烦。提示：要是话里带个多余的词，丢了也不心疼呢？',
+      start:'老 桥 下 见', target:'老 桥 下 见' } },
+
+  { people:{ you:[180,296], gus:[92,214], gil:[92,104], finn:[272,168], mayor:[180,56] },
+    edges:[['you','gus'],['gus','gil'],['gil','mayor'],['you','finn'],['finn','mayor'],['finn','gil']],
+    en:{ title:'twice the pies',
+      note:'You promised the fair two pies. The mayor should expect… more. The twins both do the same thing — that’s the point.',
+      start:'bring two pies to the fair', target:'bring eight pies to the fair' },
+    zh:{ title:'双倍的饼',
+      note:'你答应给集市带两块饼。镇长该听到的是……更多。宝家兄弟干的是同一件事——这正是关键。',
+      start:'带 两 块 饼 去 集市', target:'带 八 块 饼 去 集市' } },
+
+  { people:{ you:[180,296], nina:[86,186], rosa:[180,176], vera:[274,186], mayor:[180,58] },
+    edges:[['you','nina'],['you','rosa'],['you','vera'],['nina','vera'],['nina','mayor'],['vera','mayor'],['rosa','mayor']],
+    en:{ title:'cat and house',
+      note:'The mayor must hear something you would never say. Two different people need to touch this sentence.',
+      start:'the cat is in the house', target:'the hat is not in the mouse' },
+    zh:{ title:'猫和糖罐',
+      note:'镇长要听到一句你绝对不会说的话。这句话得经过两个人的嘴。',
+      start:'猫 在 糖 罐 里', target:'帽 不 在 汤 罐 里' } },
+
+  { people:{ you:[180,296], nina:[112,212], noor:[112,104], tom:[262,208], mayor:[180,56] },
+    edges:[['you','nina'],['you','tom'],['nina','noor'],['nina','mayor'],['noor','mayor'],['tom','mayor']],
+    en:{ title:'the king’s ring',
+      note:'Poets guard every road today. One poet ruins the sentence. Two poets…?',
+      start:'the king lost his ring', target:'the king lost his ring' },
+    zh:{ title:'船还是床',
+      note:'今天诗人们把守着每条路。一位诗人会毁了这句话。两位呢……？',
+      start:'船 上 有 一 张 床', target:'船 上 有 一 张 床' } },
+
+  { people:{ you:[180,296], ida:[92,214], may:[92,104], finn:[268,168], mayor:[180,56] },
+    edges:[['you','ida'],['ida','may'],['may','mayor'],['you','finn'],['finn','mayor'],['finn','may']],
+    en:{ title:'who won the prize',
+      note:'Anna won. The mayor must believe it was Carl. The gossips shuffle names the same way every time: anna → bella → carl → anna.',
+      start:'anna won the baking prize', target:'carl won the baking prize' },
+    zh:{ title:'谁赢了比赛',
+      note:'明明是小美赢了，但镇长得相信是小刚。八卦们每次都按同一个顺序传错名字：小美→小芳→小刚→小美。',
+      start:'小美 赢 了 比赛', target:'小刚 赢 了 比赛' } },
+
+  { people:{ you:[180,296], petra:[110,206], lila:[110,98], finn:[268,164], mayor:[180,54] },
+    edges:[['you','petra'],['petra','lila'],['lila','mayor'],['you','finn'],['finn','mayor'],['finn','lila']],
+    en:{ title:'the golden goat',
+      note:'The mayor must hear about a LOVELY prize goat — not a golden one. Order matters: who touches it first?',
+      start:'the prize is a golden goat', target:'the lovely prize is a goat' },
+    zh:{ title:'金山羊',
+      note:'镇长要听到的是「可爱的」奖品——而不是金的。顺序很重要：谁先碰到这句话？',
+      start:'奖品 是 一 只 金 山羊', target:'可爱的 奖品 是 一 只 山羊' } },
+
+  { people:{ you:[180,296], otto:[92,186], rosa:[180,176], vera:[268,186], mayor:[180,58] },
+    edges:[['you','otto'],['you','rosa'],['you','vera'],['otto','vera'],['otto','mayor'],['vera','mayor'],['rosa','mayor']],
+    en:{ title:'opposite day',
+      note:'Somebody must tell the mayor the town’s spirits have turned. You only have good news. Luckily Otto disagrees with everything.',
+      start:'the day is won', target:'the night is not lost' },
+    zh:{ title:'唱反调的日子',
+      note:'得有人告诉镇长，镇上的风向变了。你手里只有好消息。幸好老唐什么都要反着说。',
+      start:'白天 我们 赢 了', target:'黑夜 我们 不 输 了' } },
+
+  { people:{ you:[180,300], gus:[80,238], gil:[62,132], gud:[150,66], finn:[268,220], mayor:[268,92] },
+    edges:[['you','gus'],['gus','gil'],['gil','gud'],['gud','mayor'],['you','finn'],['finn','mayor'],['finn','gil'],['gil','mayor']],
+    en:{ title:'countless fish',
+      note:'Three fish will not feed a wedding. The triplets each double what they hear — and past twelve, the town just says “countless”.',
+      start:'bring three fish to the wedding', target:'bring countless fish to the wedding' },
+    zh:{ title:'无数条鱼',
+      note:'三条鱼可喂不饱一场婚礼。三胞胎听到什么都翻倍——过了十二，镇上就只会说「无数」了。',
+      start:'带 三 条 鱼 去 婚礼', target:'带 无数 条 鱼 去 婚礼' } },
+
+  { people:{ you:[180,300], ida:[84,234], rosa:[276,234], nina:[180,168], may:[84,96], tom:[276,96], mayor:[180,44] },
+    edges:[['you','ida'],['you','rosa'],['ida','nina'],['rosa','nina'],['nina','may'],['nina','tom'],['may','mayor'],['tom','mayor']],
+    en:{ title:'meet at the cake',
+      note:'A secret meeting, re-addressed twice, in rhyme. The poet swaps EVERY word she can — the lake and the noon both.',
+      start:'meet anna at the lake at noon', target:'meet carl at the cake at moon' },
+    zh:{ title:'糖铺之约',
+      note:'一场秘密会面，被改了两次名字，还押了韵。诗诗会把每个能换的字都换掉——猫和糖一个都跑不了。',
+      start:'小美 带 猫 在 糖 铺 见', target:'小刚 带 帽 在 汤 铺 见' } },
+
+  { people:{ you:[180,308], ida:[80,262], gus:[52,172], vera:[86,90], lila:[186,52], may:[286,90], mayor:[310,180],
+             rosa:[180,232], tom:[128,150], petra:[254,242] },
+    edges:[['you','ida'],['ida','gus'],['gus','vera'],['vera','lila'],['lila','may'],['may','mayor'],
+           ['you','rosa'],['rosa','may'],['gus','tom'],['tom','lila'],['you','petra'],['petra','mayor'],['rosa','tom']],
+    en:{ title:'the grand delivery',
+      note:'Everything you have learned, in one errand. Five people must touch this — and three must never see it.',
+      start:'bring two pies to anna', target:'bring not four lovely pies to carl' },
+    zh:{ title:'大宗快递',
+      note:'你学过的全部本事，都在这一单里。这句话必须经过五个人——还有三个人绝对不能碰。',
+      start:'带 两 块 饼 给 小美', target:'不 带 四 块 可爱的 饼 给 小刚' } },
+];
+
+/* =================== ui strings =================== */
+const UI = {
+  en: {
+    tagline:'a game of broken telephone, played on purpose',
+    lvlWord: n => 'level ' + n + ' — ',
+    say:'you say', hear:'mayor must hear', town:'the town',
+    clear:'clear', send:'whisper it →', notebook:'notebook',
+    hintStart:'tap a neighbour to start the message on its way. it must reach the mayor.',
+    hintLaid:'route laid. <b>whisper it</b> and see what arrives…',
+    hintMid: n => '…now in ' + n + '’s hands. keep going to the mayor, or tap someone on the route to trim it.',
+    atMayor:'it’s already reached the mayor — send it, or tap someone on the route to re-plan',
+    noTerms:(a,b)=> a + ' and ' + b + ' aren’t on whispering terms',
+    passOn: n => n + ' passes on: ',
+    mayorHears:'the mayor hears: ',
+    youSaidFirst:'— said it first', faithful:'faithful as ever',
+    delivered:'delivered!',
+    winSub:(n)=>' The message arrived exactly right, after ' + n + (n===1?' whisper.':' whispers.'),
+    winNext:'next errand →', winLoop:'back to the first errand ↺',
+    failNeeded:(t)=>' he needed to hear “' + t + '”. Trace the trail — find where it bent.',
+    retry:'let me re-route that',
+    bookTitle:'the notebook',
+    bookSub:'everyone in town, and what happens to a sentence in their mouth. quirks apply every time they pass a message on.',
+    bookClose:'got it',
+    namesHint:' (anna → bella → carl → anna)', dblHint:' (…past twelve it’s just “countless”)',
+    youLabel:'that’s you', mayorLabel:'wants the news',
+    introTitle:'psst. over here.',
+    introText:'You have things to tell the mayor, but you’re not on speaking terms (long story, involves a goat). So your words must travel <b>mouth to mouth</b> through the neighbours — and every neighbour warps what they hear in their own reliable little way. Rosa repeats herself. Tom forgets. Vera doubts everything.<br><br>Tap neighbours to lay out the route. What arrives is <b>your sentence, bent by everyone who carried it</b> — sometimes you must protect it, sometimes you must bend it on purpose. When it goes wrong, read the trail and find who bent it.',
+    introGo:'start whispering',
+    WIN: ['The mayor nodded gravely, as if he’d known all along.',
+      'The mayor wrote it down with the good pen.',
+      '“Excellent,” said the mayor, to nobody in particular.',
+      'The mayor declared a small, confusing holiday.',
+      'The mayor believed every word. The town will talk.'],
+    FAIL: ['The mayor blinked slowly.',
+      'The mayor asked everyone to please start over.',
+      '“I see,” lied the mayor.',
+      'The mayor pretended his tea was too hot to respond.',
+      'Somewhere along the lane, your words went sideways —'],
+  },
+  zh: {
+    tagline:'一场故意玩坏的传话游戏',
+    lvlWord: n => '第 ' + n + ' 关 — ',
+    say:'你说', hear:'镇长要听到', town:'小镇',
+    clear:'清空', send:'传出去 →', notebook:'小本本',
+    hintStart:'点一位邻居，让这句话上路。它必须传到镇长耳朵里。',
+    hintLaid:'路线排好了。<b>传出去</b>，看看到底会传成什么样……',
+    hintMid: n => '……话现在在' + n + '嘴里。继续传向镇长，或点路线上的人修剪路线。',
+    atMayor:'已经传到镇长啦——发出去，或点路线上的人重新规划',
+    noTerms:(a,b)=> a + '和' + b + '平时不怎么说话',
+    passOn: n => n + '传了出去：',
+    mayorHears:'镇长听到的是：',
+    youSaidFirst:'— 先开的口', faithful:'照旧原话转达',
+    delivered:'送到了！',
+    winSub:(n)=>'消息一字不差地送到了，一共传了 ' + n + ' 次。',
+    winNext:'下一单 →', winLoop:'回到第一单 ↺',
+    failNeeded:(t)=>'他要听到的是「' + t + '」。顺着线索捋一捋——看是谁把话拧弯的。',
+    retry:'我再想想路线',
+    bookTitle:'小本本',
+    bookSub:'镇上的每一个人，以及一句话经过他们嘴里会发生什么。每次转传，毛病都会发作。',
+    bookClose:'知道了',
+    namesHint:'（小美→小芳→小刚→小美）', dblHint:'（过了十二就只会说「无数」）',
+    youLabel:'就是你', mayorLabel:'等着听消息',
+    introTitle:'嘘，这边。',
+    introText:'你有话要带给镇长，但你们俩不说话（说来话长，和一只山羊有关）。所以话只能<b>一张嘴一张嘴</b>地传过去——而每个邻居都会用自己那套固定的小毛病，把听到的话拧一下。莎莎爱复读，阿涛爱忘词，薇姨什么都要怀疑。<br><br>点邻居来排路线。最后送到的，是<b>被一路上所有人拧过的那句话</b>——有时你要保护它，有时你要故意拧弯它。传坏了就读一读线索，找出是谁干的。',
+    introGo:'开始传话',
+    WIN: ['镇长郑重地点了点头，好像他早就知道了。',
+      '镇长用那支好钢笔把它记了下来。',
+      '「很好。」镇长对着空气说。',
+      '镇长宣布放假半天，全镇都很困惑。',
+      '镇长每个字都信了。镇上有得聊了。'],
+    FAIL: ['镇长缓缓眨了眨眼。',
+      '镇长请大家从头再来一遍。',
+      '「我懂了。」镇长撒谎道。',
+      '镇长假装茶太烫，没法回话。',
+      '话在半路上拐了弯——'],
+  }
+};
+
+/* =================== state =================== */
+let LANG = 'en';
+let cur = 0;
+let unlocked = 1;
+let path = [];
+let mode = 'route';
+let soundOn = true;
+try { unlocked = Math.max(1, parseInt(localStorage.getItem('hearsay.unlocked')||'1',10) || 1); } catch(e){}
+try { soundOn = localStorage.getItem('hearsay.sound') !== 'off'; } catch(e){}
+try { LANG = localStorage.getItem('hearsay.lang') === 'zh' ? 'zh' : 'en'; } catch(e){}
+cur = Math.min(unlocked, LEVELS.length) - 1;
+
+const $ = id => document.getElementById(id);
+const mapEl = $('map');
+const T = () => TBL[LANG];
+const S = () => UI[LANG];
+const J = arr => arr.join(T().joiner);
+const cname = id => CAST[id].name[LANG];
+
+/* =================== audio =================== */
+let actx = null;
+function ac(){ actx = actx || new (window.AudioContext||window.webkitAudioContext)(); if(actx.state==='suspended') actx.resume(); return actx; }
+function psst(){
+  if(!soundOn) return;
+  try{
+    const a = ac(), t = a.currentTime;
+    const buf = a.createBuffer(1, a.sampleRate*.09, a.sampleRate);
+    const d = buf.getChannelData(0);
+    for(let i=0;i<d.length;i++) d[i] = (Math.random()*2-1) * (1 - i/d.length);
+    const src = a.createBufferSource(); src.buffer = buf;
+    const f = a.createBiquadFilter(); f.type='bandpass'; f.frequency.value = 3800; f.Q.value = 1.2;
+    const g = a.createGain(); g.gain.value = .16;
+    src.connect(f).connect(g).connect(a.destination); src.start(t);
+  }catch(e){}
+}
+function tone(freq, dur, vol, type, when){
+  if(!soundOn) return;
+  try{
+    const a = ac(), t = a.currentTime + (when||0);
+    const o = a.createOscillator(), g = a.createGain();
+    o.type = type||'square'; o.frequency.value = freq;
+    g.gain.setValueAtTime(vol||.08, t);
+    g.gain.exponentialRampToValueAtTime(.0001, t+dur);
+    o.connect(g).connect(a.destination); o.start(t); o.stop(t+dur);
+  }catch(e){}
+}
+function sTick(){ tone(700,.05,.05,'triangle'); }
+function sNo(){ tone(160,.14,.07,'sawtooth'); }
+function sWin(){ [523,659,784,1047].forEach((f,i)=>tone(f,.16,.07,'square',i*.09)); }
+function sFail(){ tone(300,.22,.08,'sawtooth'); tone(230,.3,.08,'sawtooth',.18); }
+function buzz(ms){ if(navigator.vibrate) navigator.vibrate(ms); }
+
+let toastT = 0;
+function toast(m){ const t = $('toast'); t.textContent = m; t.classList.add('show');
+  clearTimeout(toastT); toastT = setTimeout(()=>t.classList.remove('show'), 2000); }
+
+/* =================== engine =================== */
+const words = s => s.split(' ');
+function applyQuirk(id, w){
+  const q = CAST[id].quirk;
+  return q ? QUIRKS[q].fn(w, T()) : w.slice();
+}
+function lvText(){ return LEVELS[cur][LANG]; }
+function neighbours(lv, id){
+  const out = [];
+  for(const [a,b] of lv.edges){ if(a===id) out.push(b); if(b===id) out.push(a); }
+  return out;
+}
+/* dev-only solver: __solve(i, lang) enumerates every simple path you→mayor */
+window.__solve = function(li, lang){
+  const L0 = LANG; if(lang) LANG = lang;
+  const lv = LEVELS[li], tx = LEVELS[li][LANG];
+  const sols = [], fails = [];
+  (function dfs(at, visited, route){
+    for(const n of neighbours(lv, at)){
+      if(visited.has(n)) continue;
+      if(n === 'mayor'){
+        let w = words(tx.start);
+        for(const id of route) w = applyQuirk(id, w);
+        (w.join(' ') === tx.target ? sols : fails).push(route.join('→') || '(direct)');
+        continue;
+      }
+      visited.add(n); route.push(n);
+      dfs(n, visited, route);
+      visited.delete(n); route.pop();
+    }
+  })('you', new Set(['you']), []);
+  const out = { level: li+1, title: tx.title, solutions: sols, failing: fails.length };
+  LANG = L0;
+  return out;
+};
+
+/* =================== render =================== */
+function renderWords(el, arr, diffAgainst){
+  el.innerHTML = arr.map((w,i)=>{
+    const d = diffAgainst && (diffAgainst[i] !== w || i >= diffAgainst.length);
+    return `<span class="w${d?' diff':''}">${w}</span>`;
+  }).join('');
+}
+function markDiff(cur, prev){
+  return cur.map((w,i)=> prev[i] !== w || i >= prev.length);
+}
+
+const NODE_R = 26;
+function edgePath(lv, a, b){
+  const [x1,y1] = lv.people[a], [x2,y2] = lv.people[b];
+  const mx = (x1+x2)/2, my = (y1+y2)/2;
+  const dx = x2-x1, dy = y2-y1, len = Math.hypot(dx,dy) || 1;
+  const bow = Math.min(18, len*.12);
+  const cx = mx - dy/len*bow, cy = my + dx/len*bow;
+  return `M ${x1} ${y1} Q ${cx} ${cy} ${x2} ${y2}`;
+}
+function buildMap(){
+  const lv = LEVELS[cur];
+  let s = '';
+  for(const [a,b] of lv.edges) s += `<path class="edge" d="${edgePath(lv,a,b)}"/>`;
+  s += `<g id="yarnG"></g>`;
+  for(const id in lv.people){
+    const [x,y] = lv.people[id];
+    const c = CAST[id];
+    const quirkLabel = c.quirk ? QUIRK_TAG[LANG][c.quirk] : (id==='you' ? S().youLabel : S().mayorLabel);
+    s += `<g class="node ${id==='you'?'you':''} ${id==='mayor'?'mayor':''}" id="n_${id}" data-id="${id}" transform="translate(${x},${y})" style="transform-origin:${x}px ${y}px">
+      <circle class="plate" r="${NODE_R}" fill="${c.c}"/>
+      <circle r="${NODE_R}" fill="${c.c}" opacity=".55"/>
+      <g>${avatarSVG(id, 15)}</g>
+      <g id="badge_${id}"></g>
+      <text class="nname" y="${NODE_R+11}">${cname(id)}</text>
+      <text class="nquirk" y="${NODE_R+21}">${quirkLabel}</text>
+    </g>`;
+  }
+  mapEl.innerHTML = s;
+  mapEl.querySelectorAll('.node').forEach(n=>{
+    n.addEventListener('pointerdown', e=>{ e.preventDefault(); tapNode(n.dataset.id); });
+  });
+  drawYarn();
+}
+function drawYarn(){
+  const lv = LEVELS[cur];
+  const g = $('yarnG');
+  let s = '';
+  let prev = 'you';
+  for(const id of path){
+    s += `<path class="yarn" d="${edgePath(lv, prev, id)}"/>`;
+    prev = id;
+  }
+  g.innerHTML = s;
+  for(const id in lv.people){
+    const node = $('n_'+id);
+    const i = path.indexOf(id);
+    node.classList.toggle('inpath', i >= 0);
+    const badge = $('badge_'+id);
+    badge.innerHTML = i >= 0 && id!=='mayor'
+      ? `<circle cx="${NODE_R-6}" cy="${-NODE_R+6}" r="8" fill="#d0442c" stroke="#8e2d1c"/><text class="stepnum" x="${NODE_R-6}" y="${-NODE_R+9}">${i+1}</text>`
+      : '';
+  }
+  $('sendBtn').disabled = !(path.length && path[path.length-1] === 'mayor' && mode === 'route');
+}
+
+/* =================== interaction =================== */
+function tapNode(id){
+  if(mode !== 'route') { if(mode==='deliver') skipAnim = true; return; }
+  if(id === 'you'){ clearRoute(); return; }
+  const lv = LEVELS[cur];
+  const i = path.indexOf(id);
+  if(i >= 0){
+    path = path.slice(0, i);
+    sTick(); drawYarn(); tickerHint(); return;
+  }
+  const last = path.length ? path[path.length-1] : 'you';
+  if(last === 'mayor'){ toast(S().atMayor); return; }
+  if(!neighbours(lv, last).includes(id)){
+    const n = $('n_'+id);
+    n.classList.remove('no'); void n.getBoundingClientRect(); n.classList.add('no');
+    sNo(); toast(S().noTerms(cname(last), cname(id)));
+    return;
+  }
+  path.push(id);
+  sTick(); buzz(6);
+  drawYarn(); tickerHint();
+}
+function clearRoute(){
+  if(mode !== 'route') return;
+  path = []; drawYarn(); tickerHint(); sTick();
+}
+function tickerHint(){
+  const t = $('ticker');
+  if(!path.length){
+    t.innerHTML = `<span class="hintline">${S().hintStart}</span>`;
+  } else if(path[path.length-1] === 'mayor'){
+    t.innerHTML = `<span class="hintline">${S().hintLaid}</span>`;
+  } else {
+    t.innerHTML = `<span class="hintline">${S().hintMid(cname(path[path.length-1]))}</span>`;
+  }
+}
+
+/* =================== delivery =================== */
+let skipAnim = false;
+const sleep = ms => new Promise(r=>setTimeout(r, ms));
+async function send(){
+  if(mode !== 'route' || !path.length || path[path.length-1] !== 'mayor') return;
+  mode = 'deliver'; skipAnim = false;
+  $('sendBtn').disabled = true;
+  const tx = lvText();
+  let w = words(tx.start);
+  const hops = [];
+  for(const id of path){
+    if(id === 'mayor'){ hops.push({ id, heard: w.slice() }); break; }
+    w = applyQuirk(id, w);
+    hops.push({ id, said: w.slice() });
+  }
+  const t = $('ticker');
+  let prevWords = words(tx.start);
+  t.innerHTML = `<span class="who">${avatarTag('you')}</span><span class="say">“${J(prevWords)}”</span>`;
+  psst();
+  if(!skipAnim) await sleep(650);
+  for(const hop of hops){
+    const node = $('n_'+hop.id);
+    node.classList.add('talking');
+    const said = hop.said || hop.heard;
+    const diffs = markDiff(said, prevWords);
+    const html = said.map((x,i)=> diffs[i] ? `<b>${x}</b>` : x).join(T().joiner);
+    if(hop.id === 'mayor'){
+      t.innerHTML = `<span class="who">${avatarTag('mayor')}</span><span class="say">${S().mayorHears}“${html}”</span>`;
+    } else {
+      t.innerHTML = `<span class="who">${avatarTag(hop.id)}</span><span class="say">${S().passOn(cname(hop.id))}“${html}”</span>`;
+      prevWords = said;
+    }
+    psst(); buzz(5);
+    if(!skipAnim) await sleep(880);
+    node.classList.remove('talking');
+  }
+  const heard = hops[hops.length-1].heard.join(' ');
+  if(heard === tx.target) win(hops); else fail(hops, hops[hops.length-1].heard);
+}
+function traceHTML(hops){
+  const tx = lvText();
+  let prev = words(tx.start);
+  let s = `<div class="hop"><span class="who">${avatarTag('you')}</span><div class="txt">
+    <div class="nm">${cname('you')} <i>${S().youSaidFirst}</i></div><div class="said">“${J(prev)}”</div></div></div>`;
+  for(const hop of hops){
+    if(hop.id === 'mayor') continue;
+    const said = hop.said;
+    const diffs = markDiff(said, prev);
+    const changed = diffs.some(Boolean) || said.length !== prev.length;
+    const html = said.map((x,i)=> diffs[i] ? `<b>${x}</b>` : x).join(T().joiner);
+    s += `<div class="hop${changed?'':' good'}"><span class="who">${avatarTag(hop.id)}</span><div class="txt">
+      <div class="nm">${cname(hop.id)} <i>— ${CAST[hop.id].quirk ? QUIRK_TAG[LANG][CAST[hop.id].quirk] : S().faithful}</i></div>
+      <div class="said">“${html}”</div></div></div>`;
+    prev = said;
+  }
+  return s;
+}
+function win(hops){
+  mode = 'done';
+  sWin(); buzz(25);
+  $('winTitle').textContent = S().delivered;
+  $('winSub').textContent = S().WIN[cur % S().WIN.length] + ' ' + S().winSub(path.length);
+  $('winTrace').innerHTML = traceHTML(hops);
+  $('winNext').textContent = cur+1 < LEVELS.length ? S().winNext : S().winLoop;
+  if(cur+1 >= unlocked && cur+1 < LEVELS.length){
+    unlocked = cur+2;
+    try { localStorage.setItem('hearsay.unlocked', unlocked); } catch(e){}
+  }
+  setTimeout(()=>$('winV').classList.add('show'), 500);
+}
+function fail(hops, heardArr){
+  mode = 'done';
+  sFail(); buzz([30,40,30]);
+  $('failTitle').textContent = (LANG==='zh' ? '「' + J(heardArr) + '」？' : '“' + J(heardArr) + '”?');
+  $('failSub').textContent = S().FAIL[Math.floor(Math.random()*S().FAIL.length)] + ' ' + S().failNeeded(J(words(lvText().target)));
+  $('failTrace').innerHTML = traceHTML(hops);
+  setTimeout(()=>$('failV').classList.add('show'), 500);
+}
+
+/* =================== level flow =================== */
+function loadLevel(i, keepPath){
+  cur = i;
+  const lv = LEVELS[cur], tx = lvText();
+  if(!keepPath) path = [];
+  mode = 'route';
+  $('lvlName').textContent = S().lvlWord(cur+1) + tx.title;
+  $('lvlNote').textContent = tx.note;
+  const sw = words(tx.start), tw = words(tx.target);
+  renderWords($('startW'), sw, null);
+  renderWords($('targetW'), tw, sw);
+  $('lvlCnt').textContent = (cur+1) + ' / ' + LEVELS.length;
+  $('prevBtn').disabled = cur === 0;
+  $('nextBtn').disabled = cur+1 >= Math.min(unlocked, LEVELS.length);
+  buildMap();
+  tickerHint();
+  renderBook();
+}
+function renderBook(){
+  const lv = LEVELS[cur];
+  let s = '';
+  for(const id in lv.people){
+    if(id==='you'||id==='mayor') continue;
+    const c = CAST[id];
+    s += `<div class="qk"><span class="who">${avatarTag(id)}</span><div>
+      <div class="nm">${cname(id)}</div>
+      <div class="ds">${c.quirk ? QUIRK_TAG[LANG][c.quirk] : QUIRK_TAG[LANG].honest}${c.quirk==='names' ? S().namesHint : ''}${c.quirk==='double' ? S().dblHint : ''}</div>
+    </div></div>`;
+  }
+  $('bookList').innerHTML = s;
+}
+function applyLang(){
+  document.documentElement.lang = LANG === 'zh' ? 'zh-CN' : 'en';
+  document.documentElement.classList.toggle('zh', LANG === 'zh');
+  $('langBtn').textContent = LANG === 'zh' ? 'EN' : '中文';
+  $('tagline').textContent = S().tagline;
+  $('lblSay').textContent = S().say;
+  $('lblHear').textContent = S().hear;
+  $('mapLab').textContent = S().town;
+  $('clearBtn').textContent = S().clear;
+  $('sendBtn').textContent = S().send;
+  $('bookBtn').textContent = S().notebook;
+  $('failRetry').textContent = S().retry;
+  $('bookTitle').textContent = S().bookTitle;
+  $('bookSub').textContent = S().bookSub;
+  $('bookClose').textContent = S().bookClose;
+  $('introTitle').textContent = S().introTitle;
+  $('introText').innerHTML = S().introText;
+  $('introGo').textContent = S().introGo;
+}
+
+/* =================== wiring =================== */
+$('sendBtn').addEventListener('click', send);
+$('clearBtn').addEventListener('click', clearRoute);
+$('winNext').addEventListener('click', ()=>{
+  $('winV').classList.remove('show');
+  loadLevel((cur+1) % LEVELS.length);
+});
+$('failRetry').addEventListener('click', ()=>{
+  $('failV').classList.remove('show');
+  mode = 'route';
+  drawYarn(); tickerHint();
+});
+$('prevBtn').addEventListener('click', ()=>{ if(cur>0) loadLevel(cur-1); });
+$('nextBtn').addEventListener('click', ()=>{ if(cur+1<Math.min(unlocked,LEVELS.length)) loadLevel(cur+1); });
+$('bookBtn').addEventListener('click', ()=>$('bookV').classList.add('show'));
+$('bookClose').addEventListener('click', ()=>$('bookV').classList.remove('show'));
+$('bookV').addEventListener('click', e=>{ if(e.target===$('bookV')) $('bookV').classList.remove('show'); });
+$('sndBtn').addEventListener('click', ()=>{
+  soundOn = !soundOn;
+  try { localStorage.setItem('hearsay.sound', soundOn?'on':'off'); } catch(e){}
+  $('sndBtn').textContent = soundOn ? '♪' : '✕';
+  if(soundOn) sTick();
+});
+$('langBtn').addEventListener('click', ()=>{
+  if(mode === 'deliver') return;
+  LANG = LANG === 'zh' ? 'en' : 'zh';
+  try { localStorage.setItem('hearsay.lang', LANG); } catch(e){}
+  applyLang();
+  if(mode === 'done') mode = 'route';         // a bent delivery doesn't survive translation
+  loadLevel(cur, true);                        // same graph — the route survives the switch
+  sTick();
+});
+$('introGo').addEventListener('click', ()=>{
+  $('introV').classList.remove('show');
+  try { localStorage.setItem('hearsay.intro', '1'); } catch(e){}
+});
+
+/* boot */
+$('sndBtn').textContent = soundOn ? '♪' : '✕';
+applyLang();
+loadLevel(cur);
+try { if(!localStorage.getItem('hearsay.intro')) $('introV').classList.add('show'); } catch(e){}
+</script>
+</body>
+</html>
