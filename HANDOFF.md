@@ -379,8 +379,10 @@ The site now has TWO shelves on one repo/origin:
 - **tales.** (`/tales/`): the DAYLIGHT shelf for story games — bigger rules,
   little narratives, deliberately breaking the night house style (cream paper
   `#f4ead6`, ink `#33291c`, postal red/blue/gold, Caveat + Karla + Ma Shan
-  Zheng, wobbly 2px-ink borders + offset shadows). The two hubs cross-link
-  (cream "tales." card at the top of play., night pill at the top of tales.).
+  Zheng, wobbly 2px-ink borders + offset shadows). The two hubs cross-link via a
+  **☾ night / ☀ day segmented switch** in both headers (owner asked for day mode
+  to be its own screen — the original cream "tales." card inside the night list
+  was removed the same day).
   New story games: new folder + a story-card in `tales/index.html` (with the
   `.story` blurb) + a read-only progress stamp. They are NOT added to sync.js
   unless there's a reason.

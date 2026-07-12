@@ -45,11 +45,13 @@
   .sun { display:inline-block; width:.62em; height:.62em; border-radius:50%;
     background:var(--gold); box-shadow:0 0 0 4px rgba(233,168,36,.25); margin-right:10px; }
   .tagline { font-family:'Caveat', cursive; font-size:1.15rem; color:var(--ink-soft); padding:6px 0 0; }
-  .nightlink { display:inline-block; margin-top:14px; font-size:.78rem; font-weight:600; color:var(--ink-soft);
-    text-decoration:none; padding:8px 16px; border-radius:99px; border:2px solid var(--ink);
-    background:#2b2342; color:#f2edf7; box-shadow:2.5px 2.5px 0 rgba(51,41,28,.35);
-    transition:transform .12s ease; }
-  .nightlink:active { transform:translate(2px,2px); box-shadow:none; }
+  .modes { display:inline-flex; margin-top:14px; border:2px solid var(--ink);
+    border-radius:99px; overflow:hidden; background:var(--card);
+    box-shadow:2.5px 2.5px 0 rgba(51,41,28,.3); }
+  .mode { padding:9px 18px; font-family:'Karla'; font-size:.76rem; font-weight:800;
+    letter-spacing:.06em; color:var(--ink-soft); text-decoration:none; }
+  .mode.night { background:#2b2342; color:#f2edf7; }
+  .mode.on { background:var(--gold); color:var(--ink); }
 
   main { width:min(94vw, 440px); display:flex; flex-direction:column; gap:16px;
     padding: clamp(18px,4vh,32px) 0 40px; }
@@ -90,7 +92,10 @@
 <header>
   <h1><span class="sun"></span>tales<em>.</em></h1>
   <div class="tagline">little games with little stories · 有故事的小游戏</div>
-  <a class="nightlink" href="../">☾ &nbsp;play. — the quiet night games</a>
+  <div class="modes">
+    <a class="mode night" href="../">☾ night</a>
+    <span class="mode on">☀ day</span>
+  </div>
 </header>
 
 <main>

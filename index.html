@@ -85,6 +85,15 @@
   footer { font-size:.68rem; font-weight:300; letter-spacing:.12em; color:var(--ink-dim);
     text-align:center; padding: 0 24px 36px; margin-top:auto; }
 
+  /* ---- night / day mode switch ---- */
+  .modes { display:inline-flex; margin-top:14px; border:1px solid var(--glass-edge);
+    border-radius:99px; overflow:hidden;
+    background-color:transparent; background-image:linear-gradient(var(--glass),var(--glass)); }
+  .mode { padding:9px 18px; font-size:.74rem; font-weight:400; letter-spacing:.08em;
+    color:var(--ink-dim); text-decoration:none; transition:color .2s ease; }
+  .mode.on { background-image:linear-gradient(#463a6e,#463a6e); color:var(--ink); }
+  .mode.day { color:#e9c886; }
+
   /* ---- one sign-in for the whole hub ---- */
   .sync { margin-top:16px; font-family:'Outfit',sans-serif; font-size:.74rem; font-weight:400;
     letter-spacing:.06em; color:var(--ink-dim); cursor:pointer;
@@ -109,25 +118,15 @@
 <header>
   <h1>play<em>.</em></h1>
   <div class="tagline">no ads · just play</div>
+  <div class="modes">
+    <span class="mode on">☾ night</span>
+    <a class="mode day" href="tales/">☀ day</a>
+  </div>
+  <br>
   <button class="sync" id="syncBtn" aria-label="Sync progress across devices">☁ sign in to sync</button>
 </header>
 
 <main>
-  <a class="card" href="tales/" style="background-image:linear-gradient(160deg,#f4ead6,#efe2c8); border-color:rgba(51,41,28,.4);">
-    <div class="art" style="background-image:linear-gradient(#fdf7ea,#fdf7ea); border-color:rgba(51,41,28,.3);">
-      <svg viewBox="0 0 36 36" fill="none">
-        <circle cx="18" cy="13" r="6.5" fill="#e9a824"/>
-        <path d="M8 25 Q18 19 28 25" stroke="#33291c" stroke-width="2.2" stroke-linecap="round"/>
-        <path d="M10 30 Q18 25 26 30" stroke="#d0442c" stroke-width="2" stroke-linecap="round" stroke-dasharray="3 3"/>
-      </svg>
-    </div>
-    <div class="info">
-      <h2 style="color:#33291c;">tales<em style="color:#d0442c;">.</em></h2>
-      <p style="color:#7a6a52;">the daylight shelf — story games</p>
-    </div>
-    <span class="go" style="color:#7a6a52;">›</span>
-  </a>
-
   <a class="card" href="pour/">
     <div class="art">
       <svg viewBox="0 0 36 36" fill="none">
