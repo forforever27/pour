@@ -361,6 +361,26 @@
     <span class="prog fresh" id="wingsProg">new</span>
     <span class="go">›</span>
   </a>
+
+  <a class="card" href="ripple/">
+    <div class="art">
+      <svg viewBox="0 0 36 36" fill="none">
+        <circle cx="13" cy="23" r="4" stroke="rgba(235,240,255,.5)" stroke-width="1.6"/>
+        <circle cx="13" cy="23" r="8.5" stroke="rgba(235,240,255,.28)" stroke-width="1.3"/>
+        <circle cx="13" cy="23" r="13" stroke="rgba(235,240,255,.14)" stroke-width="1.1"/>
+        <circle cx="25" cy="11" r="6" fill="rgba(255,200,87,.22)"/>
+        <circle cx="25" cy="11" r="4.4" fill="#ffc857"/>
+        <circle cx="25" cy="11" r="1.8" fill="#fff3c4"/>
+      </svg>
+    </div>
+    <div class="info">
+      <h2>ripple<em>.</em></h2>
+      <p>nudge the lanterns home</p>
+    </div>
+    <span class="prog fresh" id="rippleProg">new</span>
+    <span class="go">›</span>
+  </a>
+
 </main>
 
 <footer id="foot">progress saves on this device · sign in to sync</footer>
@@ -434,6 +454,10 @@ function renderChips() {
   try {
     const b = parseInt(localStorage.getItem('wings.best') || '0', 10);
     if (b > 0) setChip('wingsProg', b + ' gates');
+  } catch(e) {}
+  try {
+    const lv = parseInt(localStorage.getItem('ripple.level') || '1', 10);
+    if (lv > 1) setChip('rippleProg', 'level ' + lv);
   } catch(e) {}
 }
 renderChips();

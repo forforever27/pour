@@ -14,7 +14,8 @@ catch-up for any new session.
 - **Local working copy:** `C:\Users\user\Desktop\AGENT\Others\Games\Pour\`
   (folder is still named `Pour` for historical reasons — it is the **whole-site repo**, not just Pour)
 - **Deploy:** push to `main`. GitHub Pages serves `main` at root `/`. No build step.
-- **Games:** Pour, Sudoku, Codeword, 2048, Drop, Ember, Sweets, Dots, Bus — 9 total.
+- **Games:** Pour, Sudoku, Codeword, 2048, Drop, Ember, Sweets, Dots, Bus, Blocks,
+  Hanoi, Stack, Wings, Isle, Ripple — 15 total.
 - **Cross-device sync:** optional, offline-first, via Firebase (project `play-ee089`). One
   Google sign-in **on the hub** mirrors every game's progress across devices. Signed out,
   the games are unchanged and fully offline. See **Cross-device cloud sync** below.
@@ -80,6 +81,12 @@ touches another:
 | Sweets   | `/sweets/`   | `sweets.state`, `sweets.best`, `sweets.level`, `sweets.sound` |
 | Dots     | `/dots/`     | `dots.state`, `dots.best`, `dots.level`, `dots.sound` |
 | Bus      | `/bus/`      | `bus.state`, `bus.level`, `bus.sound`, `bus.tut` |
+| Blocks   | `/blocks/`   | `blocks.state`, `blocks.best`, `blocks.sound`, `blocks.tut` |
+| Hanoi    | `/hanoi/`    | `hanoi.state`, `hanoi.level`, `hanoi.sound`, `hanoi.tut` |
+| Stack    | `/stack/`    | `stack.best`, `stack.sound`, `stack.tut` |
+| Wings    | `/wings/`    | `wings.best`, `wings.sound`, `wings.tut` |
+| Isle     | `/isle/`     | `isle.town`, `isle.sound`, `isle.tut` |
+| Ripple   | `/ripple/`   | `ripple.level`, `ripple.sound`, `ripple.tut` |
 
 The hub (`/index.html`) reads these **read-only** to show a progress chip on each card.
 
@@ -149,6 +156,13 @@ JSON object.
 | Sweets   | `sweets.level`, `sweets.best`  | max, max         |
 | Dots     | `dots.level`, `dots.best`      | max, max         |
 | Bus      | `bus.level`                    | max              |
+| Blocks   | `blocks.best`                  | maxmap (per mode)|
+| Hanoi    | `hanoi.level`                  | max              |
+| Stack    | `stack.best`                   | max              |
+| Wings    | `wings.best`                   | max              |
+| Ripple   | `ripple.level`                 | max              |
+
+(Isle is deliberately NOT synced — a sandbox town is per-device.)
 
 ### Wiring a game (what each game does)
 - Loads `../sync.js` before its main `<script>`.
@@ -329,6 +343,33 @@ the live connecting line in the dot's colour. Cleared dots fall, new ones drop
 connect/clear, persisted in `dots.state.u`. `dots.state` = {colours, score, level, goal,
 undo snapshot}. Path/loop logic lives in the `pointerdown/move/up` handlers + `resolve()`.
 
+### Ripple — `/ripple/` (added 2026-07-12)
+**An original mechanic, not a clone of anything:** paper lanterns float on a still
+night pond; tapping the water spawns an expanding ripple that pushes every free
+lantern **away** from the tap point (so you tap *behind* a lantern to nudge it
+forward). **Press-and-hold charges a stronger wave** (0.9 s to full; a quick tap is
+the gentlest). Goal: guide each lantern into the ring of its own colour; stones are
+fixed obstacles to wash around. **No timer, no fail, unlimited ripples** — the only
+score is how few ripples a level took (shown in the header + win card).
+- **Fixed logical world 390×560** — the canvas scales it uniformly (CSS
+  `aspect-ratio` locks the shape), so phone/tablet/desktop play the identical level;
+  pointer input divides by `scale`.
+- **Physics:** exponential water drag, soft wall/stone/lantern collisions, speed cap.
+  Each ripple ring applies its impulse to each lantern **exactly once** as the front
+  passes (per-ripple `hit` set), falloff `1/(1+(d/110)²)` so taps stay local. The
+  correct ring is gently **magnetic** within 46 px and catches lanterns slower than
+  70 px/s; docked lanterns are locked and immune.
+- **Levels are seeded** (level number = seed, mulberry32) → endless, and replaying a
+  level regenerates the same layout. Ramp: 1 lantern (lv 1–2) → 2 (3–5) → 3 (6–10)
+  → 4 (11–17) → 5 (18+); stones from lv 5, up to 6. Placement is rejection-sampled
+  with generous gaps (every stone gap fits a lantern with room to spare), and lantern
+  spawn clearance from stones/rings is a HARD constraint even in the relaxed
+  fallbacks (a soft-fallback bug that could spawn a lantern inside a stone was found
+  at lv 60 and fixed; generation audited clean for levels 1–400).
+- Pour-style controls: Restart (same seed), free Skip, Levels replay (any level ≤
+  `progress`; replays never shrink progress). `ripple.level` = furthest unlocked,
+  saved BEFORE `PlaySync.push()` on win/skip.
+
 ---
 
 ## Tech / workflow notes
@@ -364,7 +405,56 @@ undo snapshot}. Path/loop logic lives in the `pointerdown/move/up` handlers + `r
 
 ---
 
-_Last updated after (2026-07-12, sixth pass — blocks juice per owner): while dragging a
+_Last updated after (2026-07-12, ninth pass): **ripple.** (`/ripple/`) built and
+verified — the 15th game, an original invention (tap-to-ripple lantern herding; see
+its section above). Verified in a browser end to end: tutorial pages, level 1 solved
+by simulated waves (3 ripples), a 3-lantern + 2-stone level solved by a naive bot
+(5 ripples — comfortably winnable), tap vs hold strengths (150/400), taps blocked
+under overlays, restart/skip/levels/sound pills, reload resumes furthest level,
+seeded generation deterministic and audited clean lv 1–400 (one spawn-inside-stone
+fallback bug found and fixed), hub card + chip, sync REGISTRY entry resolves with no
+console warnings. Mobile 375-wide and desktop layouts both verified (fixed 390×560
+logical world, uniform scale). Owner played it, liked it → PUSHED LIVE 2026-07-12
+(ripple only — the isle card + chip were stripped from the committed hub page and
+restored locally afterwards; isle itself remains local-only, awaiting her playtest).
+Prior (same day, eighth pass — isle ART REWORK after owner rejected the
+first look as "too small… they don't even look like houses"; diagnosis from a canvas
+capture confirmed stacked-coin cylinders + a 40%-of-canvas island): grid radius 5→4 (cells
+~35% bigger, 237 verts/208 quads — NOTE: old saves regenerate fresh, deliberate
+pre-launch), island fills ~92% of stage width with full-height sea; marching corner
+rounding cut to a ~14% chamfer (huts read square); walls drawn as ONE continuous face per
+colour run (no per-level rings); houses now have dark slate-plum roof caps with 7% eave
+overhang + pale-lavender trim, chimneys on ~30% of stacks, deterministic warm glowing
+windows with dark frames per level on front facades, and an arched door at ground level;
+island got an opaque ground, 3-tone rocky cliff, and waterline foam. Verified again end to
+end (tap accuracy at new scale, cap/undo/save/recipes, occlusion pixel-check, 5.3ms
+worst-case render, zero console errors). Screenshot sent to owner — genuinely reads as a
+cosy night town now. Known cosmetic quirk to polish: tall stacks with the lantern glow can
+show a star-shaped roof outline (seen on an amber tower). Still awaiting owner
+playtest+push.
+Prior (same day, seventh pass — COMPLETE, awaiting owner playtest+push):
+**isle.** (`/isle/`, 907 lines) built and verified twice (builder's pass + an independent
+pass driving the real code paths in a browser: grid 363 verts/332 quads no-NaN, 5-stack
+cap holds, erase, unlimited undo round-trips byte-identical, save→reload restores the
+exact town, garden recipe fires AND dissolves, tower lantern at height 4, no console
+errors, no sync script). Notable impl details: static town cached on an offscreen canvas
+layer (water/fireflies at 30fps, sleeps on document.hidden; worst-case full-island render
+10.8ms); height-cap feedback is a whole-island bob + thud; half-cell tiles take one
+anchor colour to avoid seams. Was built as — a calm Townscaper-INSPIRED town toy (original homage: own name/art/
+sounds; mechanics only, which are not copyrightable — deep-research report confirmed the
+boundaries and algorithms). Design: wobbly all-quad grid (hexagon → triangles → random
+merge → subdivide → relax, seeded/deterministic), build state on grid corners with
+5-level stack cap (owner asked 3–5; original's ~15 deemed too tall for phone canvas),
+marching-squares corner-occupancy auto-tiling (NO constraint solver) bilinearly warped
+onto wobbly quads, pseudo-3D painter's-order canvas render, water shimmer, hidden recipes
+(gardens on enclosed vertices, lantern glow on height≥4 towers) with chimes, unlimited
+undo, 4 muted swatches + erase, no goals/score. Keys `isle.town/sound/tut`; deliberately
+NOT cloud-synced (sandbox town is per-device; hub chip reads local block count). Hub card
++ chip ADDED to `index.html`. Game file `isle/index.html` being written — NOT yet
+complete/tested/pushed.
+Prior (same day, sixth pass — blocks juice per owner; ALL four new games
++ hub/sync wiring PUSHED to GitHub Pages this day as commit 39e4945 — the "not pushed"
+notes in the older entries below are historical): while dragging a
 piece, if the hovered spot would complete a line, the WHOLE row/column now lights up with
 a subtle amber glow (`willSet` + `.cell.will`, cleared on drop/cancel/undo/restart) on top
 of the existing gold ghost; and clears now pop a floating Fraunces celebration word over
