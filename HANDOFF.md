@@ -401,7 +401,23 @@ for editing.
   (猫↔帽 鱼↔雨 糖↔汤 船↔床 花↔画), 「不」 inserted BEFORE the verb
   (`notPos:'before'`), names cycle 小美→小芳→小刚, numbers 一两三…→无数.
   Cast has zh names (阿诚/莎莎/阿涛/薇姨/大宝二宝三宝/诗诗韵韵/伊姨梅姨/丽丽/佩姐/老唐).
-- **12 hand-made levels share ONE graph per level** with per-language
+- **CHAPTER TWO (levels 13–18, added 2026-07-13** after the owner finished all
+  12 and asked for real difficulty): each level is built on a harder mechanic —
+  L13 echo/forget TOLL BALANCE (an echo must come before each forgetful, like
+  balanced parentheses; new cast lulu/露露 echo + ted/阿德 forget), L14 POET
+  PARITY (3 poets, even count = identity; new 3rd poet skye/云云), L15
+  DELIBERATE LOSS (target = start minus exactly one tail word; echo must not
+  come last), L16 NOT-LAUNDERING (a forced Vera inserts「不」, new nell/妮姨
+  removes it — either order works, both are involutions), L17 STRICT ORDER
+  (pedant BEFORE flatterer or "lovely" gets stripped; unique solution among 12
+  paths), L18 finale "the perfect rumor" — 12-node map, mayor in the CENTRE,
+  seven required mouths (ida→gus→gil→nina→petra→lila→may, the ONLY winning
+  simple path among 34) and three poisoners to avoid. **Unlock migration:** the
+  old 12-level build couldn't record beating L12, so boot promotes stored
+  `unlocked===12` → 13. Node-spacing audit: keep every pair of people ≥ ~60px
+  apart (plates are 52px wide — a petra/vera overlap at 41px was caught and
+  respaced). Tales chip thresholds updated 12→18.
+- **12 original + 6 chapter-two levels share ONE graph per level** with per-language
   start/target/title/note. The console solver `__solve(i, 'en'|'zh')`
   enumerates every simple path you→mayor; after ANY edit to levels or word
   tables, re-run it for all 12 × both languages. Verified 2026-07-12: both
