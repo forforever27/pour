@@ -455,7 +455,21 @@ for editing.
 
 ---
 
-_Last updated after (2026-07-12, tenth pass): **the "tales." daylight section +
+_Last updated after (2026-07-13, eleventh pass — owner's first hearsay playtest
+feedback): **map clipped on real phones, FIXED + pushed** (commit 0a5fe07). Root
+cause: `body { height:100% }` + flex column — on screens shorter than the
+content, flex shrinks the one child with no intrinsic min-height (the map's
+SVG) and the mapbox's `overflow:hidden` clips it; page didn't scroll because
+everything had been squashed to fit. My 375×812 test viewport was tall enough
+to never trigger it. Fix: `body { min-height:100% }` (page grows + scrolls) +
+`.mapbox { flex:none }`, applied to BOTH hearsay and tales. Reproduced at
+360×660 pre-fix behaviour, verified post-fix: svg renders at exact aspect
+height, page scrolls, whole town visible. **Lesson for future one-page games:
+never give a flex body a fixed height; test on a SHORT viewport (~360×640),
+not just 375×812.** Also that day: tales tagline trimmed to English-only
+(owner request; commit 44a1222). Owner is now playtesting both hubs — more
+feedback expected.
+Prior (2026-07-12, tenth pass): **the "tales." daylight section +
 bilingual hearsay** — see the new section above. Owner asked for a Chinese
 version of hearsay and a light-mode shelf for story games on the same repo.
 Built `/tales/` (daylight hub, cross-linked with play.), moved hearsay into the
