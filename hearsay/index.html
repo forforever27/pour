@@ -22,8 +22,12 @@
     --card: #fdf7ea;
   }
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-  html, body { height:100%; }
+  html { height:100%; }
+  /* body must NOT have a fixed height: as a flex container it would shrink the
+     map (the svg has no intrinsic min-height) and overflow:hidden clips it.
+     min-height lets the page grow and scroll normally on short screens. */
   body {
+    min-height:100%;
     font-family:'Karla', sans-serif;
     background: var(--paper);
     color: var(--ink);
@@ -70,7 +74,7 @@
   .msgrow.target .w.diff { background:rgba(58,110,165,.22); color:var(--blue); }
 
   .mapbox { position:relative; background:var(--paper-2); border:2px solid var(--ink); border-radius:16px;
-    box-shadow:3px 3px 0 rgba(51,41,28,.3); overflow:hidden; margin:0 2px; }
+    box-shadow:3px 3px 0 rgba(51,41,28,.3); overflow:hidden; margin:0 2px; flex:none; }
   .mapbox svg { display:block; width:100%; height:auto; }
   .maplab { position:absolute; top:7px; left:10px; font-size:.95rem; color:var(--ink-soft); pointer-events:none; }
 

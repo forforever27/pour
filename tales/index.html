@@ -21,8 +21,11 @@
     --card: #fdf7ea;
   }
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-  html, body { height:100%; }
+  html { height:100%; }
+  /* min-height (not height): a fixed-height flex body squashes children on
+     short screens instead of letting the page scroll */
   body {
+    min-height:100%;
     font-family:'Karla', sans-serif;
     background: var(--paper);
     color: var(--ink);
