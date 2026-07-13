@@ -47,7 +47,8 @@
   body::after { content:""; position:fixed; inset:0; z-index:40; pointer-events:none; opacity:.06;
     background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.7'/%3E%3C/svg%3E"); }
 
-  .page { width:min(96vw, 460px); display:flex; flex-direction:column; min-height:100dvh; padding-bottom:12px; }
+  .page { width:min(96vw, 460px); display:flex; flex-direction:column;
+    min-height:100vh; min-height:100dvh; padding-bottom:12px; }
 
   header { display:flex; align-items:baseline; justify-content:space-between; padding:10px 6px 2px; }
   h1 { font-weight:700; font-size:2.05rem; letter-spacing:.01em; line-height:1; }
@@ -162,10 +163,13 @@
   html.zh .nquirk { font-size:8.6px; font-style:normal; }
   html.zh .nname { font-size:10.5px; }
   .stepnum { font-family:'Karla'; font-weight:800; font-size:9px; fill:#fff7ec; text-anchor:middle; }
+  /* animate an INNER group only: a CSS transform on the positioned <g> would
+     REPLACE its translate(x,y) attribute and send the portrait flying */
+  .wob { transform-box:fill-box; transform-origin:center; }
   @keyframes jig { 0%,100%{transform:rotate(0)} 25%{transform:rotate(-4deg)} 75%{transform:rotate(4deg)} }
-  .node.talking { animation:jig .3s ease infinite; }
+  .node.talking .wob { animation:jig .3s ease infinite; }
   @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-3px)} 75%{transform:translateX(3px)} }
-  .node.no { animation:shake .25s ease 2; }
+  .node.no .wob { animation:shake .25s ease 2; }
 </style>
 </head>
 <body>
@@ -674,13 +678,15 @@ function buildMap(){
     const [x,y] = lv.people[id];
     const c = CAST[id];
     const quirkLabel = c.quirk ? QUIRK_TAG[LANG][c.quirk] : (id==='you' ? S().youLabel : S().mayorLabel);
-    s += `<g class="node ${id==='you'?'you':''} ${id==='mayor'?'mayor':''}" id="n_${id}" data-id="${id}" transform="translate(${x},${y})" style="transform-origin:${x}px ${y}px">
-      <circle class="plate" r="${NODE_R}" fill="${c.c}"/>
-      <circle r="${NODE_R}" fill="${c.c}" opacity=".55"/>
-      <g>${avatarSVG(id, 15)}</g>
-      <g id="badge_${id}"></g>
-      <text class="nname" y="${NODE_R+11}">${cname(id)}</text>
-      <text class="nquirk" y="${NODE_R+21}">${quirkLabel}</text>
+    s += `<g class="node ${id==='you'?'you':''} ${id==='mayor'?'mayor':''}" id="n_${id}" data-id="${id}" transform="translate(${x},${y})">
+      <g class="wob">
+        <circle class="plate" r="${NODE_R}" fill="${c.c}"/>
+        <circle r="${NODE_R}" fill="${c.c}" opacity=".55"/>
+        <g>${avatarSVG(id, 15)}</g>
+        <g id="badge_${id}"></g>
+        <text class="nname" y="${NODE_R+11}">${cname(id)}</text>
+        <text class="nquirk" y="${NODE_R+21}">${quirkLabel}</text>
+      </g>
     </g>`;
   }
   mapEl.innerHTML = s;
@@ -689,6 +695,8 @@ function buildMap(){
   });
   drawYarn();
 }
+// tapping anywhere on the map (not just a person) fast-forwards a delivery
+mapEl.addEventListener('pointerdown', ()=>{ if(mode === 'deliver') skipAnim = true; });
 function drawYarn(){
   const lv = LEVELS[cur];
   const g = $('yarnG');
@@ -750,10 +758,12 @@ function tickerHint(){
 
 /* =================== delivery =================== */
 let skipAnim = false;
+let deliverGen = 0;        // bumped by loadLevel — a stale send() must stop touching the new map
 const sleep = ms => new Promise(r=>setTimeout(r, ms));
 async function send(){
   if(mode !== 'route' || !path.length || path[path.length-1] !== 'mayor') return;
   mode = 'deliver'; skipAnim = false;
+  const myGen = ++deliverGen;
   $('sendBtn').disabled = true;
   const tx = lvText();
   let w = words(tx.start);
@@ -768,6 +778,7 @@ async function send(){
   t.innerHTML = `<span class="who">${avatarTag('you')}</span><span class="say">“${J(prevWords)}”</span>`;
   psst();
   if(!skipAnim) await sleep(650);
+  if(myGen !== deliverGen) return;
   for(const hop of hops){
     const node = $('n_'+hop.id);
     node.classList.add('talking');
@@ -783,6 +794,7 @@ async function send(){
     psst(); buzz(5);
     if(!skipAnim) await sleep(880);
     node.classList.remove('talking');
+    if(myGen !== deliverGen) return;
   }
   const heard = hops[hops.length-1].heard.join(' ');
   if(heard === tx.target) win(hops); else fail(hops, hops[hops.length-1].heard);
@@ -829,6 +841,7 @@ function fail(hops, heardArr){
 
 /* =================== level flow =================== */
 function loadLevel(i, keepPath){
+  deliverGen++;              // abandon any delivery still animating on the old map
   cur = i;
   const lv = LEVELS[cur], tx = lvText();
   if(!keepPath) path = [];
@@ -890,8 +903,8 @@ $('failRetry').addEventListener('click', ()=>{
   mode = 'route';
   drawYarn(); tickerHint();
 });
-$('prevBtn').addEventListener('click', ()=>{ if(cur>0) loadLevel(cur-1); });
-$('nextBtn').addEventListener('click', ()=>{ if(cur+1<Math.min(unlocked,LEVELS.length)) loadLevel(cur+1); });
+$('prevBtn').addEventListener('click', ()=>{ if(mode!=='deliver' && cur>0) loadLevel(cur-1); });
+$('nextBtn').addEventListener('click', ()=>{ if(mode!=='deliver' && cur+1<Math.min(unlocked,LEVELS.length)) loadLevel(cur+1); });
 $('bookBtn').addEventListener('click', ()=>$('bookV').classList.add('show'));
 $('bookClose').addEventListener('click', ()=>$('bookV').classList.remove('show'));
 $('bookV').addEventListener('click', e=>{ if(e.target===$('bookV')) $('bookV').classList.remove('show'); });
