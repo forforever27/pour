@@ -148,8 +148,8 @@
   try {
     const u = parseInt(localStorage.getItem('hearsay.unlocked') || '1', 10);
     const el = document.getElementById('hearsayProg');
-    if (u >= 12) { el.textContent = 'all delivered ✦'; el.classList.remove('fresh'); }
-    else if (u > 1) { el.textContent = 'errand ' + u + ' / 12'; el.classList.remove('fresh'); }
+    if (u >= 18) { el.textContent = 'all delivered ✦'; el.classList.remove('fresh'); }
+    else if (u > 1) { el.textContent = 'errand ' + u + ' / 18'; el.classList.remove('fresh'); }
   } catch(e) {}
 })();
 </script>

@@ -330,6 +330,11 @@ const CAST = {
   lila:  { name:{en:'lila', zh:'丽丽'},     quirk:'lovely',  c:'#f4b8c8', hair:'curls',  extra:'bow' },
   petra: { name:{en:'petra', zh:'佩姐'},    quirk:'plain',   c:'#c8c8b8', hair:'flat',   extra:'sqglasses' },
   otto:  { name:{en:'otto', zh:'老唐'},     quirk:'opposite',c:'#a8cbe8', hair:'updo',   extra:null },
+  /* chapter-two townsfolk */
+  lulu:  { name:{en:'lulu', zh:'露露'},     quirk:'echo',    c:'#f5c0a5', hair:'curls',  extra:'freckles' },
+  ted:   { name:{en:'ted', zh:'阿德'},      quirk:'forget',  c:'#a9bfd8', hair:'flat',   extra:'sleepy' },
+  skye:  { name:{en:'skye', zh:'云云'},     quirk:'rhyme',   c:'#a9d8cf', hair:'beret',  extra:'bow' },
+  nell:  { name:{en:'nell', zh:'妮姨'},     quirk:'not',     c:'#c9b5d8', hair:'bun',    extra:'freckles' },
 };
 
 function avatarSVG(id, r){
@@ -477,6 +482,69 @@ const LEVELS = [
     zh:{ title:'大宗快递',
       note:'你学过的全部本事，都在这一单里。这句话必须经过五个人——还有三个人绝对不能碰。',
       start:'带 两 块 饼 给 小美', target:'不 带 四 块 可爱的 饼 给 小刚' } },
+
+  /* ============ chapter two — the town gets tricky ============ */
+  { people:{ you:[180,308], rosa:[90,252], tom:[258,252], lulu:[72,150], finn:[300,152], ted:[180,118], mayor:[180,44] },
+    edges:[['you','rosa'],['you','tom'],['rosa','tom'],['rosa','lulu'],['tom','lulu'],['tom','ted'],
+           ['lulu','ted'],['ted','mayor'],['lulu','mayor'],['you','finn'],['finn','ted']],
+    en:{ title:'the toll bridges',
+      note:'Chapter two — the town gets tricky. Two forgetful ferrymen guard the way. An echo can pay a forgetful toll — but only if it comes BEFORE the toll, never after.',
+      start:'meet me at the old mill gate', target:'meet me at the old mill gate' },
+    zh:{ title:'过桥费',
+      note:'下半场——镇子开始使坏了。两位健忘的摆渡人守着路。回声能替你垫上买路钱——但得垫在前头，不能垫在后头。',
+      start:'中午 在 老 磨坊 见', target:'中午 在 老 磨坊 见' } },
+
+  { people:{ you:[180,305], nina:[100,245], rosa:[278,248], noor:[100,138], finn:[278,140], skye:[180,82], mayor:[262,52] },
+    edges:[['you','nina'],['you','rosa'],['nina','noor'],['nina','rosa'],['rosa','mayor'],
+           ['noor','skye'],['noor','finn'],['finn','mayor'],['skye','mayor']],
+    en:{ title:'the poets’ parade',
+      note:'Three poets, one parade. Every poet swaps EVERY rhyme she can — so passing an even number of them is a walk back to where you started.',
+      start:'the cat by the lake sings at night', target:'the hat by the cake sings at light' },
+    zh:{ title:'诗人游行',
+      note:'三位诗人在游行。每位诗人都会把能换的字全换掉——走过偶数位，等于白走一趟。',
+      start:'猫 在 船 边 看 画', target:'帽 在 床 边 看 花' } },
+
+  { people:{ you:[180,305], tom:[120,238], rosa:[255,238], ted:[120,128], finn:[288,130], mayor:[180,52] },
+    edges:[['you','rosa'],['you','tom'],['rosa','tom'],['tom','ted'],['rosa','ted'],
+           ['ted','mayor'],['ted','finn'],['finn','mayor']],
+    en:{ title:'keep it buried',
+      note:'The mayor should know about the gold — but not exactly where. Lose precisely ONE word from the tail, no more — and mind which ferryman eats first.',
+      start:'the gold is buried under the plum tree', target:'the gold is buried under the plum' },
+    zh:{ title:'埋好的金子',
+      note:'金子的事可以告诉镇长——但别说得太准。句尾只能丢一个词，多一个都不行。想清楚哪位先吃掉哪个字。',
+      start:'金子 埋 在 梅 树 下', target:'金子 埋 在 梅 树' } },
+
+  { people:{ you:[180,305], vera:[180,228], rosa:[70,240], nell:[95,150], finn:[265,150], petra:[295,238], mayor:[180,55] },
+    edges:[['you','vera'],['you','petra'],['you','rosa'],['vera','nell'],['vera','finn'],
+           ['nell','mayor'],['finn','mayor'],['petra','mayor'],['nell','finn'],['rosa','nell']],
+    en:{ title:'the extra not',
+      note:'The only good road to the mayor runs straight through Vera. What one doubter slips in, another doubter can take back out.',
+      start:'everyone likes the new bell', target:'everyone likes the new bell' },
+    zh:{ title:'多余的「不」',
+      note:'去镇长家的正路绕不开薇姨。一个人硬塞进来的「不」，另一个同样的人能拿走。',
+      start:'大家 都 要 新 铃铛', target:'大家 都 要 新 铃铛' } },
+
+  { people:{ you:[180,308], lila:[92,248], petra:[268,248], nina:[180,178], tom:[88,120], vera:[272,120], mayor:[180,48] },
+    edges:[['you','lila'],['you','petra'],['petra','lila'],['lila','nina'],['petra','nina'],
+           ['nina','tom'],['nina','vera'],['nina','mayor'],['tom','mayor'],['vera','mayor']],
+    en:{ title:'the pedant’s wedding',
+      note:'Three touches needed — but the pedant erases “lovely” as happily as “red”, so think about who goes first. (And yes, the poet will do that to the rose.)',
+      start:'the red rose is the prize at the wedding', target:'the lovely nose is the prize at the wedding' },
+    zh:{ title:'较真的婚礼',
+      note:'这句话要经三个人的手——可较真的佩姐连「可爱的」也一并删掉，想想谁先谁后。（对，诗诗就是会把花说成画。）',
+      start:'红 花 是 婚礼 的 奖品', target:'可爱的 画 是 婚礼 的 奖品' } },
+
+  { people:{ you:[180,318], ida:[85,275], gus:[48,195], gil:[85,112], nina:[158,66], petra:[292,118], lila:[300,200],
+             may:[258,262], mayor:[180,168], rosa:[180,255], tom:[112,178], vera:[238,50] },
+    edges:[['you','ida'],['ida','gus'],['gus','gil'],['gil','nina'],['nina','petra'],['petra','lila'],
+           ['lila','may'],['may','mayor'],['you','rosa'],['rosa','mayor'],['rosa','may'],
+           ['gus','tom'],['gil','tom'],['tom','mayor'],['nina','vera'],['vera','petra'],['vera','lila'],['nina','mayor']],
+    en:{ title:'the perfect rumor',
+      note:'The last errand. Seven mouths must shape it — both gossips, both twins, the poet, the pedant and the flatterer (think hard about those last two) — and three neighbours must never hear a word of it.',
+      start:'anna won two pies at the big fair by the lake', target:'carl won eight lovely pies at the fair by the cake' },
+    zh:{ title:'完美的谣言',
+      note:'最后一单。七张嘴都得碰它——两位八卦、宝家俩兄弟、诗诗、佩姐和丽丽（后两位谁先谁后要想清楚）——还有三个人绝不能听见半个字。',
+      start:'小美 在 船 边 的 大 集市 赢 了 两 块 饼', target:'小刚 在 可爱的 床 边 的 集市 赢 了 八 块 饼' } },
 ];
 
 /* =================== ui strings =================== */
@@ -567,6 +635,12 @@ let soundOn = true;
 try { unlocked = Math.max(1, parseInt(localStorage.getItem('hearsay.unlocked')||'1',10) || 1); } catch(e){}
 try { soundOn = localStorage.getItem('hearsay.sound') !== 'off'; } catch(e){}
 try { LANG = localStorage.getItem('hearsay.lang') === 'zh' ? 'zh' : 'en'; } catch(e){}
+// migration: players who finished the original 12-level campaign had no way to
+// record "beat level 12" (it was the last level) — open chapter two for them
+if(unlocked === 12 && LEVELS.length > 12){
+  unlocked = 13;
+  try { localStorage.setItem('hearsay.unlocked', unlocked); } catch(e){}
+}
 cur = Math.min(unlocked, LEVELS.length) - 1;
 
 const $ = id => document.getElementById(id);
