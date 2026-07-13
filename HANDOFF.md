@@ -455,7 +455,27 @@ for editing.
 
 ---
 
-_Last updated after (2026-07-13, eleventh pass — owner's first hearsay playtest
+_Last updated after (2026-07-13, twelfth pass — owner's second playtest report +
+re-audit): **portraits "flying away" during delivery, FIXED + pushed** (commit
+c705439). Root cause: `.talking`/`.no` animated `transform` directly on the
+positioned `<g transform="translate(x,y)">` — a CSS transform REPLACES the SVG
+transform attribute, so the portrait teleported to the map origin (measured:
+194px jump) and wiggled there. Fix: each node's contents now sit in an inner
+`<g class="wob">` (`transform-box:fill-box; transform-origin:center`) and the
+animations target `.wob` — drift is now ~3px of rotation. **Rule for canvas-free
+SVG games: never CSS-animate transform on an element whose position lives in its
+transform attribute; animate an inner wrapper.** Same pass (audit findings):
+level arrows were clickable mid-delivery (rebuilt the map under the running
+async send() — could soft-lock mode='deliver'); now guarded, plus a
+`deliverGen` token makes any stale delivery abort cleanly after each await;
+tapping the map BACKGROUND now fast-forwards a delivery (before, only tapping a
+person did); `.page` got a `100vh` fallback before `100dvh` for older iOS.
+Verified in browser: fail→retry→win flow intact, nav ignored mid-delivery,
+bg-tap skips, solver still clean 12 levels × both languages, zero console
+errors. Testing note: the hidden preview tab FREEZES CSS animations
+(document.hidden) — verify animation-position bugs by posing the transform
+statically, not by sampling a running animation.
+Prior (2026-07-13, eleventh pass — owner's first hearsay playtest
 feedback): **map clipped on real phones, FIXED + pushed** (commit 0a5fe07). Root
 cause: `body { height:100% }` + flex column — on screens shorter than the
 content, flex shrinks the one child with no intrinsic min-height (the map's
