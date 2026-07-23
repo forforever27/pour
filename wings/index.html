@@ -179,6 +179,7 @@
     <button class="icon-btn" id="infoBtn" aria-label="How to play" title="How to play">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16.5"/><line x1="12" y1="7.4" x2="12" y2="7.6"/></svg>
     </button>
+    <button class="icon-btn" id="musicBtn" aria-label="Toggle music" title="Music"></button>
     <button class="icon-btn" id="soundBtn" aria-label="Toggle sound" title="Sound"></button>
   </div>
 </header>
@@ -808,6 +809,91 @@ if(window.PlaySync){
     });
   }catch(e){}
 }
+
+/* ---------- wings BGM: a floaty 6/8 lullaby among the lanterns ---------- */
+let musicOn = true;
+try{ musicOn = localStorage.getItem('wings.music') !== 'off'; }catch(e){}
+const BGM = (function(){
+  const STEP=.16, STEPS=24;                                 // 4 bars of 6/8
+  const ROOT=[48,43,45,41];                                 // C  G  Am  F
+  const ARP =[0,7,12,16,12,7];                              // rising-falling wave
+  const BELL=[84,79,81,76];                                 // one long note per loop
+  let playing=false, timer=null, nextT=0, step=0, gainM=null;
+
+  function ctx(){ actx = actx || new (window.AudioContext||window.webkitAudioContext)(); return actx; }
+  function bus(){
+    if(!gainM){
+      const a=ctx();
+      gainM=a.createGain(); gainM.gain.value=.8;
+      let out=a.destination;
+      try{ const cp=a.createDynamicsCompressor(); cp.threshold.value=-18; cp.ratio.value=4; cp.connect(a.destination); out=cp; }catch(e){}
+      gainM.connect(out);
+      try{
+        const len=(a.sampleRate*1.6)|0, ir=a.createBuffer(2,len,a.sampleRate);
+        for(let c=0;c<2;c++){ const d=ir.getChannelData(c); for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/len,2.4); }
+        const cv=a.createConvolver(); cv.buffer=ir;
+        const wet=a.createGain(); wet.gain.value=.34;
+        gainM.connect(cv); cv.connect(wet); wet.connect(out);
+      }catch(e){}
+    }
+    return gainM;
+  }
+  const m2f = n => 440*Math.pow(2,(n-69)/12);
+  function v(freq,t,dur,type,vol,pan,attack){
+    const a=ctx(), g=a.createGain();
+    g.gain.setValueAtTime(0,t);
+    g.gain.linearRampToValueAtTime(vol, t+(attack||.012));
+    g.gain.exponentialRampToValueAtTime(.0001, t+dur);
+    let out=g;
+    if(pan && a.createStereoPanner){ const p=a.createStereoPanner(); p.pan.value=pan; g.connect(p); out=p; }
+    out.connect(bus());
+    const o=a.createOscillator(); o.type=type; o.frequency.setValueAtTime(freq,t);
+    o.connect(g); o.start(t); o.stop(t+dur+.05);
+  }
+
+  function schedule(){
+    if(!playing) return;
+    const a=ctx();
+    while(nextT < a.currentTime + .35){
+      const s=step%STEPS, bar=(s/6)|0, sb=s%6, t=nextT;
+      if(sb===0){
+        const r=ROOT[bar];
+        [0,4,7].forEach((iv,i)=> v(m2f(r+12+iv), t, STEP*7, 'sine', .04, i===1? .22:-.22, .45));
+      }
+      v(m2f(ROOT[bar]+12+ARP[sb]), t, STEP*2.6, 'triangle', .05, sb%2? .3:-.3, .02);
+      if(s===0) v(m2f(BELL[((step/STEPS)|0)%4]), t, STEP*13, 'sine', .06, 0, .06);
+      nextT += STEP; step++;
+    }
+    timer=setTimeout(schedule,110);
+  }
+  function start(){
+    if(playing||!musicOn) return;
+    try{ const a=ctx(); if(a.state==='suspended') a.resume();
+      playing=true; nextT=a.currentTime+.06; schedule(); }catch(e){}
+  }
+  function stop(){ playing=false; clearTimeout(timer); }
+  return {start, stop, get playing(){return playing;}};
+})();
+
+const musicBtn = document.getElementById('musicBtn');
+function renderMusicIcon(){
+  musicBtn.innerHTML = musicOn
+    ? '<svg viewBox="0 0 24 24"><path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/></svg>'
+    : '<svg viewBox="0 0 24 24"><path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/><path d="m3 3 18 18" stroke-width="2"/></svg>';
+}
+musicBtn.addEventListener('click', ()=>{
+  musicOn = !musicOn;
+  try{ localStorage.setItem('wings.music', musicOn?'on':'off'); }catch(e){}
+  renderMusicIcon();
+  if(musicOn) BGM.start(); else BGM.stop();
+});
+document.addEventListener('pointerdown', ()=>{ if(musicOn && !BGM.playing) BGM.start(); });
+document.addEventListener('visibilitychange', ()=>{
+  if(document.hidden) BGM.stop();
+  else if(musicOn) BGM.start();
+});
+renderMusicIcon();
+
 </script>
 </body>
 </html>

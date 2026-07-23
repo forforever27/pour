@@ -67,7 +67,8 @@ window.PlaySync = (function () {
     bus:      { "bus.level":      { merge: "max" } },                 // furthest level
     blocks:   { "blocks.best":    { merge: "maxmap" } },              // best per mode {gentle,classic,bold}
     hanoi:    { "hanoi.level":    { merge: "max" } },                 // furthest level
-    stack:    { "stack.best":     { merge: "max" } },                 // best floors
+    stack:    { "stack.best":     { merge: "max" } },                 // LEGACY (game renamed to tower): kept so old cloud bests still merge; tower mirrors into it
+    tower:    { "tower.best":     { merge: "max" } },                 // best floors (renamed from stack 2026-07-23)
     wings:    { "wings.best":     { merge: "max" } },                 // best gates
     ripple:   { "ripple.level":   { merge: "max" } },                 // furthest level
     pop:      { "pop.best":       { merge: "max" },                   // best score (endless run)

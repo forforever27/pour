@@ -22,7 +22,7 @@ catch-up for any new session.
   (folder is still named `Pour` for historical reasons — it is the **whole-site repo**, not just Pour)
 - **Deploy:** push to `main`. GitHub Pages serves `main` at root `/`. No build step.
 - **Games:** Pour, Sudoku, Codeword, 2048, Drop, Ember, Sweets, Dots, Bus, Blocks,
-  Hanoi, Stack, Wings, Isle, Ripple, Pop, Spider, Flock — 18 total (Pop/Spider/Flock
+  Hanoi, Stack, Wings, Isle, Ripple, Pop, Spider, Flock (Stack→Tower renamed) — 18 total (Pop/Spider/Flock
   added 2026-07-23, local only, awaiting owner playtest).
 - **Cross-device sync:** optional, offline-first, via Firebase (project `play-ee089`). One
   Google sign-in **on the hub** mirrors every game's progress across devices. Signed out,
@@ -91,10 +91,10 @@ touches another:
 | Bus      | `/bus/`      | `bus.state`, `bus.level`, `bus.sound`, `bus.tut` |
 | Blocks   | `/blocks/`   | `blocks.state`, `blocks.best`, `blocks.sound`, `blocks.tut` |
 | Hanoi    | `/hanoi/`    | `hanoi.state`, `hanoi.level`, `hanoi.sound`, `hanoi.tut` |
-| Stack    | `/stack/`    | `stack.best`, `stack.sound`, `stack.tut` |
-| Wings    | `/wings/`    | `wings.best`, `wings.sound`, `wings.tut` |
+| Tower    | `/tower/`    | `tower.best`, `tower.sound`, `tower.tut`, `tower.music` (+legacy `stack.*` mirrored) |
+| Wings    | `/wings/`    | `wings.best`, `wings.sound`, `wings.tut`, `wings.music` |
 | Isle     | `/isle/`     | `isle.town`, `isle.sound`, `isle.tut` |
-| Ripple   | `/ripple/`   | `ripple.level`, `ripple.sound`, `ripple.tut` |
+| Ripple   | `/ripple/`   | `ripple.level`, `ripple.sound`, `ripple.tut`, `ripple.music` |
 | Pop      | `/pop/`      | `pop.state`, `pop.best`, `pop.sound`, `pop.tut` |
 | Spider   | `/spider/`   | `spider.state`, `spider.stats`, `spider.sound`, `spider.tut` |
 | Flock    | `/flock/`    | `flock.level`, `flock.sound`, `flock.tut`, `flock.deck`, `flock.music` |
@@ -169,7 +169,8 @@ JSON object.
 | Bus      | `bus.level`                    | max              |
 | Blocks   | `blocks.best`                  | maxmap (per mode)|
 | Hanoi    | `hanoi.level`                  | max              |
-| Stack    | `stack.best`                   | max              |
+| Stack    | `stack.best` (LEGACY→tower)    | max              |
+| Tower    | `tower.best`                   | max              |
 | Wings    | `wings.best`                   | max              |
 | Ripple   | `ripple.level`                 | max              |
 | Pop      | `pop.best`                     | max              |
@@ -556,7 +557,81 @@ for editing.
 
 ---
 
-_Last updated after (2026-07-23, twelfth round — countermelody track): flock's
+_Last updated after (2026-07-23, stack→tower rename + BGM for three games):
+**stack. renamed to tower.** — a LIVE rename (players hold stack.best), so
+unlike trio→flock it MIGRATES: tower boots with max(tower.best, stack.best)
+and mirrors saves into BOTH keys; sync REGISTRY keeps the legacy `stack` entry
+(old cloud bests still merge on fresh devices) plus a new `tower` entry; the
+game calls PlaySync.init twice (tower + legacy stack); hub card/chip → tower
+with a stack.best fallback; old URL `/stack/` is a meta-refresh redirect stub
+to ../tower/. **BGM added to three games** (flock's architecture — bus +
+compressor + generated-IR reverb, ♪ header toggle, `<game>.music` key,
+gesture-start, hidden-tab pause — each with its own mood): tower = 84bpm
+swung LO-FI groove (soft kick/snare/hats, e-piano Cmaj7–Am7–Fmaj7–G7, sub
+bass); wings = floaty 6/8 lullaby (sine pad swells, triangle arp wave, one
+long bell per loop, no drums); ripple = AMBIENT droplets (no beat: pentatonic
+bells at random 0.7–1.9s intervals with shimmer partials + a breathing C2/G2
+drone, heavy reverb). All injected via scripted edit (music button + module
+before final </script>). Verified: tower title/brand/migration (stack.best 37
+adopted + mirrored), all three BGMs start on gesture / toggle / persist,
+/stack/ redirects, hub tower card + legacy-fallback chip, zero console
+errors.
+Prior (2026-07-23, pop POWER-UP SHOP + .nojekyll): shop live.
+DEPLOY NOTE: the ae447c9 Pages build ERRORED twice ("Page build failed", no
+content cause — transient Jekyll infra). Fixed permanently by committing a
+`.nojekyll` file (8ce6f30): Pages now skips the Jekyll processor entirely,
+which this pure-static site never needed. If a build ever sticks at
+"building" >10 min, check `gh api repos/forforever27/pour/pages/builds` for an
+errored twin and push (or POST pages/builds) to retrigger.
+Prior (2026-07-23, pop POWER-UP SHOP, commit ae447c9): owner
+asked for a shop with refreshable offers. pop now has ✦ COINS (`pop.wallet`
+{coins} — persists across runs, synced maxmap with localWins:['coins'] like
+ember gold, SPENDABLE so never max-merged): earn 1 per 3 bubbles cleared
+(earn() in clearCells + dropFloaters) + ✦10 pond-clear bonus. Shop pill →
+overlay with 3 offers (sprite icons via orbSprite): frost 15 / bomb 20 / zap
+22 / paint 25 / wild 30 / beam 40; buying loads the power straight into the
+shooter (old bubble steps to next, but a power already waiting in next is
+never discarded); bought slot rerolls; "New offers" rerolls all 3 for ✦4.
+Offers persist in pop.state (sh), coinFrac too; coins/offers are in the undo
+snapshot (undo refunds a shot fairly); coin chip lives in the goal bar. All
+flows verified in browser (earn rate, poor-block, buy/charge/load/reroll,
+keep-power-next, refresh cost, wallet persist, undo round-trip), zero console
+errors, live-verified.
+Prior (2026-07-23, post-launch hotfix 95686d5 — fair dealer):
+owner's report: pop kept dealing "irrelevant colour bubbles in a row". Root
+cause: the shooter drew uniformly from EVERY colour on the board incl. buried
+unreachable ones. Now `dealColor()` samples only EXPOSED bubbles
+(`exposedColorCounts()`: an empty neighbouring cell at the bubble's row or
+below, incl. the open face under the bottom row) weighted by exposed-count
+SQUARED — dealt colours always have a hittable target and larger clusters
+come up proportionally more. rollShooter/rollNext/refreshShooterColors all go
+through it. Verified: 2000 deals = 100% exposed, distribution matches the
+squared weights, dealer probing leaves the grid untouched, live-verified.
+Prior (2026-07-23, post-launch hotfix f6f67fd): owner's phone
+report — pop laggy, flock tray overflowing. **pop lag ROOT CAUSE: drawOrb used
+ctx.filter='blur()' (shadow + specular) plus fresh gradients PER BUBBLE PER
+FRAME — canvas filters are extremely slow on mobile GPUs.** Fix: orbs are now
+pre-rendered once per kind+size into offscreen sprite canvases (SPRITES map,
+paintSprite/orbSprite; blur replaced with radial gradients; cache cleared on
+resize for dpr changes); drawBubble is now a single drawImage. Measured 0.19
+ms/frame at 136 bubbles. RULE for all canvas games here: never use ctx.filter
+in a per-frame path — pre-render sprites. flock: tray got its OWN tile size
+`trayPx = min(tilePx, (availW−8·gap)/7)` (board tiles scale to the stage,
+which is wider than 7 slots on narrow phones); tray tiles/slots/trayXY all use
+trayPx; verified fits at 360 AND 320 wide, no horizontal scroll. Both pushed
+live as f6f67fd (Pages build again needed a manual POST to queue) and
+curl-verified serving.
+Prior (2026-07-23, PUSHED LIVE): **pop + spider + flock shipped
+as commit 90906ea** (bus polish had gone out separately as b0cc926 from the
+other session). Isle stripped from the committed hub page per the usual
+pattern and restored locally afterward — working tree still shows index.html
+modified (isle card) + untracked isle/ + .claude/, all deliberate. Live-site
+verified by curl with cache-busters: hub flock card present, zero isle refs,
+pop BEAM live, spider fireworks live, flock SHEEP+BGM live, sync.js flock
+entry live. NOTE: the Pages build did NOT auto-trigger on this push — had to
+POST /repos/forforever27/pour/pages/builds to queue it; if a future push
+seems stuck at the previous commit, do that first.
+Prior (2026-07-23, twelfth round — countermelody track): flock's
 BGM gained a SECOND melodic voice (`CTR`, 64 steps): an offbeat countermelody
 one register below the lead — 82% of its notes land on offbeats, it never
 doubles the lead in unison (answers, not doubling), fills the lead's resting
