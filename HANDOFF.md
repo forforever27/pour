@@ -22,7 +22,8 @@ catch-up for any new session.
   (folder is still named `Pour` for historical reasons — it is the **whole-site repo**, not just Pour)
 - **Deploy:** push to `main`. GitHub Pages serves `main` at root `/`. No build step.
 - **Games:** Pour, Sudoku, Codeword, 2048, Drop, Ember, Sweets, Dots, Bus, Blocks,
-  Hanoi, Stack, Wings, Isle, Ripple — 15 total.
+  Hanoi, Stack, Wings, Isle, Ripple, Pop, Spider, Flock — 18 total (Pop/Spider/Flock
+  added 2026-07-23, local only, awaiting owner playtest).
 - **Cross-device sync:** optional, offline-first, via Firebase (project `play-ee089`). One
   Google sign-in **on the hub** mirrors every game's progress across devices. Signed out,
   the games are unchanged and fully offline. See **Cross-device cloud sync** below.
@@ -94,6 +95,9 @@ touches another:
 | Wings    | `/wings/`    | `wings.best`, `wings.sound`, `wings.tut` |
 | Isle     | `/isle/`     | `isle.town`, `isle.sound`, `isle.tut` |
 | Ripple   | `/ripple/`   | `ripple.level`, `ripple.sound`, `ripple.tut` |
+| Pop      | `/pop/`      | `pop.state`, `pop.best`, `pop.sound`, `pop.tut` |
+| Spider   | `/spider/`   | `spider.state`, `spider.stats`, `spider.sound`, `spider.tut` |
+| Flock    | `/flock/`    | `flock.level`, `flock.sound`, `flock.tut`, `flock.deck`, `flock.music` |
 
 The hub (`/index.html`) reads these **read-only** to show a progress chip on each card.
 
@@ -168,6 +172,9 @@ JSON object.
 | Stack    | `stack.best`                   | max              |
 | Wings    | `wings.best`                   | max              |
 | Ripple   | `ripple.level`                 | max              |
+| Pop      | `pop.best`                     | max              |
+| Spider   | `spider.stats`                 | maxmap (wins per mode) |
+| Flock    | `flock.level`                  | max              |
 
 (Isle is deliberately NOT synced — a sandbox town is per-device.)
 
@@ -377,6 +384,77 @@ score is how few ripples a level took (shown in the header + win card).
   `progress`; replays never shrink progress). `ripple.level` = furthest unlocked,
   saved BEFORE `PlaySync.push()` on win/skip.
 
+### Pop — `/pop/` (added 2026-07-23, endless by owner's spec)
+Bubble shooter, but an ENDLESS survival run — the owner explicitly rejected a
+levels version mid-build ("unlimited game, rows keep increasing, power-up
+bubbles"), then asked for a second tuning pass (more bubbles per row, faster
+rows, undo, revives). Fixed logical world 390×560 on canvas (ripple's trick).
+Hex grid **11/10 wide** (R=LW/23) with parity tracking (`par0` flips as full
+rows slide in from the top every `rowsEvery()` shots: **every 2 shots, every 1
+once 12 rows have arrived** — her requested pace). **Undo** (header) rewinds
+whole shots via pre-shot snapshots (cap 30). **3 revives per run**: when the
+danger line is crossed the overlay offers "Revive (n left)" — rows 8+ burst and
+play continues (undo stack cleared); best is only committed/pushed at the FINAL
+game over (or when giving up via Play again with revives left). Drag to aim —
+dotted guide shares the exact flight physics (wall bounces + ghost ring at the
+landing cell). 3+ clusters pop (10/bubble), unsupported bubbles drop
+(20/bubble); clearing the whole pond pays +100 and three rows return. Run ends
+only when bubbles cross the dashed danger line (y=442). **Every 10th shooter
+bubble is a power-up:** bomb (clears 2 hex rings), wild/rainbow (adopts the
+most-touched neighbour colour, pops even without a triple), zap (clears its
+landing row). Specials never persist on the board. Bubbles are drawn as glossy
+layered orbs (`drawOrb`: radial core + rim + blurred specular + reflected
+light) after the owner disliked the first flat look. Colour count ramps 4→6
+with rows survived. In-progress board survives reload (`pop.state`, validated
+against parity on restore); `pop.best` synced max. Testing note: `step(dt)` /
+`draw()` are globals — drive them from javascript_tool like ember/ripple.
+
+### Spider — `/spider/` (added 2026-07-23)
+Spider solitaire. Two decks / 104 cards, 10 piles, deal 6-6-6-6-5… with only
+tops faceup; 50-card stock = 5 deals of 10 (blocked while any pile is empty —
+classic rule, friendly toast). Runs move onto any card one rank higher; a
+faceup same-suit descending suffix moves as a block; complete K→A in one suit
+flies home (8 = win). Three modes via sudoku-style forced picker: gentle ♠ /
+classic ♠♥ / bold ♠♥♣♦; the Mode pill switches anytime — a switch (and the New
+deal button) pushes a snapshot first, so undo restores the previous deal
+entirely. **Undo is unlimited full-state snapshots** (through deals, completes
+and mode switches; cap 200 in memory, last 40 persisted in `spider.state`).
+Hint scores all legal moves (same-suit join +4, uncovers facedown +2, empties
+a column +2). Tap-tap AND drag (floating run clone follows the pointer).
+**Visual pass (owner request):** four-colour deck (♠ ink-plum / ♥ red /
+♣ forest / ♦ night-blue via `.s0–.s3`), gloss + inner frame on faces, court
+ornaments (J feather · Q flower · K crown, `ORN` map, currentColor-tinted),
+lattice card backs; card markup comes from shared `cardClass()`/`cardHTML()` —
+use those for ANY new card rendering. **Animations:** stock deals flick each
+pile's new card in staggered (`.dealt`); a completed K→A run flies as 13 fixed-
+position clones from its column to the founds strip (`pendingFly`/`flushFly()`
+— flushFly must run AFTER paintAll, it reads live rects); win = `fireworks()`
+(DOM burst particles `.fw`) + confetti.
+`spider.stats` = wins per mode, synced maxmap; state restore validates the
+full 104-card count and rejects corruption.
+
+### Flock — `/flock/` (added 2026-07-23 as "trio", renamed pre-launch)
+Triple-tile matcher (the Tile-Master fake-ad genre, minus the stress). DOM
+tiles on a 390×420 logical board, uniformly scaled; 9 hand-drawn SVG motifs
+(moon/star/leaf/drop/heart/bloom/cloud/shroom/fish). Seeded levels (mulberry32,
+level=seed): kinds 4→9, copies 6/9/12 per kind (always multiples of 3), total
+capped 96, placement centre-biased with piles ≤6 deep (placement keeps the
+SHALLOWEST candidate — a give-up loop used to let piles exceed the cap, fixed
+and audited clean lv 1–400). A tile is tappable when nothing overlaps it from
+a higher layer (`isFree`, rect overlap with 8px tolerance; covered tiles are
+dimmed). Picks land in a 7-slot tray, inserted beside their own kind; three of
+a kind clear. **No fail:** unlimited undo (LIFO, returns tray tiles to their
+spots), unlimited shuffle (re-deals faces among uncleared board tiles), and a
+rescue overlay when the tray fills — undo, or "set 3 aside" (the three oldest
+tray tiles return to the board on top, always free). Win = board + tray empty.
+`trio.level` furthest unlocked, synced max; pour-style Levels replay + free
+Skip. No mid-level save (like pour/ripple, reload restarts the level).
+**3D look (owner request):** tiles are chunky blocks — solid side face via
+box-shadow (`--edge` ≈ 11% of tile size, colour #b1a284), top gloss, inset
+highlight, drop-shadowed motifs, and each layer z renders lifted 7 logical px
+(`t.y - t.z*7`) so piles read as real stacks; tile y-base is 44 (headroom so
+lifted piles stay inside the stage — keep that if regenerating positions).
+
 ---
 
 ## The "tales." daylight section (added 2026-07-12)
@@ -478,7 +556,172 @@ for editing.
 
 ---
 
-_Last updated after (2026-07-23, bus 3D polish pass): **bus. visual polish only, no
+_Last updated after (2026-07-23, twelfth round — countermelody track): flock's
+BGM gained a SECOND melodic voice (`CTR`, 64 steps): an offbeat countermelody
+one register below the lead — 82% of its notes land on offbeats, it never
+doubles the lead in unison (answers, not doubling), fills the lead's resting
+bars, and ends the loop with a tumbling run-down. Soft sawtooth, own ±4-cent
+chorus detune, panned −.35 (opposite the arp at +.3); the arpeggio was ducked
+.034→.026 to make room. Verified: 64-step array in range, interlock confirmed,
+scheduler clean, zero console errors. Still local.
+Prior (2026-07-23, eleventh round — RENAMED trio→flock, drums,
+louder): **trio. is now flock.** (owner asked for a sheep name; flock chosen —
+folder `flock/`, ALL keys `flock.*` incl. deck/music, sync REGISTRY `flock`,
+hub card/chip `flockProg` with a new sheep art + sheep favicon, title "flock —
+gather the sheep", tagline "herd three of a kind home". Safe pre-launch rename
+— never pushed, no player data existed, same precedent as glide→wings; the old
+`trio/` folder is GONE, `trio.*` keys referenced nowhere). BGM: added a
+synthesized DRUM KIT — kick (150→48Hz sine drop) on beats 1&3, snare
+(bandpassed noise + 185Hz body) on 2&4 — and the mix runs louder: music bus
+.9→1.25 through a new DynamicsCompressor (threshold −16, ratio 5) that glues
+the band and prevents clipping. Verified: title/brand/keys/sync/chip/card all
+flock, zero `trio.` key refs in served source, drums + compressor live,
+scheduler clean, hub renders 18 cards, zero console errors. Still local.
+Prior (2026-07-23, tenth round — BGM enriched): owner liked the
+lively pass, asked for "more rich". Added FIVE thickening layers to the trio
+BGM: (1) generated-impulse reverb on the music bus (1.1s decaying-noise
+convolver, wet .22 — no audio files); (2) sine SUB-BASS an octave under every
+bass hit; (3) chord stabs now 3 notes (pair + root an octave up), panned
+slightly left; (4) a soft triangle ARPEGGIO dancing through chord tones on the
+swung offbeats, panned right; (5) the lead is now a DETUNED TWIN (±5 cents via
+v()'s new detune param → chorus shimmer). v() also grew an optional stereo
+pan (StereoPanner, feature-checked for old Safari). Verified: all layers live,
+scheduler + toggle clean, zero console errors. Ears still the final judge.
+Prior (2026-07-23, ninth round — BGM louder + swingier): owner
+wanted more volume and a faster, bouncier rhythm. TEMPO 116→138, eighths now
+SWUNG (SWING=1.2 long-short pairs — the oom-pah hops), lead staccato (dur .8
+step) and louder (.05→.085), bass .15/.12→.24/.19, stabs .026→.042, woodblock
+.07, hats .032, music bus .5→.9, event-baa peak .18→.28. Verified: constants
+live, scheduler runs with swung timing, zero console errors. Loudness/silliness
+judgement stays with the owner's ears — same dials if she wants another notch.
+Prior (2026-07-23, eighth round — silly sheep BGM): **trio got
+procedural background music** (owner asked for something in the spirit of the
+羊了个羊 meme BGM — goofy and bouncy; the melody is ORIGINAL, same energy, no
+borrowed tune, keeping the no-asset rule). `BGM` module in trio/index.html:
+116bpm 8-bar oom-pah loop (triangle bass 1&3, square chord stabs + woodblock
+2&4, soft noise hats, singsong C-pentatonic square lead) on a 300ms-lookahead
+setTimeout scheduler; ~35% of loops end in a synthesized sheep BLEAT — `baa()`
+= pitch-bent sawtooth + 7Hz vibrato + 9.5Hz tremolo through a bandpass; the
+same baa() fires as an sfx on every sheep-deck trio clear (gated by soundOn).
+Music is a SEPARATE toggle from sfx: new ♪ header button + `trio.music` key
+(header icons shrunk 44→40px so 5 fit at 375). Autoplay-safe: starts on the
+first pointerdown anywhere; pauses on document.hidden, resumes on visible.
+Music-loop baas route through BGM.bus() (obey the music toggle), event baas go
+to destination (obey soundOn). Verified in browser: starts on gesture (ctx
+"running"), keeps scheduling, toggle stops/persists/stays-off-on-gesture,
+baa() throws nothing on either path, header fits 375, zero console errors.
+Audible quality needs the OWNER'S EARS — tempo/melody/baa-frequency are all
+constants at the top of the BGM module if she wants it sillier or calmer.
+Prior (2026-07-23, seventh round — side-profile sheep, sheep
+default, harder levels): owner asked for NO front-facing sheep, sheep as the
+default deck, and more difficulty. **Sheep rebuilt in SIDE PROFILE** via
+`sheepS()` (base drawn facing right; `dir:-1` mirrors the group — 4 face left,
+5 face right; anything that must not mirror, like dozy's sleep-z marks, goes
+in `o.over` with absolute coords). **Default deck = sheep** (`trio.deck`
+absent → sheep; stored 'garden' still honoured). **Difficulty:** pile count
+cut to `min(kinds+2, 10)` tops (kinds+1 was tested and went TOO far — a
+planning bot hit hard walls at lv7+), and a trio's two buried copies now go to
+DIFFERENT piles (`takeBuriedSpread`) so digging one pile can't hand you a
+trio. Verified: 400-level audit clean, zero instant trios, greedy bot fails
+18/20 levels while a randomized planning bot solves every tested hard level
+(lv9–18) in ≤8 attempts without helpers — strategic but always winnable, and
+undo/shuffle/set-aside remain. Zero console errors. Still local/unpushed.
+Prior (2026-07-23, sixth round — trio SHEEP deck): **a second
+tile deck of nine cute sheep, owner-requested, verified, still local.** New
+`SHEEP` array + `sheepSVG()` template in trio/index.html; every sheep differs
+on TWO channels at once (unique wool colour AND accessory/expression) so they
+read apart at tile size: snow (cream, sweet), night (dark plum, dreamy +
+stars), rosy (pink, heart cheeks), minty (green, chewing clover), specs (grey,
+round glasses), blaze (amber, sunglasses attitude), storm (steel blue,
+grumpy), dozy (lavender, nightcap + zzz), regal (sky blue, gold crown).
+`DECKS={garden:MOTIF, sheep:SHEEP}` + `faceSVG(m)` is now the ONLY face
+renderer (buildTiles + shuffle use it — any new face rendering must too). A
+4th "Deck" pill toggles mid-level (cosmetic only, kind indices unchanged) and
+persists as `trio.deck`; pill row tightened (gap 8, padding 14) so 4 pills fit
+375-wide. Verified: 9 unique wools, all SVGs parse, toggle changes faces +
+persists, pills fit, zero console errors.
+Prior (2026-07-23, fifth feedback round — trio strategy rework):
+**owner clarified difficulty ≠ density** ("shouldn't show all 3 same tiles at
+the same layer so easily; quick to clear but needs more strategy") — the
+round-4 density bump was reverted and generation REDESIGNED: levelPlan back to
+small boards (4 kinds/24 tiles at lv1, per-kind copies 6 → 9 at lv10 → 12 at
+lv18); geometry is now P exact-stack PILES (P = max(⌈total/6⌉, min(2·kinds−1,
+12)) — pile tops are the reachable set, and keeping P below 2×kinds is what
+makes the rule feasible: with 9 free tops over 4 kinds a reachable triple is
+pigeonhole-unavoidable, which round-4's overlap geometry kept hitting); kinds
+are then assigned strategically — each trio gets AT MOST ONE initially
+reachable copy (1 from the pile-tops pool + 2 from the most-buried slots) with
+a repair-swap pass for pool-exhaustion edge cases. Audited lv1–400: ZERO
+levels start with 3 reachable copies of any kind (worst = 2), ≥7 piles, avg
+83% buried, all base invariants hold. Playtested headlessly: a naive greedy
+bot FAILS lv2 while a planning bot (weighs how buried each trio's twins are)
+clears it in the minimum 24 picks — exactly the requested feel. Zero console
+errors.
+Prior (2026-07-23, fourth feedback round — "now too easy" both):
+**difficulty re-tightened + verified, still local/unpushed.** pop: rows back to
+every 2 shots from the start (→1 after 12 rows, no gentle opening), starting
+board 6 rows, colours ramp 4→5 at 3 rows→6 at 10, clumps trimmed to runs 2–3
+with 42% below-bias (avg run ~3.0, 48% vertical), pattern bands every 8th row
+(was 6th), power-ups every 12th shot (was 10th), frost nets +3 (was +5). trio:
+5 kinds at lv1 (was 4) ramping to 9 by lv10, copies-per-kind jump to 9 at lv4
+and 12 at lv10 → totals 30/63/96 at lv1/5/12 (was much thinner); gen re-audited
+clean lv1–400. Difficulty is a running tuning conversation with the owner —
+expect more rounds; all dials are the constants named above.
+Prior (2026-07-23, third feedback round — pop pacing/powers +
+trio tray): **applied + verified, still local/unpushed.** Owner found pop "too
+fast — not enough big same-colour bunches". Fixes: (1) `genRowColors()` — new
+rows arrive in runs of 2–4 with 50% continue-the-colour-below bias (measured:
+avg run 3.3, 52% vertical match), initial board uses it too; (2) every 6th row
+queues a 3-row PATTERN BAND (stripe/chevron/bands/rows of 2–3 colours,
+`patternQueue`, parity-resized on insert); (3) pace eased at the start only:
+rows every 3 shots for the first 4 rows, then her 2 → 1 (after 16 rows).
+(4) NEW POWER-UPS (now 6, still every 10th shot): **beam** (BEAM=13 — pierces
+its whole trajectory clearing a corridor of BEAM_R=1.6 radii, does NOT stop at
+bubbles; while aiming it shows a wide bright path + pulsing rings on every
+bubble it will clear via `castBeam()`; flight = `beamSweep()` per substep +
+`beamFinish()`), **paint** (PAINT=14 — soaks landing cell + ring-1 neighbours
+in their majority colour then resolves = instant big patch), **frost**
+(FROST=15 — rowCounter +6 ⇒ net +5 shots of stillness). Post-land bookkeeping
+factored into `afterShot()` — reuse it for any new special. trio: tray tiles
+now lie FLAT (`.tile.intray` overrides the 3D edge shadow; board tiles keep
+it). All verified in browser (clump stats, pattern queue used verbatim, beam
+guide+flight, paint patch pop, frost delta, undo round-trip incl. new powers,
+tray flat vs board 3D), zero console errors.
+Prior (2026-07-23, feedback round on the three new games):
+**owner's first-feedback pass applied + verified, still local/unpushed.**
+pop: board widened to 11 across, rows now arrive every 2 shots (every 1 after
+12 rows), whole-shot undo added (header, snapshot cap 30), 3 revives per run
+(rows 8+ burst; best only committed at final over — verified the not-saved-
+until-final ordering). spider: four-colour deck + court ornaments + lattice
+backs (shared cardClass/cardHTML helpers), staggered deal-in animation,
+completed suits fly 13 clones to the founds strip (flushFly after paintAll),
+fireworks+confetti on win. trio: chunky 3D tiles (solid --edge side face,
+gloss, motif drop-shadows, z-lift 7px/layer; y-base moved 4→44 for headroom —
+gen re-audited clean lv1–400). All re-verified in browser, zero console
+errors.
+Prior (2026-07-23, three new games): **pop. + spider. + trio.
+built and verified — 18 games total. Local only, NOT pushed, awaiting owner
+playtest.** Owner picked the three from a proposal list (bubble shooter, spider
+solitaire, triple tile); mid-build she redirected pop from levels to an endless
+rising-rows run with power-ups and asked for nicer bubbles — done (see the Pop
+section). Hub cards + chips added for all three (pop "best N" / spider "N wins"
+/ trio "level N"); sync REGISTRY entries added (pop.best max, spider.stats
+maxmap, trio.level max). All verified by driving the real pages in a browser
+at 375-wide: pop (shots/bounces/guide/pops/floater-drops, row insertion with
+parity intact, all three power-ups, danger-line game over, best save order,
+state reload round-trip, gen audit lv1–400 — one bug found+fixed: rare colours
+repainted into pick[0] was a no-op when the rare colour WAS pick[0]); spider
+(deal shape 104 cards, legal/illegal moves, flips, K→A completion + founds
+dots, empty-column deal block, deal/mode-switch undo, save/restore round-trip,
+corrupt-state rejection, 4-suit bold deck); trio (triple clear, undo, shuffle
+count-preservation, tray-full rescue auto-open, set-aside lands free, win →
+level 2 saved, gen audit lv1–400 — one bug found+fixed: dense boards exceeded
+the 6-deep pile cap when placement gave up; now keeps the shallowest spot).
+Zero console errors on all four pages (three games + hub). NOTE: this session
+also saw the bus 3D polish below sitting uncommitted in the tree — both changes
+now await review together. Also: Games/.claude/launch.json gained a
+"games-http-2" config (port 8899) because another session held 8765.
+Prior (2026-07-23, bus 3D polish pass): **bus. visual polish only, no
 logic changes, verified in browser, NOT yet pushed.** All face painting moved from CSS
 classes (`win-h/win-v/wshield`, now deleted) into `styleBus()` as inline multi-layer
 backgrounds per face (base shade + roof-side window band + wheels + head/taillights +

@@ -70,6 +70,9 @@ window.PlaySync = (function () {
     stack:    { "stack.best":     { merge: "max" } },                 // best floors
     wings:    { "wings.best":     { merge: "max" } },                 // best gates
     ripple:   { "ripple.level":   { merge: "max" } },                 // furthest level
+    pop:      { "pop.best":       { merge: "max" } },                 // best score (endless run)
+    spider:   { "spider.stats":   { merge: "maxmap" } },              // wins per mode {gentle,classic,bold}
+    flock:    { "flock.level":    { merge: "max" } },                 // furthest level (renamed from trio pre-launch)
   };
 
   const enc = (k) => k.replace(/\./g, "__"); // localStorage key -> Firestore field

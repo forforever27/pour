@@ -395,6 +395,62 @@
     <span class="go">›</span>
   </a>
 
+  <a class="card" href="pop/">
+    <div class="art">
+      <svg viewBox="0 0 36 36" fill="none">
+        <circle cx="12" cy="8" r="5" fill="#ff6f69"/>
+        <circle cx="24" cy="8" r="5" fill="#ffc857"/>
+        <circle cx="18" cy="17" r="5" fill="#5b8def"/>
+        <path d="M18 31v-7" stroke="rgba(240,179,94,.7)" stroke-width="1.8" stroke-linecap="round" stroke-dasharray="1 4"/>
+        <circle cx="18" cy="31" r="3.4" fill="#f0b35e"/>
+      </svg>
+    </div>
+    <div class="info">
+      <h2>pop<em>.</em></h2>
+      <p>aim, bounce, burst</p>
+    </div>
+    <span class="prog fresh" id="popProg">new</span>
+    <span class="go">›</span>
+  </a>
+
+  <a class="card" href="spider/">
+    <div class="art">
+      <svg viewBox="0 0 36 36" fill="none">
+        <rect x="6" y="6" width="14" height="20" rx="3" fill="#38305a" stroke="rgba(255,255,255,.25)" stroke-width="1"/>
+        <rect x="13" y="10" width="14" height="20" rx="3" fill="#efe6d8"/>
+        <path d="M20 15.5 c-2.7 2.5-3.6 3.8-3.6 5.3 a2.5 2.5 0 0 0 4.6 1.4 2.5 2.5 0 0 0 4.6-1.4 c0-1.5-.9-2.8-3.6-5.3z" fill="#322a48"/>
+        <rect x="19.2" y="23.5" width="1.8" height="3" fill="#322a48"/>
+      </svg>
+    </div>
+    <div class="info">
+      <h2>spider<em>.</em></h2>
+      <p>eight suits, king to ace</p>
+    </div>
+    <span class="prog fresh" id="spiderProg">new</span>
+    <span class="go">›</span>
+  </a>
+
+  <a class="card" href="flock/">
+    <div class="art">
+      <svg viewBox="0 0 36 36" fill="none">
+        <g fill="#f2e9d4">
+          <circle cx="12" cy="19" r="6"/><circle cx="18" cy="16" r="6.5"/><circle cx="23" cy="19" r="5.5"/>
+          <circle cx="14" cy="22.5" r="5.5"/><circle cx="20.5" cy="22.5" r="5"/><circle cx="26.5" cy="13" r="3.4"/>
+        </g>
+        <rect x="13" y="26" width="2.6" height="5" rx="1.3" fill="#6b5b4e"/>
+        <rect x="20" y="26" width="2.6" height="5" rx="1.3" fill="#6b5b4e"/>
+        <circle cx="28" cy="17" r="4.6" fill="#fdeeda"/>
+        <circle cx="27.6" cy="15.6" r="1" fill="#3a3152"/>
+      </svg>
+    </div>
+    <div class="info">
+      <h2>flock<em>.</em></h2>
+      <p>herd three of a kind home</p>
+    </div>
+    <span class="prog fresh" id="flockProg">new</span>
+    <span class="go">›</span>
+  </a>
+
 </main>
 
 <footer id="foot">progress saves on this device · sign in to sync</footer>
@@ -472,6 +528,21 @@ function renderChips() {
   try {
     const lv = parseInt(localStorage.getItem('ripple.level') || '1', 10);
     if (lv > 1) setChip('rippleProg', 'level ' + lv);
+  } catch(e) {}
+  try {
+    const b = parseInt(localStorage.getItem('pop.best') || '0', 10);
+    if (b > 0) setChip('popProg', 'best ' + b);
+    else if (localStorage.getItem('pop.state')) setChip('popProg', 'in progress');
+  } catch(e) {}
+  try {
+    const w = JSON.parse(localStorage.getItem('spider.stats') || '{}');
+    const n = Object.values(w).reduce((a,b)=>a+(parseInt(b,10)||0), 0);
+    if (n > 0) setChip('spiderProg', n + ' win' + (n===1?'':'s'));
+    else if (localStorage.getItem('spider.state')) setChip('spiderProg', 'in progress');
+  } catch(e) {}
+  try {
+    const lv = parseInt(localStorage.getItem('flock.level') || '1', 10);
+    if (lv > 1) setChip('flockProg', 'level ' + lv);
   } catch(e) {}
 }
 renderChips();

@@ -1,0 +1,1118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#191527">
+<meta name="color-scheme" content="only light">
+<title>flock — gather the sheep</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23231c3a'/%3E%3Cg fill='%23f2e9d4'%3E%3Ccircle cx='11' cy='17' r='5.5'/%3E%3Ccircle cx='16' cy='14.5' r='6'/%3E%3Ccircle cx='20' cy='17' r='5'/%3E%3Ccircle cx='13' cy='20' r='5'/%3E%3Ccircle cx='18.5' cy='20' r='4.5'/%3E%3Ccircle cx='23.5' cy='11.5' r='3'/%3E%3C/g%3E%3Crect x='12' y='23.5' width='2.4' height='4.5' rx='1.2' fill='%236b5b4e'/%3E%3Crect x='18' y='23.5' width='2.4' height='4.5' rx='1.2' fill='%236b5b4e'/%3E%3Ccircle cx='25' cy='15' r='4.2' fill='%23fdeeda'/%3E%3Ccircle cx='24.6' cy='13.8' r='.9' fill='%233a3152'/%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650&family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: only light;
+    --bg-deep: #14101f;
+    --bg-mid: #1f1833;
+    --ink: #f2edf7;
+    --ink-dim: #9a8fb8;
+    --glass: rgba(255,255,255,.055);
+    --glass-edge: rgba(255,255,255,.16);
+    --panel: #2b2342;
+    --accent: #f0b35e;
+    --tile-face: #f2ead9;
+    --tile-face2: #e7dcc5;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { height:100%; overflow:hidden; }
+  body {
+    font-family:'Outfit', sans-serif;
+    background-image: linear-gradient(var(--bg-deep), var(--bg-deep));
+    color: var(--ink);
+    touch-action: manipulation;
+    user-select:none; -webkit-user-select:none;
+    display:flex; flex-direction:column;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+
+  /* ---- atmosphere ---- */
+  .sky { position:fixed; inset:0; z-index:-2;
+    background:
+      radial-gradient(120% 90% at 80% -10%, #3a2b55 0%, transparent 55%),
+      radial-gradient(90% 70% at 10% 110%, #232a4d 0%, transparent 60%),
+      linear-gradient(170deg, var(--bg-mid) 0%, var(--bg-deep) 70%);
+  }
+  .orb { position:fixed; border-radius:50%; filter:blur(70px); opacity:.32; z-index:-1; pointer-events:none; }
+  .orb.a { width:46vw; height:46vw; background-image:linear-gradient(#7c5cad,#7c5cad); top:-12vw; right:-10vw; animation:drift 19s ease-in-out infinite alternate; }
+  .orb.b { width:38vw; height:38vw; background-image:linear-gradient(#3d6ea5,#3d6ea5); bottom:6vh; left:-14vw; animation:drift 24s ease-in-out infinite alternate-reverse; }
+  @keyframes drift { from{transform:translateY(0) scale(1)} to{transform:translateY(26px) scale(1.07)} }
+  body::after { content:""; position:fixed; inset:0; z-index:50; pointer-events:none; opacity:.05;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='0.6'/%3E%3C/svg%3E"); }
+
+  /* ---- header ---- */
+  header { display:flex; align-items:center; justify-content:space-between;
+    padding: clamp(10px,2vh,20px) 20px 4px; }
+  .brand { font-family:'Fraunces', serif; font-weight:650; font-size:1.35rem; letter-spacing:.01em;
+    color:inherit; text-decoration:none; }
+  .brand em { font-style:normal; color:var(--accent); }
+  .brand .back { color:var(--ink-dim); font-weight:500; margin-right:1px; }
+  .meta { text-align:center; }
+  .meta .lvl { font-family:'Fraunces', serif; font-weight:650; font-size:1.5rem; line-height:1.1; font-variant-numeric:tabular-nums; }
+  .meta .sub { font-size:.72rem; font-weight:300; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-dim); }
+  .controls { display:flex; gap:6px; }
+  .icon-btn { width:40px; height:40px; border-radius:13px; border:1px solid var(--glass-edge);
+    background-color:transparent; background-image:linear-gradient(var(--panel),var(--panel));
+    color:var(--ink); font-size:1.05rem; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    transition:transform .15s ease; }
+  .icon-btn:active { transform:scale(.92); }
+  .icon-btn:disabled { opacity:.3; }
+  .icon-btn svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+
+  .tagline { text-align:center; font-size:.7rem; font-weight:300; letter-spacing:.2em;
+    text-transform:uppercase; color:var(--ink-dim); padding:2px 0 0; }
+
+  /* ---- goal strip ---- */
+  .goal { display:flex; align-items:center; gap:10px; align-self:center;
+    margin:8px auto 0; padding:8px 16px; border-radius:99px;
+    border:1px solid var(--glass-edge);
+    background-image:linear-gradient(var(--panel),var(--panel));
+    font-size:.82rem; font-weight:300; letter-spacing:.03em; color:var(--ink); }
+  .lvlchip { font-family:'Fraunces',serif; font-weight:650; font-size:.82rem; color:var(--accent); letter-spacing:.02em; }
+  .goal-sep { width:1px; height:16px; background:var(--glass-edge); }
+  .goal-txt b { font-weight:600; font-variant-numeric:tabular-nums; }
+
+  /* ---- stage / tray ---- */
+  main { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    padding:6px 12px 0; min-height:0; }
+  #stage { position:relative; }
+  .tile { position:absolute; cursor:pointer; border-radius:20%;
+    --edge:5px;
+    background-image:
+      linear-gradient(160deg, rgba(255,255,255,.65) 0%, rgba(255,255,255,0) 42%),
+      linear-gradient(165deg, var(--tile-face), var(--tile-face2));
+    border:1px solid rgba(0,0,0,.38);
+    /* a real block: solid side face + soft ground shadow */
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.75),
+      0 var(--edge) 0 #b1a284,
+      0 var(--edge) 0 1px rgba(0,0,0,.4),
+      0 calc(var(--edge) + 9px) 14px -4px rgba(0,0,0,.6);
+    display:flex; align-items:center; justify-content:center;
+    transition: left .28s cubic-bezier(.35,1.15,.5,1), top .28s cubic-bezier(.35,1.15,.5,1),
+                filter .2s ease, transform .2s ease, opacity .25s ease; }
+  .tile svg { width:70%; height:70%; pointer-events:none;
+    filter: drop-shadow(0 1.5px 1px rgba(0,0,0,.3)); }
+  .tile.covered { filter:brightness(.44) saturate(.7); cursor:default; }
+  /* tray tiles lie flat — no 3D edge down there (owner request) */
+  .tile.intray { box-shadow: inset 0 1px 0 rgba(255,255,255,.55), 0 2px 6px -2px rgba(0,0,0,.45); }
+  .tile.intray svg { filter:none; }
+  .tile.intray { cursor:default; }
+  .tile.matched { transform:scale(1.28); opacity:0; }
+  .tile.rise { animation:rise .3s ease; }
+  @keyframes rise { from{ transform:scale(.85);} to{ transform:none;} }
+  .tile.shake { animation:tshake .35s ease; }
+  @keyframes tshake { 0%,100%{transform:none} 25%{transform:translateX(-5px)} 55%{transform:translateX(4px)} 80%{transform:translateX(-2px)} }
+
+  #tray { position:relative; margin:10px auto 0; border-radius:18px;
+    border:1px solid var(--glass-edge);
+    background-image:linear-gradient(rgba(255,255,255,.05),rgba(255,255,255,.02));
+    box-shadow: inset 0 3px 8px rgba(0,0,0,.35); }
+  .slot { position:absolute; border-radius:22%;
+    border:1px dashed rgba(255,255,255,.13); }
+
+  .actions { display:flex; justify-content:center; gap:8px; padding: 10px 0 clamp(12px,2vh,20px); }
+  .pill { display:flex; align-items:center; gap:6px; height:42px; padding:0 14px;
+    border-radius:99px; border:1px solid var(--glass-edge);
+    background-color:transparent;
+    background-image:linear-gradient(var(--panel),var(--panel));
+    color:var(--ink); font-family:'Outfit',sans-serif; font-weight:400; font-size:.85rem;
+    letter-spacing:.06em; cursor:pointer; transition:transform .15s ease; }
+  .pill:active { transform:scale(.93); }
+  .pill svg { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+
+  /* ---- overlays ---- */
+  #over, #rescue { position:fixed; inset:0; z-index:60; display:flex; align-items:center; justify-content:center;
+    background:rgba(16,12,26,.72); backdrop-filter:blur(8px);
+    opacity:0; pointer-events:none; transition:opacity .4s ease; }
+  #over.show, #rescue.show { opacity:1; pointer-events:auto; }
+  .over-card { text-align:center; padding:38px 42px; border-radius:28px;
+    background-image:linear-gradient(160deg, #342b52, #251e3d);
+    border:1px solid var(--glass-edge);
+    transform:translateY(16px) scale(.96); transition:transform .45s cubic-bezier(.3,1.4,.5,1); }
+  #over.show .over-card, #rescue.show .over-card { transform:none; }
+  .over-card h2 { font-family:'Fraunces', serif; font-weight:650; font-size:2rem; margin-bottom:6px; }
+  .over-card p { color:var(--ink-dim); font-weight:300; font-size:.9rem; margin-bottom:24px; }
+  .next-btn { font-family:'Outfit', sans-serif; font-weight:600; font-size:1rem; letter-spacing:.04em;
+    color:#1d1530; background-color:transparent; background-image:linear-gradient(var(--accent),var(--accent)); border:none; border-radius:16px;
+    padding:15px 36px; cursor:pointer; transition:transform .15s ease;
+    box-shadow:0 10px 24px -8px rgba(240,179,94,.5); }
+  .next-btn:active { transform:scale(.94); }
+  .soft-btn { display:block; margin:12px auto 0; font-family:'Outfit',sans-serif; font-weight:400; font-size:.88rem;
+    color:var(--ink); background-color:transparent; background-image:linear-gradient(var(--panel),var(--panel));
+    border:1px solid var(--glass-edge); border-radius:14px; padding:12px 26px; cursor:pointer;
+    transition:transform .15s ease; }
+  .soft-btn:active { transform:scale(.95); }
+
+  .confetti { position:fixed; top:-12px; border-radius:3px; z-index:55; pointer-events:none;
+    animation:fall linear forwards; }
+  @keyframes fall { to { transform: translateY(110vh) rotate(660deg); opacity:.7; } }
+
+  #toast { position:fixed; bottom:calc(24px + env(safe-area-inset-bottom)); left:50%;
+    transform:translate(-50%, 60px); z-index:70; padding:10px 20px; border-radius:99px;
+    background:rgba(255,255,255,.12); border:1px solid var(--glass-edge); backdrop-filter:blur(8px);
+    font-size:.8rem; font-weight:300; letter-spacing:.05em; opacity:0; transition:.35s ease; pointer-events:none; }
+  #toast.show { opacity:1; transform:translate(-50%,0); }
+
+  /* ---- level select ---- */
+  #levels { position:fixed; inset:0; z-index:62; display:flex; align-items:center; justify-content:center;
+    background:rgba(16,12,26,.72); backdrop-filter:blur(8px);
+    opacity:0; pointer-events:none; transition:opacity .35s ease; }
+  #levels.show { opacity:1; pointer-events:auto; }
+  .levels-card { width:min(86vw,360px); max-height:72vh; display:flex; flex-direction:column;
+    border-radius:24px; padding:20px 18px;
+    background-image:linear-gradient(160deg,#342b52,#251e3d); border:1px solid var(--glass-edge);
+    transform:translateY(14px) scale(.97); transition:transform .4s cubic-bezier(.3,1.4,.5,1); }
+  #levels.show .levels-card { transform:none; }
+  .levels-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
+  .levels-head h2 { font-family:'Fraunces',serif; font-weight:650; font-size:1.3rem; }
+  #levelGrid { overflow-y:auto; display:grid; grid-template-columns:repeat(5,1fr); gap:9px; padding:2px;
+    overscroll-behavior:contain; }
+  .lvl-chip { height:48px; border-radius:14px; border:1px solid var(--glass-edge);
+    background-color:transparent; background-image:linear-gradient(var(--panel),var(--panel));
+    color:var(--ink); font-family:'Outfit',sans-serif; font-size:.9rem; cursor:pointer;
+    transition:transform .12s ease; }
+  .lvl-chip:active { transform:scale(.92); }
+  .lvl-chip.done { border-color:rgba(240,179,94,.45); color:var(--accent); }
+  .lvl-chip.now { border-color:var(--accent);
+    background-image:linear-gradient(var(--accent),var(--accent)); color:#1d1530; font-weight:600; }
+  .lvl-chip.lock { opacity:.32; }
+  .lvl-chip.playing { outline:2px solid rgba(255,255,255,.45); outline-offset:2px; }
+
+  /* ---- how-to-play tutorial ---- */
+  #tut { position:fixed; inset:0; z-index:80; display:flex; align-items:center; justify-content:center;
+    background:rgba(16,12,26,.8); backdrop-filter:blur(8px);
+    opacity:0; pointer-events:none; transition:opacity .35s ease;
+    padding: calc(env(safe-area-inset-top) + 14px) 18px calc(env(safe-area-inset-bottom) + 14px); }
+  #tut.show { opacity:1; pointer-events:auto; }
+  .tut-card { width:min(92vw,380px); border-radius:26px; padding:20px;
+    background-image:linear-gradient(160deg,#342b52,#251e3d); border:1px solid var(--glass-edge);
+    box-shadow:0 24px 48px -20px rgba(0,0,0,.7);
+    transform:translateY(14px) scale(.97); transition:transform .4s cubic-bezier(.3,1.4,.5,1); }
+  #tut.show .tut-card { transform:none; }
+  .tut-illo { width:100%; aspect-ratio:16/10; border-radius:18px;
+    background-image:linear-gradient(160deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+    border:1px solid var(--glass-edge); display:flex; align-items:center; justify-content:center;
+    overflow:hidden; margin-bottom:14px; }
+  .tut-illo svg { width:92%; height:92%; }
+  .tut-title { font-family:'Fraunces',serif; font-weight:650; font-size:1.18rem; text-align:center; }
+  .tut-text { color:var(--ink-dim); font-weight:300; font-size:.86rem; line-height:1.5;
+    text-align:center; margin-top:5px; min-height:3.8em; }
+  .tut-nav { display:flex; align-items:center; justify-content:space-between; margin-top:6px; }
+  .tut-back { background:none; border:none; cursor:pointer; color:var(--ink-dim);
+    font-family:'Outfit',sans-serif; font-weight:300; font-size:.85rem; padding:8px 2px; min-width:54px; text-align:left; }
+  .tut-back[disabled] { opacity:0; pointer-events:none; }
+  .tut-dots { display:flex; gap:6px; }
+  .tut-dots i { width:7px; height:7px; border-radius:50%; background:rgba(255,255,255,.25); transition:.25s ease; }
+  .tut-dots i.on { background:var(--accent); width:18px; border-radius:4px; }
+  .tut-next { font-family:'Outfit',sans-serif; font-weight:600; font-size:.9rem;
+    color:#1d1530; background-image:linear-gradient(var(--accent),var(--accent)); border:none;
+    border-radius:13px; padding:11px 20px; cursor:pointer; min-width:54px;
+    transition:transform .15s ease; box-shadow:0 8px 20px -8px rgba(240,179,94,.5); }
+  .tut-next:active { transform:scale(.94); }
+</style>
+</head>
+<body>
+<div class="sky"></div><div class="orb a"></div><div class="orb b"></div>
+
+<header>
+  <a class="brand" href="../" aria-label="All games"><span class="back">‹</span> flock<em>.</em></a>
+  <div class="meta">
+    <div class="lvl" id="lvlBig">1</div>
+    <div class="sub">level</div>
+  </div>
+  <div class="controls">
+    <button class="icon-btn" id="undoBtn" aria-label="Undo pick" title="Undo">
+      <svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg>
+    </button>
+    <button class="icon-btn" id="restartBtn" aria-label="Restart level" title="Restart">
+      <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.3"/><path d="M21 3v6h-6"/></svg>
+    </button>
+    <button class="icon-btn" id="infoBtn" aria-label="How to play" title="How to play">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16.5"/><line x1="12" y1="7.4" x2="12" y2="7.6"/></svg>
+    </button>
+    <button class="icon-btn" id="musicBtn" aria-label="Toggle music" title="Music"></button>
+    <button class="icon-btn" id="soundBtn" aria-label="Toggle sound" title="Sound"></button>
+  </div>
+</header>
+<div class="tagline">herd three of a kind home</div>
+
+<div class="goal" id="goalBar">
+  <span class="lvlchip"><b id="leftNum">0</b> tiles</span>
+  <span class="goal-sep"></span>
+  <span class="goal-txt">picks <b id="pickNum">0</b></span>
+</div>
+
+<main>
+  <div id="stage"></div>
+  <div id="tray"></div>
+</main>
+
+<nav class="actions">
+  <button class="pill" id="deckBtn" aria-label="Switch tile deck">
+    <svg viewBox="0 0 24 24"><circle cx="9" cy="10" r="4.5"/><circle cx="15" cy="10" r="4.5"/><circle cx="12" cy="14" r="4.5"/><circle cx="10.5" cy="11.5" r="0.4" fill="currentColor"/><circle cx="13.5" cy="11.5" r="0.4" fill="currentColor"/></svg>
+    Deck
+  </button>
+  <button class="pill" id="shuffleBtn" aria-label="Shuffle the tiles">
+    <svg viewBox="0 0 24 24"><path d="M16 3h5v5"/><path d="M4 20 21 3"/><path d="M21 16v5h-5"/><path d="m15 15 6 6"/><path d="M4 4l5 5"/></svg>
+    Shuffle
+  </button>
+  <button class="pill" id="levelsBtn" aria-label="All levels">
+    <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>
+    Levels
+  </button>
+  <button class="pill" id="skipBtn" aria-label="Skip this level">
+    Skip
+    <svg viewBox="0 0 24 24"><path d="m6 5 7 7-7 7"/><path d="M17 5v14"/></svg>
+  </button>
+</nav>
+
+<div id="levels" role="dialog" aria-label="Level select">
+  <div class="levels-card">
+    <div class="levels-head">
+      <h2>Levels</h2>
+      <button class="icon-btn" id="levelsClose" aria-label="Close">
+        <svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div id="levelGrid"></div>
+  </div>
+</div>
+
+<div id="over" role="dialog" aria-label="Result">
+  <div class="over-card">
+    <h2 id="overTitle">All gathered.</h2>
+    <p id="overSub">next one’s up</p>
+    <button class="next-btn" id="contBtn">Keep going →</button>
+  </div>
+</div>
+
+<div id="rescue" role="dialog" aria-label="Tray full">
+  <div class="over-card">
+    <h2>The tray is full.</h2>
+    <p>no worries — nothing is lost</p>
+    <button class="next-btn" id="rescueUndo">↩ Undo last pick</button>
+    <button class="soft-btn" id="rescueAside">✦ Set 3 aside on the board</button>
+  </div>
+</div>
+<div id="toast"></div>
+
+<div id="tut" role="dialog" aria-label="How to play">
+  <div class="tut-card">
+    <div class="tut-illo" id="tutIllo"></div>
+    <div class="tut-title" id="tutTitle"></div>
+    <div class="tut-text" id="tutText"></div>
+    <div class="tut-nav">
+      <button class="tut-back" id="tutBack">‹ back</button>
+      <div class="tut-dots" id="tutDots"></div>
+      <button class="tut-next" id="tutNext">Next ›</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---- how-to-play tutorial (illustration-led, self-contained) ---- */
+(function(){
+  const acc='#f0b35e', face='#f2ead9';
+  const S=i=>`<svg viewBox="0 0 200 130">${i}</svg>`;
+  const tl=(x,y,inner,dim)=>`<g ${dim?'opacity=".38"':''}><rect x="${x}" y="${y}" width="26" height="26" rx="6" fill="${face}" stroke="rgba(0,0,0,.4)"/><g transform="translate(${x+5},${y+5}) scale(.16)">${inner}</g></g>`;
+  const moon=`<path d="M70 10 A45 45 0 1 0 95 85 A38 38 0 0 1 70 10z" fill="#f0b35e"/>`;
+  const leaf=`<path d="M50 8 C90 25 95 70 52 95 C15 70 15 30 50 8z" fill="#5fc97e"/><path d="M50 20 V85" stroke="#2e7247" stroke-width="6" stroke-linecap="round"/>`;
+  const heart=`<path d="M50 88 C10 58 12 26 33 20 C44 17 50 26 50 32 C50 26 56 17 67 20 C88 26 90 58 50 88z" fill="#ff6f69"/>`;
+  const arrow=(x1,y1,x2,y2)=>`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${acc}" stroke-width="3" stroke-linecap="round"/><polyline points="${x2-8},${y2-4} ${x2},${y2} ${x2-3},${y2-9}" fill="none" stroke="${acc}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>`;
+  const tray=(y)=>`<rect x="34" y="${y}" width="132" height="34" rx="9" fill="rgba(255,255,255,.06)" stroke="rgba(255,255,255,.2)"/>`;
+  const TUT=[
+    { illo:S(tl(58,14,moon)+tl(84,22,leaf)+tl(72,36,heart)+tl(110,30,moon,true)
+        + arrow(96,64,100,88) + tray(92) + tl(38,96,moon)),
+      title:'Tap the free tiles', text:'Tiles pile up in layers. A tile with nothing on top is free — tap it and it hops down into the tray. Dimmed tiles are buried; clear what’s above them first.' },
+    { illo:S(tray(48) + tl(40,52,leaf)+tl(68,52,leaf)+tl(96,52,leaf,true)
+        + `<circle cx="150" cy="65" r="14" fill="none" stroke="${acc}" stroke-width="3"/><path d="M143 65 l5 5 9-11" fill="none" stroke="${acc}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>`
+        + `<text x="100" y="110" text-anchor="middle" font-family="Georgia,serif" font-size="14" fill="${acc}">three together vanish ✦</text>`),
+      title:'Three make a trio', text:'The tray holds seven tiles. The moment three of the same kind sit in it, they clear with a chime. Empty the whole board to finish the level.' },
+    { illo:S(tl(48,30,moon)+tl(76,30,leaf)+tl(104,30,heart)+tl(132,38,moon)
+        + `<text x="100" y="100" text-anchor="middle" font-family="Georgia,serif" font-size="14" fill="${acc}">undo · shuffle · set aside</text>`),
+      title:'You can’t get stuck', text:'Undo returns picks to the board, Shuffle re-deals the tile faces, and if the tray ever fills you can set three aside. No timer, no lives — just tidy little trios.' }
+  ];
+  const el=document.getElementById('tut'),illoEl=document.getElementById('tutIllo'),titleEl=document.getElementById('tutTitle'),textEl=document.getElementById('tutText'),dotsEl=document.getElementById('tutDots'),backEl=document.getElementById('tutBack'),nextEl=document.getElementById('tutNext'),info=document.getElementById('infoBtn');
+  let p=0;
+  function render(){ illoEl.innerHTML=TUT[p].illo; titleEl.textContent=TUT[p].title; textEl.textContent=TUT[p].text; let d=''; for(let i=0;i<TUT.length;i++) d+=`<i class="${i===p?'on':''}"></i>`; dotsEl.innerHTML=d; backEl.disabled=p===0; nextEl.textContent=p===TUT.length-1?'Got it':'Next ›'; }
+  function openTut(){ p=0; render(); el.classList.add('show'); }
+  function closeTut(){ el.classList.remove('show'); }
+  if(info) info.addEventListener('click',openTut);
+  backEl.addEventListener('click',()=>{ if(p>0){p--;render();} });
+  nextEl.addEventListener('click',()=>{ if(p<TUT.length-1){p++;render();} else closeTut(); });
+  el.addEventListener('click',e=>{ if(e.target===el) closeTut(); });
+  try{ if(!localStorage.getItem('flock.tut')){ localStorage.setItem('flock.tut','1'); setTimeout(openTut,600); } }catch(e){}
+})();
+</script>
+
+<script src="../sync.js"></script>
+<script>
+'use strict';
+/* ============================================================================
+   flock. — a calm triple-tile matcher (renamed from trio, 2026-07-23) (the Tile-Master idea, minus the stress).
+   Tiles pile up in layers on a fixed logical board (390×420, uniformly scaled
+   so every device sees the identical level). Only uncovered tiles are
+   tappable; a tapped tile flies into a 7-slot tray; three of a kind in the
+   tray clear. Empty the board to win the level.
+   Calm rules: NO timer, NO lives, NO fail. Unlimited undo (returns tray picks
+   to their board spots), unlimited shuffle (re-deals the faces of the tiles
+   still on the board), and if the tray fills a gentle rescue offers undo or
+   "set 3 aside" (the three oldest tray tiles go back onto the board, on top).
+   Levels are seeded (level number = seed, mulberry32) → endless replayable.
+   Keys: flock.level (furthest unlocked, synced max) · flock.sound · flock.tut
+   ============================================================================ */
+const LW = 390, LH = 420;          // logical board
+const TS = 54;                     // logical tile size
+const GRID = 27;                   // placement half-step
+const TRAYN = 7;
+
+/* ---- tile kinds: little night-garden motifs, one colour each ---- */
+const MOTIF = [
+  { n:'moon',  svg:`<path d="M70 10 A45 45 0 1 0 95 85 A38 38 0 0 1 70 10z" fill="#f0b35e"/>` },
+  { n:'star',  svg:`<path d="M50 6 l12 28 30 3 -22 20 6 30 -26-15 -26 15 6-30 -22-20 30-3z" fill="#ffc857"/>` },
+  { n:'leaf',  svg:`<path d="M50 8 C90 25 95 70 52 95 C15 70 15 30 50 8z" fill="#5fc97e"/><path d="M50 22 V85" stroke="#2e7247" stroke-width="6" stroke-linecap="round"/>` },
+  { n:'drop',  svg:`<path d="M50 6 C72 38 86 54 86 70 a36 36 0 1 1 -72 0 C14 54 28 38 50 6z" fill="#5b8def"/><circle cx="38" cy="68" r="9" fill="rgba(255,255,255,.45)"/>` },
+  { n:'heart', svg:`<path d="M50 88 C10 58 12 26 33 20 C44 17 50 26 50 32 C50 26 56 17 67 20 C88 26 90 58 50 88z" fill="#ff6f69"/>` },
+  { n:'bloom', svg:`<g fill="#c07ce8"><circle cx="50" cy="26" r="16"/><circle cx="74" cy="44" r="16"/><circle cx="65" cy="72" r="16"/><circle cx="35" cy="72" r="16"/><circle cx="26" cy="44" r="16"/></g><circle cx="50" cy="50" r="13" fill="#fff3c4"/>` },
+  { n:'cloud', svg:`<path d="M28 70 a16 16 0 0 1 4-31 a22 22 0 0 1 42-5 a17 17 0 0 1 -2 36z" fill="#bcc8e8"/>` },
+  { n:'shroom',svg:`<path d="M50 12 C24 12 12 34 12 48 h76 C88 34 76 12 50 12z" fill="#e08bb1"/><circle cx="34" cy="32" r="5.5" fill="#fff3c4"/><circle cx="58" cy="24" r="4.5" fill="#fff3c4"/><rect x="38" y="48" width="24" height="34" rx="10" fill="#efe3c4"/>` },
+  { n:'fish',  svg:`<path d="M14 50 C30 26 58 24 78 40 l12-12 v44 l-12-12 C58 76 30 74 14 50z" fill="#6cc7c0"/><circle cx="36" cy="46" r="5" fill="#1d3a38"/>` },
+];
+
+/* ---- the SHEEP deck: nine little sheep in SIDE PROFILE (owner: no
+   front-facing), a mix looking left and right. Differentiation works on TWO
+   channels at once: every sheep has its own wool colour AND its own
+   accessory/expression, so they read apart even at 40px. The base template is
+   drawn facing RIGHT; dir:-1 mirrors the whole group (anything that must not
+   mirror, e.g. sleep-z marks, goes in o.over with absolute coords). */
+const sheepS = o => `
+  <g ${o.dir<0?'transform="translate(100 0) scale(-1 1)"':''}>
+    <g fill="${o.wool}">
+      <circle cx="30" cy="55" r="15"/><circle cx="46" cy="48" r="17"/><circle cx="61" cy="55" r="14"/>
+      <circle cx="37" cy="66" r="15"/><circle cx="55" cy="66" r="13"/>
+      <circle cx="19" cy="56" r="8"/>
+      <circle cx="69" cy="33" r="9"/>
+    </g>
+    <rect x="31" y="76" width="7" height="15" rx="3.5" fill="#6b5b4e"/>
+    <rect x="53" y="76" width="7" height="15" rx="3.5" fill="#6b5b4e"/>
+    <ellipse cx="61" cy="35" rx="8.5" ry="4.8" fill="${o.ear||'#e8c3a0'}" transform="rotate(-32 61 35)"/>
+    <circle cx="75" cy="44" r="12.5" fill="${o.face||'#fdeeda'}"/>
+    <ellipse cx="81" cy="49" rx="6.5" ry="5" fill="${o.snout||'#f6ddc0'}"/>
+    <circle cx="84" cy="48.5" r="1.3" fill="#8a6a5a"/>
+    ${o.features}
+    ${o.hat||''}
+  </g>${o.over||''}`;
+const EYE   = `<circle cx="74" cy="41" r="2.7" fill="#3a3152"/>`;
+const SMILE = `<path d="M78 54 q3.5 2.5 7 0" stroke="#b0765a" stroke-width="2.2" fill="none" stroke-linecap="round"/>`;
+const SHEEP = [
+  { n:'snow',  svg:sheepS({ dir:1, wool:'#f2e9d4', features: EYE+SMILE
+      + `<circle cx="69" cy="49" r="3.2" fill="#f4b8c2" opacity=".85"/>` }) },
+  { n:'night', svg:sheepS({ dir:-1, wool:'#43395f', features:
+      `<path d="M71 41 q3.5 3.2 7 0" stroke="#3a3152" stroke-width="2.4" fill="none" stroke-linecap="round"/>`+SMILE
+      + `<circle cx="30" cy="48" r="1.7" fill="#ffe9a8"/><circle cx="48" cy="60" r="1.4" fill="#ffe9a8"/><circle cx="44" cy="40" r="1.5" fill="#ffe9a8"/>` }) },
+  { n:'rosy',  svg:sheepS({ dir:1, wool:'#f2a9c4', features: EYE+SMILE
+      + `<path d="M68 47 c-2.4-2.4-5.8 0-3.4 2.9 l3.4 2.9 3.4-2.9 c2.4-2.9-1-5.3-3.4-2.9z" fill="#e05a7a"/>` }) },
+  { n:'minty', svg:sheepS({ dir:-1, wool:'#9ed4a9', features: EYE+SMILE
+      + `<g transform="translate(84 52)"><path d="M0 0 q4 4 4 8" stroke="#2e7247" stroke-width="2" fill="none"/><circle cx="5" cy="9" r="3.2" fill="#5fc97e"/><circle cx="8" cy="5.8" r="3.2" fill="#5fc97e"/><circle cx="8.6" cy="12" r="3.2" fill="#5fc97e"/></g>` }) },
+  { n:'specs', svg:sheepS({ dir:1, wool:'#d9d5cf', features: SMILE
+      + `<circle cx="74" cy="41" r="6.4" fill="rgba(255,255,255,.55)" stroke="#3a3152" stroke-width="2.4"/><path d="M67.8 39.5 L60 37" stroke="#3a3152" stroke-width="2.2"/><circle cx="74" cy="41" r="1.9" fill="#3a3152"/>` }) },
+  { n:'blaze', svg:sheepS({ dir:-1, wool:'#f0b35e', features:
+      `<rect x="66.5" y="36.5" width="15" height="8.5" rx="4" fill="#2a2340"/><path d="M66.5 39 L59 37" stroke="#2a2340" stroke-width="2.2"/>`
+      + `<path d="M78 53 q4 2.5 7.5 -1" stroke="#b0765a" stroke-width="2.4" fill="none" stroke-linecap="round"/>` }) },
+  { n:'storm', svg:sheepS({ dir:1, wool:'#8fa3c8', features:
+      `<path d="M68 35 l10 3.5" stroke="#3a3152" stroke-width="2.6" stroke-linecap="round"/>`
+      + `<circle cx="74" cy="42.5" r="2.6" fill="#3a3152"/>`
+      + `<path d="M78 54 h8" stroke="#8a5a48" stroke-width="2.4" stroke-linecap="round"/>` }) },
+  { n:'dozy',  svg:sheepS({ dir:-1, wool:'#c9b6ea', features:
+      `<path d="M71 41 q3.5 3 7 0" stroke="#3a3152" stroke-width="2.4" fill="none" stroke-linecap="round"/>`
+      + `<ellipse cx="81" cy="52" rx="2.8" ry="3.6" fill="#8a6a5a" opacity=".7"/>`,
+      hat:`<path d="M60 30 Q70 16 84 22 L80 34 Q70 26 63 36 z" fill="#8f86c9"/><circle cx="85" cy="21" r="4.2" fill="#fff3c4"/>`,
+      over:`<path d="M10 30 h6 l-6 6 h6" stroke="#8f86c9" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`
+          +`<path d="M20 20 h4.5 l-4.5 4.5 h4.5" stroke="#8f86c9" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity=".7"/>` }) },
+  { n:'regal', svg:sheepS({ dir:1, wool:'#82c7e8', features: EYE
+      + `<path d="M78 53 q3.5 2.5 7 0" stroke="#b0765a" stroke-width="2.2" fill="none" stroke-linecap="round"/>`,
+      hat:`<path d="M61 27 L64 18 L69.5 24 L75 16 L79 26 z" fill="#f0b35e" stroke="#c98f2e" stroke-width="1.5"/><circle cx="64" cy="18" r="2" fill="#ffdf8e"/><circle cx="75" cy="16" r="2" fill="#ffdf8e"/>` }) },
+];
+const DECKS = { garden: MOTIF, sheep: SHEEP };
+let deckName = 'sheep';                        // sheep are the default flock
+try{ if(localStorage.getItem('flock.deck')==='garden') deckName='garden'; }catch(e){}
+const faceSVG = m => `<svg viewBox="0 0 100 100">${DECKS[deckName][m].svg}</svg>`;
+
+let level = 1, progress = 1;
+let tiles = [];                    // {id, m, x, y, z, st:'b'|'t'|'g', el}
+let tray = [];                     // tile ids, oldest first
+let picks = 0;
+let busy = false, over = false;
+let soundOn = true;
+try { soundOn = localStorage.getItem('flock.sound') !== 'off'; } catch(e){}
+try { progress = Math.max(1, parseInt(localStorage.getItem('flock.level')||'1',10)||1); } catch(e){}
+level = progress;
+
+const stageEl = document.getElementById('stage');
+const trayEl  = document.getElementById('tray');
+const undoBtn = document.getElementById('undoBtn');
+
+/* ---------- seeded rng ---------- */
+function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+
+/* ---------- audio / haptics ---------- */
+let actx = null;
+function note(freq, dur=.16, vol=.1, type='sine'){
+  if(!soundOn) return;
+  try{
+    actx = actx || new (window.AudioContext||window.webkitAudioContext)();
+    if(actx.state==='suspended') actx.resume();
+    const o=actx.createOscillator(), g=actx.createGain();
+    o.type=type; o.frequency.setValueAtTime(freq, actx.currentTime);
+    g.gain.setValueAtTime(vol, actx.currentTime);
+    g.gain.exponentialRampToValueAtTime(.0001, actx.currentTime+dur);
+    o.connect(g).connect(actx.destination);
+    o.start(); o.stop(actx.currentTime+dur);
+  }catch(e){}
+}
+function chime(){ [523,659,784].forEach((f,i)=>setTimeout(()=>note(f,.22,.09),i*80)); }
+function winSound(){ [392,494,587,784].forEach((f,i)=>setTimeout(()=>note(f,.3,.1),i*110)); }
+function buzz(ms){ if(navigator.vibrate) navigator.vibrate(ms); }
+const soundBtn = document.getElementById('soundBtn');
+function renderSoundIcon(){
+  soundBtn.innerHTML = soundOn
+    ? '<svg viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg>'
+    : '<svg viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="m16 9 5 5m0-5-5 5"/></svg>';
+}
+
+/* ================= silly sheep music (procedural, zero audio files) =========
+   A bouncy oom-pah loop in the spirit of the 羊了个羊 meme-folk BGM: plucky
+   triangle bass on 1&3, square chord stabs on 2&4, a singsong pentatonic
+   square lead, soft hats + woodblock ticks — and every loop, sometimes, a
+   fully synthesized sheep BLEAT. Original tune (same energy, no borrowed
+   melody). Runs on a lookahead scheduler; pauses when the tab hides.
+   Key: flock.music (separate from flock.sound — sfx and music toggle apart). */
+let musicOn = true;
+try{ musicOn = localStorage.getItem('flock.music') !== 'off'; }catch(e){}
+
+/* the comedy bleat — pitch-bent sawtooth with vibrato + tremolo through a
+   bandpass. dest==='music' routes through the music bus (obeys music toggle);
+   otherwise it's a game sfx gated by soundOn at the call site. */
+function baa(when, base, toMusic){
+  try{
+    actx = actx || new (window.AudioContext||window.webkitAudioContext)();
+    const a=actx, t = when || a.currentTime;
+    const o=a.createOscillator(); o.type='sawtooth';
+    o.frequency.setValueAtTime((base||290)*1.25, t);
+    o.frequency.exponentialRampToValueAtTime((base||290)*.92, t+.55);
+    const vib=a.createOscillator(), vg=a.createGain();
+    vib.frequency.value=7.2; vg.gain.value=16; vib.connect(vg); vg.connect(o.frequency);
+    const trem=a.createOscillator(), tg=a.createGain(), amp=a.createGain();
+    trem.frequency.value=9.5; tg.gain.value=.35; amp.gain.value=.75;
+    trem.connect(tg); tg.connect(amp.gain);
+    const f=a.createBiquadFilter(); f.type='bandpass'; f.frequency.value=900; f.Q.value=1.5;
+    const g=a.createGain();
+    g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(.28,t+.05);
+    g.gain.exponentialRampToValueAtTime(.0001, t+.62);
+    o.connect(f); f.connect(amp); amp.connect(g);
+    g.connect(toMusic ? BGM.bus() : a.destination);
+    o.start(t); vib.start(t); trem.start(t);
+    o.stop(t+.68); vib.stop(t+.68); trem.stop(t+.68);
+  }catch(e){}
+}
+
+const BGM = (function(){
+  const TEMPO=138, STEP=60/TEMPO/2, STEPS=64;          // 8 bars of SWUNG eighths
+  const SWING=1.2;                                     // long-short pairs → bouncy
+  const m2f = n => 440*Math.pow(2,(n-69)/12);
+  // melody (midi, 0=rest) — singsong C-pentatonic, deliberately a bit daft
+  const MEL = [
+    72,0,76,0,79,0,76,0,   81,79,76,0,79,0,0,0,
+    72,0,76,0,79,0,81,0,   79,76,74,0,72,0,0,0,
+    76,76,79,79,81,0,84,0, 81,79,76,74,72,0,0,0,
+    74,0,76,0,79,81,79,76, 72,0,0,0,0,0,0,0 ];
+  const ROOT = [48,48,53,48, 45,53,55,48];             // bass root per bar
+  const CH   = [[60,64],[60,64],[65,69],[60,64],[57,60],[65,69],[62,67],[60,64]];
+  // countermelody: an OFFBEAT second voice one register down — it tick-tocks
+  // between the lead's notes, answers in the bars where the lead rests, and
+  // tumbles down a silly run at the end of the loop
+  const CTR = [
+    0,64,0,67, 0,64,0,67,   0,0,0,72, 0,71,69,67,
+    0,64,0,67, 0,69,0,71,   0,0,0,67, 0,64,65,67,
+    0,60,0,64, 0,67,0,72,   0,0,0,65, 0,64,62,60,
+    0,62,0,64, 0,0,0,0,     0,76,74,71, 67,64,62,60 ];
+  let playing=false, step=0, nextT=0, timer=null, gainM=null;
+  function ctx(){ actx = actx || new (window.AudioContext||window.webkitAudioContext)(); return actx; }
+  // master bus with a touch of generated reverb (noise-tail convolver) for body
+  function bus(){
+    if(!gainM){
+      const a=ctx();
+      gainM = a.createGain(); gainM.gain.value=1.25;
+      // a gentle compressor glues the band together AND lets the mix run louder
+      let out = a.destination;
+      try{
+        const comp = a.createDynamicsCompressor();
+        comp.threshold.value=-16; comp.ratio.value=5; comp.knee.value=18;
+        comp.connect(a.destination); out = comp;
+      }catch(e){}
+      gainM.connect(out);
+      try{
+        const len=(a.sampleRate*1.1)|0, ir=a.createBuffer(2,len,a.sampleRate);
+        for(let c=0;c<2;c++){ const d=ir.getChannelData(c);
+          for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/len,2.6); }
+        const cv=a.createConvolver(); cv.buffer=ir;
+        const wet=a.createGain(); wet.gain.value=.22;
+        gainM.connect(cv); cv.connect(wet); wet.connect(out);
+      }catch(e){}
+    }
+    return gainM;
+  }
+  /* ---- the drum kit (all synthesized) ---- */
+  function kick(t){
+    const a=ctx(), o=a.createOscillator(), g=a.createGain();
+    o.type='sine';
+    o.frequency.setValueAtTime(150,t);
+    o.frequency.exponentialRampToValueAtTime(48, t+.11);
+    g.gain.setValueAtTime(.5,t);
+    g.gain.exponentialRampToValueAtTime(.0001, t+.16);
+    o.connect(g); g.connect(bus()); o.start(t); o.stop(t+.18);
+  }
+  function snare(t){
+    const a=ctx(), b=a.createBuffer(1,(a.sampleRate*.12)|0,a.sampleRate), d=b.getChannelData(0);
+    for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,1.6);
+    const s=a.createBufferSource(); s.buffer=b;
+    const f=a.createBiquadFilter(); f.type='bandpass'; f.frequency.value=1900; f.Q.value=.8;
+    const g=a.createGain(); g.gain.value=.24;
+    s.connect(f); f.connect(g); g.connect(bus()); s.start(t);
+    const o=a.createOscillator(), og=a.createGain();      // the snare's "body" tone
+    o.type='triangle'; o.frequency.setValueAtTime(185,t);
+    og.gain.setValueAtTime(.16,t); og.gain.exponentialRampToValueAtTime(.0001,t+.09);
+    o.connect(og); og.connect(bus()); o.start(t); o.stop(t+.1);
+  }
+  function v(freq,t,dur,type,vol,pan,detune){
+    const a=ctx(), g=a.createGain();
+    g.gain.setValueAtTime(0,t);
+    g.gain.linearRampToValueAtTime(vol, t+.012);
+    g.gain.exponentialRampToValueAtTime(.0001, t+dur);
+    let out=g;
+    if(pan && a.createStereoPanner){ const p=a.createStereoPanner(); p.pan.value=pan; g.connect(p); out=p; }
+    out.connect(bus());
+    // detune>0 → TWO oscillators a few cents apart: instant chorus shimmer
+    const det = detune||0;
+    for(const d of (det? [-det, det] : [0])){
+      const o=a.createOscillator();
+      o.type=type; o.frequency.setValueAtTime(freq,t);
+      if(o.detune) o.detune.value=d;
+      o.connect(g); o.start(t); o.stop(t+dur+.02);
+    }
+  }
+  function hat(t){
+    const a=ctx(), b=a.createBuffer(1,1100,a.sampleRate), d=b.getChannelData(0);
+    for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,2);
+    const s=a.createBufferSource(); s.buffer=b;
+    const f=a.createBiquadFilter(); f.type='highpass'; f.frequency.value=6500;
+    const g=a.createGain(); g.gain.value=.032;
+    s.connect(f); f.connect(g); g.connect(bus()); s.start(t);
+  }
+  function schedule(){
+    if(!playing) return;
+    const a=ctx();
+    while(nextT < a.currentTime + .3){
+      const s = step % STEPS, bar=(s/8)|0, sb=s%8, t=nextT;
+      if(sb===0){
+        v(m2f(ROOT[bar]),    t, STEP*1.4, 'triangle', .24);
+        v(m2f(ROOT[bar]-12), t, STEP*1.6, 'sine', .16);          // warm sub underneath
+      }
+      if(sb===4){
+        v(m2f(ROOT[bar]+7),  t, STEP*1.4, 'triangle', .19);
+        v(m2f(ROOT[bar]-12), t, STEP*1.4, 'sine', .12);
+      }
+      if(sb===0||sb===4) kick(t);                        // drums: boom on 1 & 3…
+      if(sb===2||sb===6) snare(t);                       // …crack on 2 & 4
+      if(sb===2||sb===6){
+        // fuller stab: chord pair + the root an octave up, spread a little left
+        for(const n of CH[bar].concat(ROOT[bar]+24)) v(m2f(n), t, STEP*.7, 'square', .038, -.25);
+        v(1850, t, .035, 'sine', .07);                  // woodblock tick
+      }
+      // soft offbeat arpeggio dances through the chord on the swung "pah"s
+      if(sb===1||sb===3||sb===5||sb===7){
+        const tones = CH[bar].concat(ROOT[bar]+12);
+        v(m2f(tones[((s/2)|0)%tones.length]+12), t, STEP*.65, 'triangle', .026, .3);
+      }
+      hat(t);
+      const m = MEL[s];
+      if(m) v(m2f(m), t, STEP*.8, 'square', .075, .12, 5);   // detuned twin lead — chorus shimmer
+      const c2 = CTR[s];
+      if(c2) v(m2f(c2), t, STEP*.75, 'sawtooth', .034, -.35, 4);  // the answering voice
+      if(s===STEPS-6 && Math.random()<.35) baa(t, 250+Math.random()*90, true);
+      // swung eighths: long-short, long-short — the oom-PAH hops along
+      nextT += STEP * (step%2===0 ? SWING : 2-SWING);
+      step++;
+    }
+    timer = setTimeout(schedule, 90);
+  }
+  function start(){
+    if(playing || !musicOn) return;
+    try{
+      const a=ctx(); if(a.state==='suspended') a.resume();
+      playing=true; nextT=a.currentTime+.06; schedule();
+    }catch(e){}
+  }
+  function stop(){ playing=false; clearTimeout(timer); }
+  return { start, stop, bus, get playing(){ return playing; } };
+})();
+
+const musicBtn = document.getElementById('musicBtn');
+function renderMusicIcon(){
+  musicBtn.innerHTML = musicOn
+    ? '<svg viewBox="0 0 24 24"><path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/></svg>'
+    : '<svg viewBox="0 0 24 24"><path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/><path d="m3 3 18 18" stroke-width="2"/></svg>';
+}
+musicBtn.addEventListener('click', ()=>{
+  musicOn = !musicOn;
+  try{ localStorage.setItem('flock.music', musicOn?'on':'off'); }catch(e){}
+  renderMusicIcon();
+  if(musicOn) BGM.start(); else BGM.stop();
+});
+// browsers block audio until a gesture — the first tap anywhere starts the tune
+document.addEventListener('pointerdown', ()=>{ if(musicOn && !BGM.playing) BGM.start(); });
+document.addEventListener('visibilitychange', ()=>{
+  if(document.hidden) BGM.stop();
+  else if(musicOn) BGM.start();
+});
+
+/* ---------- level generation (seeded) ---------- */
+function levelPlan(lv){
+  // small, quick boards — the challenge comes from ARRANGEMENT, not density
+  const nKinds  = Math.min(9, 3 + Math.ceil(lv/3));            // 4 kinds at lv1 → 9 by lv18
+  let per       = lv < 10 ? 6 : lv < 18 ? 9 : 12;              // copies per kind (×3)
+  const counts  = new Array(nKinds).fill(per);
+  let total     = nKinds*per;
+  let i = 0;
+  while(total > 96){ if(counts[i%nKinds] > 3){ counts[i%nKinds]-=3; total-=3; } i++; }
+  return counts;
+}
+function genLevel(lv){
+  const rng = mulberry32(lv*2654435761 >>> 0 || lv);
+  const counts = levelPlan(lv);
+  // which motifs this level uses (rotates through the set for variety)
+  const kinds = [];
+  { const pool = MOTIF.map((_,i)=>i);
+    for(let i=0;i<counts.length;i++) kinds.push(pool.splice((rng()*pool.length)|0,1)[0]); }
+  const total = counts.reduce((a,b)=>a+b,0);
+
+  /* 1) GEOMETRY first (no kinds yet): a fixed number of PILES, each an exact
+     stack. Pile count P is the number of reachable tiles at any moment, and
+     it is kept BELOW 2×kinds — that's what makes "no kind starts with a full
+     trio reachable" mathematically possible (9 free tops over 4 kinds can
+     never avoid a triple, whatever the assignment). */
+  tiles = []; tray = []; picks = 0;
+  // y starts at 44: headroom so tall piles (lifted ~7px per layer) stay inside the stage
+  const gxMax = (LW-TS-12)/GRID | 0, gyMax = (LH-TS-44)/GRID | 0;
+  // fewer piles = deeper digging: kinds+2 tops (was 2·kinds−1) — some trios
+  // start with NO reachable copy, so you must open piles to find them.
+  // (kinds+1 was play-tested too far: a competent planning bot hit walls at lv7+)
+  const P = Math.max(Math.ceil(total/6), Math.min(counts.length+2, 10));
+  const spots = [];
+  let guard = 0;
+  while(spots.length<P && guard<4000){
+    guard++;
+    const gx = Math.round((rng()+rng())/2*gxMax), gy = Math.round((rng()+rng())/2*gyMax);
+    const x = 6 + gx*GRID, y = 44 + gy*GRID;
+    if(spots.every(s=>!overlap(x,y,s.x,s.y))) spots.push({x, y, n:1});
+  }
+  for(let gy=0; gy<=gyMax && spots.length<P; gy+=2)         // deterministic fallback fill
+    for(let gx=0; gx<=gxMax && spots.length<P; gx+=2){
+      const x = 6 + gx*GRID, y = 44 + gy*GRID;
+      if(spots.every(s=>!overlap(x,y,s.x,s.y))) spots.push({x, y, n:1});
+    }
+  let remaining = total - spots.length;
+  while(remaining>0){
+    const open = spots.filter(s=>s.n<6);
+    const s = open[(rng()*open.length)|0];
+    s.n++; remaining--;
+  }
+  let id = 0;
+  for(const s of spots) for(let z=0; z<s.n; z++)
+    tiles.push({id:id++, m:-1, x:s.x, y:s.y, z, st:'b', el:null});
+
+  /* 2) STRATEGIC kind assignment (owner: "shouldn't show all 3 same tiles at
+     the same layer so easily — quick to clear but needs more strategy").
+     Each trio gets AT MOST ONE initially-reachable copy; the other two go to
+     the most-buried slots available. You hold a copy and dig for its twins. */
+  const cover = tiles.map(t => tiles.filter(o => o.z>t.z && overlap(t.x,t.y,o.x,o.y)).length);
+  const shuffle = arr => { for(let i=arr.length-1;i>0;i--){ const j=(rng()*(i+1))|0; const t=arr[i]; arr[i]=arr[j]; arr[j]=t; } return arr; };
+  const freePool   = shuffle(tiles.map((_,i)=>i).filter(i=>cover[i]===0));
+  const buriedPool = shuffle(tiles.map((_,i)=>i).filter(i=>cover[i]>0))
+                       .sort((a,b)=>cover[a]-cover[b]);   // pop() takes the MOST buried
+  const trios = [];
+  { const left = counts.map(n=>n/3); let more=true;
+    while(more){ more=false;
+      for(let ki=0; ki<counts.length; ki++) if(left[ki]>0){ trios.push(ki); left[ki]--; more=true; } } }
+  const take = (pool, alt) => pool.length ? pool.pop() : alt.pop();
+  // buried copies of one trio go to DIFFERENT piles when possible — digging a
+  // single pile should never hand you a whole trio
+  const takeBuriedSpread = (chosen) => {
+    for(let i=buriedPool.length-1; i>=0; i--){
+      const idx = buriedPool[i];
+      const samePile = chosen.some(c => c!==undefined && tiles[c].x===tiles[idx].x && tiles[c].y===tiles[idx].y);
+      if(!samePile){ buriedPool.splice(i,1); return idx; }
+    }
+    return buriedPool.length ? buriedPool.pop() : freePool.pop();
+  };
+  for(const ki of trios){
+    const slots = [ take(freePool, buriedPool) ];
+    slots.push(takeBuriedSpread(slots));
+    slots.push(takeBuriedSpread(slots));
+    for(const i of slots) if(i!==undefined) tiles[i].m = kinds[ki];
+  }
+  for(const t of tiles) if(t.m<0) t.m = kinds[0];   // safety net, never expected
+
+  /* repair: if pool fallbacks left a kind with 3 free copies (small boards run
+     out of buried slots), swap one of them with a buried copy of a calmer kind */
+  for(let guard=0; guard<12; guard++){
+    const freeCnt={};
+    tiles.forEach((t,i)=>{ if(cover[i]===0) freeCnt[t.m]=(freeCnt[t.m]||0)+1; });
+    const hotKind = Object.keys(freeCnt).map(Number).find(m=>freeCnt[m]>=3);
+    if(hotKind===undefined) break;
+    const hotIdx  = tiles.findIndex((t,i)=>t.m===hotKind && cover[i]===0);
+    const coolIdx = tiles.findIndex((t,i)=>cover[i]>0 && t.m!==hotKind && (freeCnt[t.m]||0)<2);
+    if(hotIdx<0 || coolIdx<0) break;
+    const tmp = tiles[hotIdx].m; tiles[hotIdx].m = tiles[coolIdx].m; tiles[coolIdx].m = tmp;
+  }
+}
+function overlap(x1,y1,x2,y2){
+  return Math.abs(x1-x2) < TS-8 && Math.abs(y1-y2) < TS-8;
+}
+function isFree(t){
+  if(t.st!=='b') return false;
+  for(const o of tiles)
+    if(o.st==='b' && o.z>t.z && overlap(t.x,t.y,o.x,o.y)) return false;
+  return true;
+}
+function boardCount(){ return tiles.filter(t=>t.st==='b').length; }
+
+/* ---------- layout / render ---------- */
+let scale = 1, tilePx = 54;
+function layout(){
+  const mainEl = document.querySelector('main');
+  const availW = Math.min(mainEl.clientWidth-8, 420);
+  const trayH0 = 74;                                            // reserve for the tray
+  const availH = mainEl.clientHeight - trayH0 - 14;
+  scale = Math.min(availW/LW, availH/LH);
+  scale = Math.max(scale, .5);
+  stageEl.style.width  = Math.round(LW*scale)+'px';
+  stageEl.style.height = Math.round(LH*scale)+'px';
+  tilePx = Math.round(TS*scale);
+  // tray: 7 slots
+  const slotGap = 5;
+  const trayW = TRAYN*tilePx + (TRAYN+1)*slotGap;
+  trayEl.style.width  = trayW+'px';
+  trayEl.style.height = (tilePx + 12)+'px';
+  trayEl.querySelectorAll('.slot').forEach(s=>s.remove());
+  for(let i=0;i<TRAYN;i++){
+    const s=document.createElement('div');
+    s.className='slot';
+    s.style.cssText=`left:${slotGap + i*(tilePx+slotGap)}px;top:6px;width:${tilePx}px;height:${tilePx}px;`;
+    trayEl.appendChild(s);
+  }
+}
+function trayXY(i){
+  const slotGap = 5;
+  const tr = trayEl.getBoundingClientRect(), st = stageEl.getBoundingClientRect();
+  return [ tr.left - st.left + slotGap + i*(tilePx+slotGap), tr.top - st.top + 6 ];
+}
+function buildTiles(){
+  stageEl.innerHTML='';
+  const sorted = [...tiles].sort((a,b)=>a.z-b.z || a.y-b.y);
+  for(const t of sorted){
+    const el = document.createElement('div');
+    el.className='tile';
+    el.dataset.id = t.id;
+    el.innerHTML = faceSVG(t.m);
+    stageEl.appendChild(el);
+    t.el = el;
+  }
+  render(true);
+}
+function render(instant){
+  for(const t of tiles){
+    const el=t.el; if(!el) continue;
+    if(instant) el.style.transition='none';
+    el.style.width = tilePx+'px'; el.style.height = tilePx+'px';
+    el.style.setProperty('--edge', Math.max(3, Math.round(tilePx*.11))+'px');
+    if(t.st==='b'){
+      el.style.left = Math.round(t.x*scale)+'px';
+      // stacked tiles sit visibly HIGHER — each layer lifts by a bit of edge
+      el.style.top  = Math.round((t.y - t.z*7)*scale)+'px';
+      el.style.zIndex = 1 + t.z;
+      el.style.display='';
+      el.classList.remove('intray');
+      el.classList.toggle('covered', !isFree(t));
+    } else if(t.st==='t'){
+      const i = tray.indexOf(t.id);
+      const [tx,ty] = trayXY(Math.max(0,i));
+      el.style.left = Math.round(tx)+'px';
+      el.style.top  = Math.round(ty)+'px';
+      el.style.zIndex = 40;
+      el.style.display='';
+      el.classList.add('intray');
+      el.classList.remove('covered');
+    } else {
+      el.style.display='none';
+    }
+    if(instant){ void el.offsetWidth; el.style.transition=''; }
+  }
+  updateMeta();
+}
+
+/* ---------- picking / matching ---------- */
+function pickTile(t){
+  if(busy || over || t.st!=='b' || !isFree(t)) {
+    if(t.st==='b' && !isFree(t)){ t.el.classList.remove('shake'); void t.el.offsetWidth; t.el.classList.add('shake'); note(200,.06,.04); buzz(10); }
+    return;
+  }
+  busy = true;
+  // insert next to its own kind so trios read clearly
+  let at = tray.length;
+  for(let i=tray.length-1;i>=0;i--){
+    if(tiles[tray[i]].m===t.m){ at=i+1; break; }
+  }
+  tray.splice(at,0,t.id);
+  t.st='t'; picks++;
+  note(430 + t.m*22, .1, .07); buzz(5);
+  render();
+  setTimeout(()=>{
+    const cleared = resolveTray(t.m);
+    busy = false;
+    render();
+    if(!cleared && tray.length>=TRAYN){ openRescue(); }
+    if(boardCount()===0 && tray.length===0 && !over) levelWin();
+  }, 300);
+}
+function resolveTray(m){
+  const ids = tray.filter(id=>tiles[id].m===m);
+  if(ids.length<3) return false;
+  const three = ids.slice(0,3);
+  for(const id of three){
+    const t=tiles[id];
+    t.el.classList.add('matched');
+  }
+  chime(); buzz([12,30,12]);
+  if(deckName==='sheep' && soundOn) baa(0, 240+Math.random()*120);   // the flock approves
+  setTimeout(()=>{
+    for(const id of three){
+      const t=tiles[id];
+      t.st='g';
+      t.el.classList.remove('matched');
+      tray.splice(tray.indexOf(id),1);
+    }
+    render();
+    if(boardCount()===0 && tray.length===0 && !over) levelWin();
+  }, 240);
+  return true;
+}
+
+/* ---------- helpers: undo / shuffle / set-aside ---------- */
+function doUndo(){
+  if(busy || over) return;
+  if(!tray.length){ toast('nothing to undo'); return; }
+  const id = tray.pop();                       // most recent pick still in the tray
+  const t = tiles[id];
+  t.st='b';
+  note(330,.1,.06);
+  render();
+}
+function doShuffle(){
+  if(busy || over) return;
+  const onBoard = tiles.filter(t=>t.st==='b');
+  if(onBoard.length<2){ toast('nothing to shuffle'); return; }
+  const kinds = onBoard.map(t=>t.m);
+  for(let i=kinds.length-1;i>0;i--){ const j=(Math.random()*(i+1))|0; const k=kinds[i]; kinds[i]=kinds[j]; kinds[j]=k; }
+  onBoard.forEach((t,i)=>{
+    t.m = kinds[i];
+    t.el.innerHTML = faceSVG(t.m);
+    t.el.classList.add('rise');
+    setTimeout(()=>t.el.classList.remove('rise'), 350);
+  });
+  note(480,.1,.06); buzz(8);
+  toast('tiles shuffled ✦');
+  render();
+}
+function setAside(){
+  if(tray.length<3) return;
+  const three = tray.splice(0,3);              // the three oldest picks
+  let zTop = 0;
+  for(const t of tiles) if(t.st==='b') zTop = Math.max(zTop, t.z+1);
+  for(const id of three){
+    const t = tiles[id];
+    t.st='b';
+    t.z = zTop;
+    t.x = 6 + Math.round(Math.random()*((LW-TS-12)/GRID))*GRID;
+    t.y = 44 + Math.round(Math.random()*((LH-TS-44)/GRID))*GRID;
+  }
+  note(360,.12,.07);
+  render();
+}
+
+/* ---------- rescue overlay ---------- */
+const rescueEl = document.getElementById('rescue');
+function openRescue(){ rescueEl.classList.add('show'); buzz(15); }
+function closeRescue(){ rescueEl.classList.remove('show'); }
+document.getElementById('rescueUndo').addEventListener('click', ()=>{ closeRescue(); doUndo(); });
+document.getElementById('rescueAside').addEventListener('click', ()=>{ closeRescue(); setAside(); });
+
+/* ---------- input ---------- */
+stageEl.addEventListener('pointerdown', e=>{
+  const el = e.target.closest('.tile');
+  if(!el) return;
+  const t = tiles[+el.dataset.id];
+  if(t) pickTile(t);
+});
+
+/* ---------- meta / persistence ---------- */
+function updateMeta(){
+  document.getElementById('lvlBig').textContent = level;
+  document.getElementById('leftNum').textContent = boardCount() + tray.length;
+  document.getElementById('pickNum').textContent = picks;
+  undoBtn.disabled = !tray.length || busy || over;
+}
+function saveProgress(){
+  try{ localStorage.setItem('flock.level', progress); }catch(e){}
+}
+
+/* ---------- win / flow ---------- */
+const overEl = document.getElementById('over');
+function showOver(title, sub, label){
+  over = true;
+  document.getElementById('overTitle').textContent = title;
+  document.getElementById('overSub').textContent = sub;
+  const btn = document.getElementById('contBtn'); btn.textContent = label;
+  overEl.classList.add('show');
+  return new Promise(res=>{
+    const done=()=>{ overEl.classList.remove('show'); btn.removeEventListener('click',done); over=false; res(); };
+    btn.addEventListener('click', done);
+  });
+}
+async function levelWin(){
+  const cleared = level, used = picks;
+  progress = Math.max(progress, level+1);
+  saveProgress();                                   // write FIRST…
+  winSound(); buzz([20,50,20]); confetti();
+  if(window.PlaySync) PlaySync.push();              // …THEN push
+  await new Promise(r=>setTimeout(r,450));
+  await showOver('All gathered.', `every trio found in ${used} picks`, 'Keep going →');
+  startLevel(cleared+1);
+}
+function startLevel(lv){
+  level = lv;
+  over = false; busy = false;
+  closeRescue();
+  genLevel(lv);
+  layout(); buildTiles();
+  updateMeta(); saveProgress();
+}
+function restart(){
+  if(busy || over) return;
+  if(!picks){ toast('already fresh ✦'); return; }
+  startLevel(level); note(260,.12,.07); toast('level restarted');
+}
+function skip(){
+  if(busy || over) return;
+  level++; progress = Math.max(progress, level);
+  startLevel(level);                                // saves flock.level BEFORE the push
+  if(window.PlaySync) PlaySync.push();
+  toast('level skipped ✦');
+}
+
+/* ---------- effects ---------- */
+function confetti(){
+  const CC=['#ff6f69','#ffc857','#5fc97e','#5b8def','#c07ce8','#e08bb1'];
+  for(let k=0;k<60;k++){
+    const p=document.createElement('div'); p.className='confetti';
+    const sz=4+Math.random()*7, cc=CC[(Math.random()*CC.length)|0];
+    p.style.cssText = `left:${Math.random()*100}vw;width:${sz}px;height:${sz*1.4}px;`+
+      `background-image:linear-gradient(${cc},${cc});`+
+      `animation-duration:${2.2+Math.random()*2.4}s;animation-delay:${Math.random()*.7}s;`;
+    document.body.appendChild(p);
+    setTimeout(()=>p.remove(),6000);
+  }
+}
+let _toastT;
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(_toastT); _toastT=setTimeout(()=>t.classList.remove('show'),1700);
+}
+
+/* ---- level select ---- */
+const levelsEl=document.getElementById('levels'), levelGrid=document.getElementById('levelGrid');
+function openLevels(){
+  levelGrid.innerHTML='';
+  const maxShown=Math.max(progress+12, 25);
+  for(let nn=1;nn<=maxShown;nn++){
+    const b=document.createElement('button');
+    b.className='lvl-chip '+(nn<progress?'done':nn===progress?'now':'lock');
+    if(nn===level) b.classList.add('playing');
+    b.textContent=nn;
+    b.setAttribute('aria-label','Level '+nn+(nn>progress?' (locked)':''));
+    if(nn<=progress) b.addEventListener('click', ()=>{ startLevel(nn); closeLevels(); note(480,.08,.05); });
+    else b.addEventListener('click', ()=>{ toast('finish level '+progress+' to unlock'); buzz(20); });
+    levelGrid.appendChild(b);
+  }
+  levelsEl.classList.add('show');
+  const now=levelGrid.querySelector('.now'); if(now) now.scrollIntoView({block:'center'});
+}
+function closeLevels(){ levelsEl.classList.remove('show'); }
+
+soundBtn.addEventListener('click', ()=>{
+  soundOn=!soundOn;
+  try{ localStorage.setItem('flock.sound', soundOn?'on':'off'); }catch(e){}
+  renderSoundIcon(); if(soundOn) note(520,.1,.07);
+});
+undoBtn.addEventListener('click', doUndo);
+document.getElementById('restartBtn').addEventListener('click', restart);
+document.getElementById('deckBtn').addEventListener('click', ()=>{
+  deckName = deckName==='garden' ? 'sheep' : 'garden';
+  try{ localStorage.setItem('flock.deck', deckName); }catch(e){}
+  for(const t of tiles){
+    if(!t.el || t.st==='g') continue;
+    t.el.innerHTML = faceSVG(t.m);
+    t.el.classList.add('rise');
+    setTimeout(()=>t.el.classList.remove('rise'), 350);
+  }
+  note(560,.1,.06); buzz(6);
+  toast(deckName==='sheep' ? 'the sheep are here 🐑' : 'back to the night garden ✦');
+});
+document.getElementById('shuffleBtn').addEventListener('click', doShuffle);
+document.getElementById('skipBtn').addEventListener('click', skip);
+document.getElementById('levelsBtn').addEventListener('click', ()=>{ if(!busy) openLevels(); });
+document.getElementById('levelsClose').addEventListener('click', closeLevels);
+levelsEl.addEventListener('click', e=>{ if(e.target===levelsEl) closeLevels(); });
+window.addEventListener('resize', ()=>{ layout(); render(true); });
+
+/* ---------- boot ---------- */
+renderSoundIcon();
+renderMusicIcon();
+startLevel(level);
+
+if(window.PlaySync){
+  PlaySync.init({
+    game: 'flock',
+    onRemote: ()=>{
+      let cl = 1;
+      try{ cl = parseInt(localStorage.getItem('flock.level')||'1',10)||1; }catch(e){}
+      if(cl > progress){ progress = cl; updateMeta(); toast('progress synced — up to level '+progress+' ☁'); }
+    }
+  });
+}
+</script>
+</body>
+</html>
