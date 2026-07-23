@@ -121,6 +121,28 @@
     box-shadow:0 10px 24px -8px rgba(240,179,94,.5); }
   .next-btn:active { transform:scale(.94); }
 
+  /* ---- power-up shop ---- */
+  #shop { position:fixed; inset:0; z-index:62; display:flex; align-items:center; justify-content:center;
+    background:rgba(16,12,26,.72); backdrop-filter:blur(8px);
+    opacity:0; pointer-events:none; transition:opacity .35s ease; }
+  #shop.show { opacity:1; pointer-events:auto; }
+  #shop .over-card { padding:30px 26px; }
+  #offers { display:flex; gap:10px; justify-content:center; margin:14px 0 6px; }
+  .offer { width:92px; padding:12px 6px 10px; border-radius:18px; cursor:pointer;
+    border:1px solid var(--glass-edge);
+    background-color:transparent; background-image:linear-gradient(var(--panel),var(--panel));
+    color:var(--ink); font-family:'Outfit',sans-serif; transition:transform .15s ease; }
+  .offer:active { transform:scale(.94); }
+  .offer canvas { width:44px; height:44px; display:block; margin:0 auto 6px; }
+  .offer .nm { font-size:.72rem; font-weight:400; letter-spacing:.04em; }
+  .offer .pr { font-family:'Fraunces',serif; font-weight:650; font-size:.85rem; color:var(--accent); margin-top:3px; }
+  .offer.cant { opacity:.4; }
+  .soft-btn { display:block; margin:10px auto 0; font-family:'Outfit',sans-serif; font-weight:400; font-size:.86rem;
+    color:var(--ink); background-color:transparent; background-image:linear-gradient(var(--panel),var(--panel));
+    border:1px solid var(--glass-edge); border-radius:14px; padding:11px 24px; cursor:pointer;
+    transition:transform .15s ease; }
+  .soft-btn:active { transform:scale(.95); }
+
   .confetti { position:fixed; top:-12px; border-radius:3px; z-index:55; pointer-events:none;
     animation:fall linear forwards; }
   @keyframes fall { to { transform: translateY(110vh) rotate(660deg); opacity:.7; } }
@@ -191,7 +213,9 @@
 <div class="goal" id="goalBar">
   <span class="lvlchip">best <b id="bestNum">0</b></span>
   <span class="goal-sep"></span>
-  <span class="goal-txt">new row in <b id="rowNum">6</b></span>
+  <span class="goal-txt">row in <b id="rowNum">6</b></span>
+  <span class="goal-sep"></span>
+  <span class="lvlchip">✦ <b id="coinNum">0</b></span>
 </div>
 
 <main>
@@ -203,7 +227,21 @@
     <svg viewBox="0 0 24 24"><path d="M8 3 4 7l4 4"/><path d="M4 7h11a5 5 0 0 1 0 10h-1"/></svg>
     Swap
   </button>
+  <button class="pill" id="shopBtn" aria-label="Power-up shop">
+    <svg viewBox="0 0 24 24"><path d="M4 8h16l-1.5 12h-13z"/><path d="M8 8V6a4 4 0 0 1 8 0v2"/></svg>
+    Shop
+  </button>
 </nav>
+
+<div id="shop" role="dialog" aria-label="Power-up shop">
+  <div class="over-card">
+    <h2>Little helpers</h2>
+    <p>✦ <b id="shopCoins">0</b> · earned by popping</p>
+    <div id="offers"></div>
+    <button class="soft-btn" id="refreshBtn">↻ New offers · ✦ 4</button>
+    <button class="soft-btn" id="shopClose">keep playing</button>
+  </div>
+</div>
 
 <div id="over" role="dialog" aria-label="Result">
   <div class="over-card">
@@ -309,6 +347,9 @@ let rowsIn = 0;                             // rows that have slid in (drives pa
 let rowCounter = 2;                         // shots until the next row
 let revives = 3;                            // gentle second chances per run
 let undoStack = [];                         // pre-shot snapshots (cap 30)
+let coins = 0, coinFrac = 0;                // ✦ wallet — persists across runs (pop.wallet)
+let offers = [];                            // the shop's current 3 offers
+try{ const w=JSON.parse(localStorage.getItem('pop.wallet')||'{}'); coins=Math.max(0,parseInt(w.coins,10)||0); }catch(e){}
 let cur = 0, nxt = 1;
 let ball = null;
 let parts = [];
@@ -440,6 +481,7 @@ function freshRun(){
   grid = []; par0 = 0;
   score = 0; shotCount = 0; rowsIn = 0; rowCounter = 2;
   revives = 3; undoStack = []; patternQueue = [];
+  rollOffers();
   ball = null; parts = []; aiming = false;
   for(let r=0;r<6;r++){
     ensureRow(r);
@@ -530,6 +572,10 @@ function snapCell(x,y){
 }
 
 /* ---------- clearing ---------- */
+function earn(n){                            // 1 coin per 3 bubbles cleared
+  coinFrac += n;
+  if(coinFrac>=3){ coins += (coinFrac/3)|0; coinFrac %= 3; }
+}
 function clearCells(cells, per){
   let n=0;
   for(const [r,c] of cells){
@@ -538,7 +584,7 @@ function clearCells(cells, per){
       grid[r][c]=-1; n++;
     }
   }
-  if(n) score += n*per;
+  if(n){ score += n*per; earn(n); }
   return n;
 }
 function resolveAt(r,c){
@@ -579,7 +625,7 @@ function dropFloaters(){
       grid[r][c]=-1; dropped++;
     }
   }
-  if(dropped){ score += dropped*20; setTimeout(()=>note(340,.16,.08,'triangle'),90); }
+  if(dropped){ score += dropped*20; earn(dropped); setTimeout(()=>note(340,.16,.08,'triangle'),90); }
 }
 
 /* ---------- power-ups ---------- */
@@ -669,12 +715,16 @@ function castBeam(dx,dy){
 /* ---------- firing / flight ---------- */
 function snapshotRun(){
   return { g:grid.map(r=>r.slice()), p:par0, s:score, cur, nxt,
-           sc:shotCount, ri:rowsIn, rc:rowCounter, rv:revives };
+           sc:shotCount, ri:rowsIn, rc:rowCounter, rv:revives,
+           co:coins, cf:coinFrac, of:offers.slice() };
 }
 function applySnapshot(s){
   grid = s.g.map(r=>r.slice()); par0 = s.p;
   score = s.s; cur = s.cur; nxt = s.nxt;
   shotCount = s.sc; rowsIn = s.ri; rowCounter = s.rc; revives = s.rv;
+  if(Number.isInteger(s.co)) coins = s.co;
+  if(Number.isInteger(s.cf)) coinFrac = s.cf;
+  if(Array.isArray(s.of)) offers = s.of.slice();
   ball = null; parts = [];
 }
 function doUndo(){
@@ -705,7 +755,7 @@ function afterShot(){
   if(rowCounter<=0) insertRow();
   refreshShooterColors();
   if(bubblesLeft()===0){
-    score += 100; toast('pond cleared — +100 ✦'); confetti();
+    score += 100; coins += 10; toast('pond cleared — +100 · ✦10'); confetti();
     insertRow(); insertRow(); insertRow();     // it always comes back
   }
   updateMeta(); save();
@@ -1067,14 +1117,17 @@ function updateMeta(){
   document.getElementById('scoreBig').textContent = score;
   document.getElementById('bestNum').textContent = Math.max(best, score);
   document.getElementById('rowNum').textContent = Math.max(0,rowCounter);
+  document.getElementById('coinNum').textContent = coins;
   const u = document.getElementById('undoBtn');
   if(u) u.disabled = !undoStack.length || over || !!ball;
 }
 function save(){
   try{
     localStorage.setItem('pop.state', JSON.stringify({
-      g:grid, p:par0, s:score, cur, nxt, sc:shotCount, ri:rowsIn, rc:rowCounter, rv:revives
+      g:grid, p:par0, s:score, cur, nxt, sc:shotCount, ri:rowsIn, rc:rowCounter, rv:revives,
+      cf:coinFrac, sh:offers
     }));
+    localStorage.setItem('pop.wallet', JSON.stringify({coins}));
   }catch(e){}
 }
 function restore(){
@@ -1095,6 +1148,8 @@ function restore(){
     rowsIn = Math.max(0, parseInt(s.ri,10)||0);
     rowCounter = Math.min(3, Math.max(1, parseInt(s.rc,10)||2));
     revives = Math.min(3, Math.max(0, Number.isInteger(s.rv) ? s.rv : 3));
+    coinFrac = Math.max(0, parseInt(s.cf,10)||0);
+    offers = Array.isArray(s.sh) ? s.sh.filter(p=>POWERS.includes(p)).slice(0,3) : [];
     if(bubblesLeft()===0 || dangerCrossed()) return false;
     return true;
   }catch(e){ return false; }
@@ -1164,6 +1219,68 @@ function doSwap(){
   note(520,.07,.05);
 }
 
+/* ---------- the power-up shop ---------- */
+const PRICE = { [FROST]:15, [BOMB]:20, [ZAP]:22, [PAINT]:25, [WILD]:30, [BEAM]:40 };
+const PNAME = { [BOMB]:'bomb', [WILD]:'rainbow', [ZAP]:'lightning', [BEAM]:'beam', [PAINT]:'paint', [FROST]:'frost' };
+const REFRESH_COST = 4;
+const shopEl = document.getElementById('shop');
+function rollOffers(){
+  const pool = POWERS.slice();
+  offers = [];
+  for(let i=0;i<3;i++) offers.push(pool.splice((Math.random()*pool.length)|0,1)[0]);
+}
+function rerollSlot(i){
+  const pool = POWERS.filter(p=>!offers.includes(p));
+  offers[i] = pool[(Math.random()*pool.length)|0];
+}
+function renderShop(){
+  document.getElementById('shopCoins').textContent = coins;
+  const box = document.getElementById('offers');
+  box.innerHTML='';
+  offers.forEach((p,i)=>{
+    const b = document.createElement('button');
+    b.className = 'offer' + (coins<PRICE[p] ? ' cant' : '');
+    b.innerHTML = `<canvas width="96" height="96"></canvas><div class="nm">${PNAME[p]}</div><div class="pr">✦ ${PRICE[p]}</div>`;
+    const g = b.querySelector('canvas').getContext('2d');
+    const sp = orbSprite(p, 16);
+    g.drawImage(sp, 4, 4, 88, 88);
+    b.addEventListener('click', ()=>buyOffer(i));
+    box.appendChild(b);
+  });
+  document.getElementById('refreshBtn').style.opacity = coins<REFRESH_COST ? .4 : 1;
+}
+function buyOffer(i){
+  const p = offers[i];
+  if(coins < PRICE[p]){ toast('not enough ✦ yet — keep popping'); buzz(15); return; }
+  coins -= PRICE[p];
+  // the buy loads straight into the shooter; the old bubble steps back —
+  // but never throw away a power already waiting in `next`
+  if(nxt < 10) nxt = cur<10 ? cur : nxt;
+  cur = p;
+  rerollSlot(i);
+  note(700,.12,.08); buzz(8);
+  toast(PNAME[p]+' loaded ✦');
+  save(); updateMeta(); renderShop();
+}
+function openShop(){
+  if(over) return;
+  if(!offers.length) rollOffers();
+  renderShop();
+  shopEl.classList.add('show');
+  note(520,.08,.05);
+}
+function closeShop(){ shopEl.classList.remove('show'); }
+document.getElementById('shopBtn').addEventListener('click', openShop);
+document.getElementById('shopClose').addEventListener('click', closeShop);
+shopEl.addEventListener('click', e=>{ if(e.target===shopEl) closeShop(); });
+document.getElementById('refreshBtn').addEventListener('click', ()=>{
+  if(coins < REFRESH_COST){ toast('✦ '+REFRESH_COST+' for new offers'); buzz(15); return; }
+  coins -= REFRESH_COST;
+  rollOffers();
+  note(480,.08,.05);
+  save(); updateMeta(); renderShop();
+});
+
 /* ---------- effects ---------- */
 function confetti(){
   for(let k=0;k<60;k++){
@@ -1207,6 +1324,12 @@ if(window.PlaySync){
       let cb = 0;
       try{ cb = parseInt(localStorage.getItem('pop.best')||'0',10)||0; }catch(e){}
       if(cb > best){ best = cb; updateMeta(); toast('best synced — '+best+' ☁'); }
+      // wallet: cloud only seeds fresh devices (localWins), so just adopt storage
+      try{
+        const w = JSON.parse(localStorage.getItem('pop.wallet')||'{}');
+        const wc = Math.max(0, parseInt(w.coins,10)||0);
+        if(wc !== coins && !undoStack.length){ coins = wc; updateMeta(); }
+      }catch(e){}
     }
   });
 }

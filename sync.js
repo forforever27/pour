@@ -70,7 +70,10 @@ window.PlaySync = (function () {
     stack:    { "stack.best":     { merge: "max" } },                 // best floors
     wings:    { "wings.best":     { merge: "max" } },                 // best gates
     ripple:   { "ripple.level":   { merge: "max" } },                 // furthest level
-    pop:      { "pop.best":       { merge: "max" } },                 // best score (endless run)
+    pop:      { "pop.best":       { merge: "max" },                   // best score (endless run)
+                // {coins} — SPENDABLE (shop), so it must never max-merge; the
+                // device's own wallet stands, cloud only seeds fresh devices.
+                "pop.wallet":     { merge: "maxmap", localWins: ["coins"] } },
     spider:   { "spider.stats":   { merge: "maxmap" } },              // wins per mode {gentle,classic,bold}
     flock:    { "flock.level":    { merge: "max" } },                 // furthest level (renamed from trio pre-launch)
   };
