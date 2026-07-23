@@ -127,8 +127,14 @@
   .baybus .seat.on svg { width:88%; height:88%; fill:color-mix(in srgb, var(--bc) 50%, #221a30 50%); }
   .baybus .seat.fill { animation:pop .26s cubic-bezier(.3,1.5,.5,1); }
   .baybus .wheel { position:absolute; bottom:-4px; width:12px; height:12px; border-radius:50%;
-    background-image:linear-gradient(#2a2336,#2a2336); border:2px solid rgba(255,255,255,.16); }
+    background-image:radial-gradient(circle at 50% 44%, #4a4162 0 2.5px, #1a1428 2.5px);
+    border:2px solid rgba(255,255,255,.13);
+    box-shadow: inset 0 -2px 2px rgba(0,0,0,.55); }
   .baybus .wheel.l { left:13px; } .baybus .wheel.r { right:17px; }
+  /* one warm headlight at the nose — family resemblance with the lot buses */
+  .baybus::after { content:""; position:absolute; right:3px; bottom:10px; width:5px; height:5px;
+    border-radius:50%; background-image:linear-gradient(#ffe9b3,#ffe9b3);
+    box-shadow:0 0 6px 2px rgba(255,224,150,.5); }
   .baybus .nose { position:absolute; right:5px; top:8px; width:6px; bottom:11px; border-radius:3px;
     background-image:linear-gradient(rgba(255,255,255,.22),rgba(255,255,255,.1)); }
   .bay-tag { text-align:center; font-size:.6rem; font-weight:300; letter-spacing:.16em;
@@ -148,9 +154,22 @@
   /* each bus is a real extruded cuboid: bright roof + shaded walls.
      footprint = --w (x) by --d (y), height --h. Windows live on the two LONG sides only. */
   .buz { position:absolute; --lx:0px; --ly:0px; transform-style:preserve-3d;
-    transform: translate3d(var(--px), var(--py), 0);
+    transform: translate3d(var(--px), var(--py), 0) rotateZ(var(--rz,0deg));
     transition: transform .42s cubic-bezier(.4,0,.5,1), opacity .42s ease; cursor:pointer; }
   .buz.gone { opacity:0; }
+  /* soft contact shadow on the asphalt — sits just above the lot plane, moves with the bus */
+  .buz .shadow { position:absolute; pointer-events:none;
+    width:calc(var(--w) * 1.12); height:calc(var(--d) * 1.12);
+    left:calc(var(--w) * -0.06 + 4px); top:calc(var(--d) * -0.06 + 4px);
+    border-radius:12px; transform:translateZ(0.5px);
+    background-image:linear-gradient(rgba(8,5,16,.45), rgba(8,5,16,.45));
+    filter:blur(7px); }
+  .buz.hint .shadow { animation:shadowlift .75s ease-in-out infinite; }
+  @keyframes shadowlift {
+    0%,100%{ transform:translateZ(.5px) scale(1);    filter:blur(7px);  opacity:1; }
+    50%    { transform:translateZ(.5px) scale(1.09); filter:blur(12px); opacity:.55; } }
+  /* extruded sides of the lot slab — folded down below the plane */
+  .lot-wall { position:absolute; pointer-events:none; backface-visibility:hidden; }
   .box { position:absolute; width:var(--w); height:var(--d); transform-style:preserve-3d;
     transform: translateZ(calc(var(--h) / 2)); }
   .buz.jam .box { animation:jam .42s ease; }
@@ -164,33 +183,27 @@
   }
   .face { position:absolute; left:50%; top:50%; border-radius:3px;
     background-image:linear-gradient(color-mix(in srgb,var(--bc) 56%,#1a1426 44%),color-mix(in srgb,var(--bc) 42%,#1a1426 58%)); }
-  .f-top { width:var(--w); height:var(--d);
+  .f-top { width:var(--w); height:var(--d); border-radius:6px;
     transform: translate(-50%,-50%) translateZ(calc(var(--h) / 2));
-    background-image: radial-gradient(circle at 30% 22%, rgba(255,255,255,.5), transparent 62%), linear-gradient(var(--bc),var(--bc));
-    box-shadow: inset 0 0 0 1px rgba(255,255,255,.2);
+    background-image: radial-gradient(circle at 30% 22%, rgba(255,255,255,.55), transparent 60%), linear-gradient(var(--bc),var(--bc));
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.22), inset 0 0 9px rgba(16,10,28,.35);
     display:flex; align-items:center; justify-content:center; }
+  /* roof vent, tucked to a corner so it never fights the arrow */
+  .f-top::before { content:""; position:absolute; right:11%; bottom:12%;
+    width:24%; height:17%; max-width:16px; max-height:12px; border-radius:3px;
+    background-image:linear-gradient(rgba(14,9,24,.28), rgba(14,9,24,.28));
+    box-shadow: inset 0 1px 2px rgba(10,6,18,.45), 0 1px 0 rgba(255,255,255,.14); }
   .f-top .arr { width:min(40%,26px); height:min(40%,26px); }
-  .f-top .arr svg { width:100%; height:100%; fill:rgba(255,255,255,.94); }
+  .f-top .arr svg { width:100%; height:100%; fill:rgba(255,255,255,.94);
+    filter:drop-shadow(0 1.5px 1px rgba(12,7,22,.45)); }
   .f-front,.f-back { width:var(--w); height:var(--h); }
   .f-left,.f-right { width:var(--h); height:var(--d); }
-  .f-front { transform: translate(-50%,-50%) rotateX(90deg)  translateZ(calc(var(--d) / 2)); }
-  .f-back  { transform: translate(-50%,-50%) rotateX(-90deg) translateZ(calc(var(--d) / 2)); filter:brightness(.86); }
-  .f-left  { transform: translate(-50%,-50%) rotateY(-90deg) translateZ(calc(var(--w) / 2)); }
-  .f-right { transform: translate(-50%,-50%) rotateY(90deg)  translateZ(calc(var(--w) / 2)); filter:brightness(.9); }
-  /* window band runs ALONG the bus length on the two long sides */
-  .win-h { background-repeat:no-repeat,no-repeat; background-size:100% 34%, 100% 100%; background-position:50% 30%, 0 0;
-    background-image:
-      repeating-linear-gradient(90deg, rgba(206,226,255,.6) 0 11%, transparent 11% 16%),
-      linear-gradient(color-mix(in srgb,var(--bc) 58%,#1a1426 42%),color-mix(in srgb,var(--bc) 44%,#1a1426 56%)); }
-  .win-v { background-repeat:no-repeat,no-repeat; background-size:34% 100%, 100% 100%; background-position:30% 50%, 0 0;
-    background-image:
-      repeating-linear-gradient(0deg, rgba(206,226,255,.6) 0 11%, transparent 11% 16%),
-      linear-gradient(to right, color-mix(in srgb,var(--bc) 58%,#1a1426 42%),color-mix(in srgb,var(--bc) 44%,#1a1426 56%)); }
-  /* windshield on the front (driving) end */
-  .wshield { background-repeat:no-repeat,no-repeat; background-size:66% 44%, 100% 100%; background-position:50% 28%, 0 0;
-    background-image:
-      linear-gradient(rgba(206,226,255,.7),rgba(176,202,240,.6)),
-      linear-gradient(color-mix(in srgb,var(--bc) 64%,#1a1426 36%),color-mix(in srgb,var(--bc) 48%,#1a1426 52%)); }
+  /* one light source, top-left-front: south face lit, east mid, back/west darkest.
+     Faces are PAINTED (base + windows + wheels + lights) inline per-bus in styleBus(). */
+  .f-front { transform: translate(-50%,-50%) rotateX(90deg)  translateZ(calc(var(--d) / 2)); filter:brightness(.78); }
+  .f-back  { transform: translate(-50%,-50%) rotateX(-90deg) translateZ(calc(var(--d) / 2)); }
+  .f-left  { transform: translate(-50%,-50%) rotateY(-90deg) translateZ(calc(var(--w) / 2)); filter:brightness(.78); }
+  .f-right { transform: translate(-50%,-50%) rotateY(90deg)  translateZ(calc(var(--w) / 2)); filter:brightness(.87); }
 
   .actions { display:flex; justify-content:center; gap:12px; padding: 2px 0 clamp(12px,2vh,20px); }
   .pill { display:flex; align-items:center; gap:7px; height:42px; padding:0 20px;
@@ -500,7 +513,8 @@ function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=(Math.random()*(i+1)
 
 /* ---------- generation (multi-cell buses, solvable by reverse construction) ---------- */
 function levelParams(lv){
-  const G = Math.min(5 + Math.floor((lv-1)/3), 7);           // bigger lot: 5 -> 7
+  let G = Math.min(5 + Math.floor((lv-1)/3), 7);             // bigger lot: 5 -> 7
+  if(lv > 50) G = Math.min(7 + Math.ceil((lv-50)/20), 10);   // then +1 every 20: 51→8, 71→9, 91→10 (cap)
   const K = Math.min(3 + Math.floor((lv-1)/3), 6);           // 3 -> 6 colours
   const frac = Math.min(0.62 + (lv-1)*0.015, 0.8);          // densely packed -> buses block each other
   const maxLen = Math.min(2 + Math.floor((lv-1)/3), 4);      // mostly short; 3 from lv4, 4 from lv7
@@ -616,7 +630,8 @@ function layoutMetrics(){
   const wrap = lotEl.parentElement;
   const availW = wrap.clientWidth, availH = wrap.clientHeight;
   // the lot is tilted back, so it needs less screen height than its true height — allow extra
-  cell = Math.max(34, Math.min(Math.floor(availW * 0.82 / C), Math.floor(availH * 1.18 / R), 74));
+  const minCell = C >= 9 ? 28 : 34;   // late-game 9/10-wide lots must still fit small phones
+  cell = Math.max(minCell, Math.min(Math.floor(availW * 0.82 / C), Math.floor(availH * 1.18 / R), 74));
   gap = Math.round(cell*0.1);
   lotEl.style.width  = (C*cell)+'px';
   lotEl.style.height = (R*cell)+'px';
@@ -632,30 +647,116 @@ function placeBus(el, b){
   el.style.setProperty('--px', (e.minC*cell + gap)+'px');
   el.style.setProperty('--py', (e.minR*cell + gap)+'px');
 }
+/* ---- face painting ----
+   Every side face is painted as one inline multi-layer background composed here
+   (base shade + window band + wheels + lights + bumper + ground AO), because one
+   class-based background-image would clobber another. Geometry trap: each face is
+   rotated differently, so its GROUND edge differs in local coords:
+   f-front -> top, f-back -> bottom, f-left -> left, f-right -> right (verified). */
+function faceBG(role, geo){
+  const { fw, fh, ground, axis } = geo;                       // axis = bus length axis on this face
+  const up  = (ground==='top'||ground==='bottom') ? fh : fw;  // ground -> roof extent
+  const len = (axis==='x') ? fw : fh;
+  const px = n => Math.round(n*10)/10 + 'px';
+  // a point at (t along the length, u up from the ground edge), in face-local px
+  const pt = (t,u)=>{
+    if(ground==='top')    return px(t*len)+' '+px(u);
+    if(ground==='bottom') return px(t*len)+' '+px(fh-u);
+    if(ground==='left')   return px(u)+' '+px(t*len);
+    return px(fw-u)+' '+px(t*len);                            // ground==='right'
+  };
+  // a rect band: lenOff/lenSize along the length, uOff/uSize up from the ground edge
+  const place = (lenOff,lenSize,uOff,uSize)=>{
+    let x,y,bw,bh;
+    if(ground==='top')         { x=lenOff; y=uOff;            bw=lenSize; bh=uSize; }
+    else if(ground==='bottom') { x=lenOff; y=fh-uOff-uSize;   bw=lenSize; bh=uSize; }
+    else if(ground==='left')   { x=uOff;   y=lenOff;          bw=uSize; bh=lenSize; }
+    else                       { x=fw-uOff-uSize; y=lenOff;   bw=uSize; bh=lenSize; }
+    return px(x)+' '+px(y)+' / '+px(bw)+' '+px(bh)+' no-repeat';
+  };
+  const full = '0 0 / 100% 100% no-repeat';
+  const roofDir = {top:'bottom',bottom:'top',left:'right',right:'left'}[ground];
+  const mixc = p => `color-mix(in srgb, var(--bc) ${p}%, #1a1426 ${100-p}%)`;
+  const L = [];                                               // first layer paints on top
+  if(role==='long'){
+    // two wheels touching the ground edge (tire + hub + rim ring)
+    const rw = Math.max(4, up*0.30), r1 = rw*0.30, r2 = rw*0.46;
+    for(const t of [0.24, 0.76])
+      L.push(`radial-gradient(circle at ${pt(t, rw*0.94)}, #4a4064 0 ${px(r1)}, #241d38 ${px(r1)} ${px(r2)}, #0f0b1a ${px(r2)} ${px(rw)}, rgba(8,5,16,.4) ${px(rw)} ${px(rw*1.16)}, transparent ${px(rw*1.16)}) ${full}`);
+    // contact AO along the ground edge
+    L.push(`linear-gradient(to ${roofDir}, rgba(6,4,12,.42), rgba(6,4,12,0) ${px(up*0.34)}) ${full}`);
+    // window band near the roof (same stripes as before, moved off the ground)
+    const bandDeg = (axis==='x') ? '90deg' : '0deg';
+    L.push(`repeating-linear-gradient(${bandDeg}, rgba(206,226,255,.62) 0 11%, rgba(206,226,255,0) 11% 16%) ${place(0, len, up*0.48, up*0.34)}`);
+    L.push(`linear-gradient(to ${ground}, ${mixc(58)}, ${mixc(44)}) ${full}`);
+  } else if(role==='shield'){
+    // two warm headlights near the ground corners + dark bumper + windshield glass
+    const r = Math.max(2.4, up*0.10), bump = up*0.14;
+    for(const t of [0.20, 0.80])
+      L.push(`radial-gradient(circle at ${pt(t, bump + r*1.15)}, #fff6dd 0 ${px(r*0.45)}, #ffe9b3 ${px(r*0.45)} ${px(r)}, rgba(255,214,140,.35) ${px(r)} ${px(r*2.3)}, transparent ${px(r*2.3)}) ${full}`);
+    L.push(`linear-gradient(#221a35,#221a35) ${place(0, len, 0, bump)}`);
+    L.push(`linear-gradient(to ${ground}, rgba(206,226,255,.72), rgba(176,202,240,.55)) ${place(len*0.17, len*0.66, up*0.42, up*0.44)}`);
+    L.push(`linear-gradient(to ${roofDir}, rgba(6,4,12,.35), rgba(6,4,12,0) ${px(up*0.3)}) ${full}`);
+    L.push(`linear-gradient(to ${ground}, ${mixc(64)}, ${mixc(48)}) ${full}`);
+  } else {                                                    // 'tail'
+    const r = Math.max(2, up*0.085), bump = up*0.14;
+    for(const t of [0.18, 0.82])
+      L.push(`radial-gradient(circle at ${pt(t, bump + r*1.2)}, #ff8a7a 0 ${px(r*0.45)}, #e05555 ${px(r*0.45)} ${px(r)}, rgba(224,85,85,.25) ${px(r)} ${px(r*1.9)}, transparent ${px(r*1.9)}) ${full}`);
+    L.push(`linear-gradient(#221a35,#221a35) ${place(0, len, 0, bump)}`);
+    L.push(`linear-gradient(to ${roofDir}, rgba(6,4,12,.35), rgba(6,4,12,0) ${px(up*0.3)}) ${full}`);
+    L.push(`linear-gradient(to ${ground}, ${mixc(56)}, ${mixc(42)}) ${full}`);
+  }
+  return L.join(', ');
+}
 function styleBus(el, b){
   const e = busExtent(b);
-  el.style.setProperty('--w', ((e.maxC-e.minC+1)*cell - gap*2)+'px');
-  el.style.setProperty('--d', ((e.maxR-e.minR+1)*cell - gap*2)+'px');
-  el.style.setProperty('--h', Math.round(cell*0.5)+'px');
+  const w = (e.maxC-e.minC+1)*cell - gap*2;
+  const d = (e.maxR-e.minR+1)*cell - gap*2;
+  const h = Math.round(cell*0.5);
+  el.style.setProperty('--w', w+'px');
+  el.style.setProperty('--d', d+'px');
+  el.style.setProperty('--h', h+'px');
   el.style.setProperty('--bc', COLOR[b.c]);
   el.querySelector('.arr').style.transform = `rotate(${b.dir*90}deg)`;
-  // windows belong only on the two LONG sides; a windshield marks the driving end
-  const q = s => el.querySelector(s);
-  q('.f-front').className='face f-front'; q('.f-back').className='face f-back';
-  q('.f-left').className='face f-left';   q('.f-right').className='face f-right';
-  if(b.dir===1 || b.dir===3){ q('.f-front').classList.add('win-h'); q('.f-back').classList.add('win-h'); }
-  else { q('.f-left').classList.add('win-v'); q('.f-right').classList.add('win-v'); }
-  q({0:'.f-back',1:'.f-right',2:'.f-front',3:'.f-left'}[b.dir]).classList.add('wshield');
+  // windows belong only on the two LONG sides; windshield on the driving end, tail opposite.
+  // Verified empirically (painted faces + screenshot): f-back is the SOUTH face, f-front
+  // the north, f-left west, f-right east — so headlights face the arrow direction:
+  const shield = {0:'f-front',1:'f-right',2:'f-back',3:'f-left'}[b.dir];
+  const tail   = {0:'f-back',1:'f-left',2:'f-front',3:'f-right'}[b.dir];
+  const GEO = {
+    'f-front': { fw:w, fh:h, ground:'top',    axis:'x' },
+    'f-back':  { fw:w, fh:h, ground:'bottom', axis:'x' },
+    'f-left':  { fw:h, fh:d, ground:'left',   axis:'y' },
+    'f-right': { fw:h, fh:d, ground:'right',  axis:'y' }
+  };
+  for(const name of ['f-front','f-back','f-left','f-right']){
+    const role = name===shield ? 'shield' : name===tail ? 'tail' : 'long';
+    el.querySelector('.'+name).style.background = faceBG(role, GEO[name]);
+  }
+}
+/* extruded slab sides: four walls folded DOWN below the lot plane (verified: south
+   rotateX(-90), north rotateX(90), west rotateY(-90), east rotateY(90) fold away
+   from the viewer). South/east catch a touch more light — they face the camera. */
+function buildWalls(){
+  lotEl.querySelectorAll('.lot-wall').forEach(x=>x.remove());
+  const t = Math.round(cell*0.32);
+  const mk = css => { const el=document.createElement('div'); el.className='lot-wall'; el.style.cssText=css; lotEl.appendChild(el); };
+  mk(`left:0; top:100%; width:100%; height:${t}px; transform-origin:50% 0; transform:rotateX(-90deg); background-image:linear-gradient(#352b52, #241d3a);`);        // south
+  mk(`left:0; bottom:100%; width:100%; height:${t}px; transform-origin:50% 100%; transform:rotateX(90deg); background-image:linear-gradient(#1c1630, #1c1630);`);   // north
+  mk(`top:0; right:100%; width:${t}px; height:100%; transform-origin:100% 50%; transform:rotateY(-90deg); background-image:linear-gradient(#1e1832, #1e1832);`);    // west
+  mk(`top:0; left:100%; width:${t}px; height:100%; transform-origin:0 50%; transform:rotateY(90deg); background-image:linear-gradient(to right, #2d2547, #211b38);`); // east
 }
 function buildLot(){
   for(const el of busEls.values()) el.remove();
   busEls.clear();
   layoutMetrics();
+  buildWalls();
   for(const b of busList.values()){
     const el = document.createElement('div');
     el.className = 'buz';
     el.dataset.id = b.id;
     el.innerHTML =
+      '<div class="shadow"></div>'+
       '<div class="box">'+
         '<div class="face f-back"></div><div class="face f-front"></div>'+
         '<div class="face f-left"></div><div class="face f-right"></div>'+
@@ -777,6 +878,7 @@ function animateDriveOff(b){
   const y = (e.minR + DR[b.dir]*steps)*cell + gap;
   el.style.setProperty('--px', x+'px');
   el.style.setProperty('--py', y+'px');
+  el.style.setProperty('--rz', ((b.dir===0||b.dir===3) ? -1.2 : 1.2)+'deg');  // tiny heading tilt
   el.classList.add('gone');
   note(300+ (3-b.dir)*40, .14, .06);
   buzz(8);

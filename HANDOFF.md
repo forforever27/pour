@@ -6,6 +6,13 @@ catch-up for any new session.
 
 ---
 
+> **Latest (2026-07-12): Bus late-game lot growth** — per owner, the lot now grows past
+> the old 7×7 cap: 8×8 from level 51, 9×9 from 71, 10×10 from 91 (hard cap — an 11-wide
+> lot overflows a 375px phone). Min cell size drops 34→28px for 9/10-wide lots so they
+> fit small screens. Verified: sizes correct at 50/51/70/71/90/91/200, a 10×10 level 91
+> board (32 buses) clears fully in hint order (generation still solvable), no console
+> errors. Local, not pushed (together with the bus 3D-polish pass, same day).
+
 ## TL;DR
 
 - **Live site:** https://forforever27.github.io/pour/ (the hub / menu)
@@ -471,7 +478,28 @@ for editing.
 
 ---
 
-_Last updated after (2026-07-13, twelfth pass — owner's second playtest report +
+_Last updated after (2026-07-23, bus 3D polish pass): **bus. visual polish only, no
+logic changes, verified in browser, NOT yet pushed.** All face painting moved from CSS
+classes (`win-h/win-v/wshield`, now deleted) into `styleBus()` as inline multi-layer
+backgrounds per face (base shade + roof-side window band + wheels + head/taillights +
+bumper + ground AO), because one class background would clobber another. Added: soft
+blurred contact shadow div per bus (spreads during hint lift, fades with `.gone`); four
+`.lot-wall` divs folded below the plane in `buildWalls()` (called from `buildLot`, so
+resize rebuilds them — south rotateX(-90), north rotateX(90), west rotateY(-90), east
+rotateY(90)); roof vent + AO ring + embossed arrow on `.f-top`; ±1.2° heading tilt via
+`--rz` on drive-off; baybus nose light + hub wheels. **Geometry facts verified by
+painting faces and screenshotting: `.f-back` is the SOUTH (viewer-facing) face, `.f-front`
+north; each face's GROUND edge in local coords: f-front→top, f-back→bottom, f-left→left,
+f-right→right.** Two deliberate deviations from the old look: (1) the legacy windshield
+map put vertical buses' windshields on the wrong end (up-driving showed windshield south);
+now shield = {0:f-front,1:f-right,2:f-back,3:f-left} so headlights face the arrow;
+(2) lighting flipped so the visible south face is the lit one (f-back unfiltered, f-front/
+f-left .78, f-right .87 — the old CSS dimmed the visible face). Regression-tested in a
+local server: level-1 full clear (boarding, bays, win overlay), shudder on blocked tap,
+undo mid-game, restart, resize rebuild (no duplicate walls/shadows), hint lift+glow+shadow
+spread, old save restored cleanly, dense 7×7/16-bus board smooth (72–105fps), zero console
+errors, localStorage keys untouched. Awaiting owner review before push.
+Prior (2026-07-13, twelfth pass — owner's second playtest report +
 re-audit): **portraits "flying away" during delivery, FIXED + pushed** (commit
 c705439). Root cause: `.talking`/`.no` animated `transform` directly on the
 positioned `<g transform="translate(x,y)">` — a CSS transform REPLACES the SVG
