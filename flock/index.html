@@ -800,7 +800,7 @@ function isFree(t){
 function boardCount(){ return tiles.filter(t=>t.st==='b').length; }
 
 /* ---------- layout / render ---------- */
-let scale = 1, tilePx = 54;
+let scale = 1, tilePx = 54, trayPx = 54;
 function layout(){
   const mainEl = document.querySelector('main');
   const availW = Math.min(mainEl.clientWidth-8, 420);
@@ -811,23 +811,26 @@ function layout(){
   stageEl.style.width  = Math.round(LW*scale)+'px';
   stageEl.style.height = Math.round(LH*scale)+'px';
   tilePx = Math.round(TS*scale);
-  // tray: 7 slots
+  // tray: 7 slots with their OWN tile size, capped so the row always fits the
+  // screen (board tiles scale to the stage, which is wider than 7 tray slots
+  // + gaps on narrow phones — the first live build overflowed the viewport)
   const slotGap = 5;
-  const trayW = TRAYN*tilePx + (TRAYN+1)*slotGap;
+  trayPx = Math.min(tilePx, Math.floor((availW - (TRAYN+1)*slotGap) / TRAYN));
+  const trayW = TRAYN*trayPx + (TRAYN+1)*slotGap;
   trayEl.style.width  = trayW+'px';
-  trayEl.style.height = (tilePx + 12)+'px';
+  trayEl.style.height = (trayPx + 12)+'px';
   trayEl.querySelectorAll('.slot').forEach(s=>s.remove());
   for(let i=0;i<TRAYN;i++){
     const s=document.createElement('div');
     s.className='slot';
-    s.style.cssText=`left:${slotGap + i*(tilePx+slotGap)}px;top:6px;width:${tilePx}px;height:${tilePx}px;`;
+    s.style.cssText=`left:${slotGap + i*(trayPx+slotGap)}px;top:6px;width:${trayPx}px;height:${trayPx}px;`;
     trayEl.appendChild(s);
   }
 }
 function trayXY(i){
   const slotGap = 5;
   const tr = trayEl.getBoundingClientRect(), st = stageEl.getBoundingClientRect();
-  return [ tr.left - st.left + slotGap + i*(tilePx+slotGap), tr.top - st.top + 6 ];
+  return [ tr.left - st.left + slotGap + i*(trayPx+slotGap), tr.top - st.top + 6 ];
 }
 function buildTiles(){
   stageEl.innerHTML='';
@@ -846,8 +849,9 @@ function render(instant){
   for(const t of tiles){
     const el=t.el; if(!el) continue;
     if(instant) el.style.transition='none';
-    el.style.width = tilePx+'px'; el.style.height = tilePx+'px';
-    el.style.setProperty('--edge', Math.max(3, Math.round(tilePx*.11))+'px');
+    const px = t.st==='t' ? trayPx : tilePx;      // tray tiles use the tray's size
+    el.style.width = px+'px'; el.style.height = px+'px';
+    el.style.setProperty('--edge', Math.max(3, Math.round(px*.11))+'px');
     if(t.st==='b'){
       el.style.left = Math.round(t.x*scale)+'px';
       // stacked tiles sit visibly HIGHER — each layer lifts by a bit of edge

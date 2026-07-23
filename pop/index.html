@@ -771,104 +771,123 @@ function shade(hex, k){          // k>0 lighten toward white, k<0 darken toward 
   r=Math.round(r+(t-r)*a); g=Math.round(g+(t-g)*a); b=Math.round(b+(t-b)*a);
   return `rgb(${r},${g},${b})`;
 }
-function drawOrb(x,y,col,r){
-  // soft drop shadow
-  cx.save();
-  cx.beginPath(); cx.arc(x, y+r*.18, r*.92, 0, 7);
-  cx.fillStyle='rgba(0,0,0,.28)'; cx.filter='blur(3px)'; cx.fill();
-  cx.restore();
+/* Orbs are PRE-RENDERED once per kind+size into offscreen sprites and stamped
+   with drawImage each frame. The first live build drew every bubble with
+   fresh gradients AND ctx.filter blur() per frame — canvas filters are
+   extremely slow on mobile GPUs and made the whole game lag on phones. No
+   ctx.filter anywhere anymore: soft edges come from radial gradients. */
+const SPRITES = new Map();
+function drawOrbInto(g, x, y, col, r){
+  // soft drop shadow (gradient, not blur)
+  const sh=g.createRadialGradient(x, y+r*.2, r*.35, x, y+r*.2, r*1.08);
+  sh.addColorStop(0,'rgba(0,0,0,.30)'); sh.addColorStop(1,'rgba(0,0,0,0)');
+  g.beginPath(); g.arc(x, y+r*.2, r*1.08, 0, 7); g.fillStyle=sh; g.fill();
   // body: deep rim → bright off-centre core
-  const g=cx.createRadialGradient(x-r*.34, y-r*.42, r*.08, x, y, r);
-  g.addColorStop(0,  shade(col,.55));
-  g.addColorStop(.32,shade(col,.18));
-  g.addColorStop(.72,col);
-  g.addColorStop(1,  shade(col,-.34));
-  cx.beginPath(); cx.arc(x,y,r-1,0,7); cx.fillStyle=g; cx.fill();
+  const bg=g.createRadialGradient(x-r*.34, y-r*.42, r*.08, x, y, r);
+  bg.addColorStop(0,  shade(col,.55));
+  bg.addColorStop(.32,shade(col,.18));
+  bg.addColorStop(.72,col);
+  bg.addColorStop(1,  shade(col,-.34));
+  g.beginPath(); g.arc(x,y,r-1,0,7); g.fillStyle=bg; g.fill();
   // glass rim
-  cx.beginPath(); cx.arc(x,y,r-1,0,7);
-  cx.strokeStyle='rgba(255,255,255,.14)'; cx.lineWidth=1; cx.stroke();
-  // specular highlight
-  cx.save();
-  cx.translate(x-r*.34, y-r*.44); cx.rotate(-.5); cx.scale(1,.62);
-  cx.beginPath(); cx.arc(0,0,r*.30,0,7);
-  cx.fillStyle='rgba(255,255,255,.85)'; cx.filter='blur(1px)'; cx.fill();
-  cx.restore();
+  g.beginPath(); g.arc(x,y,r-1,0,7);
+  g.strokeStyle='rgba(255,255,255,.14)'; g.lineWidth=1; g.stroke();
+  // specular highlight (soft radial, no blur filter)
+  g.save();
+  g.translate(x-r*.34, y-r*.44); g.rotate(-.5); g.scale(1,.62);
+  const sp=g.createRadialGradient(0,0,0, 0,0,r*.34);
+  sp.addColorStop(0,'rgba(255,255,255,.9)'); sp.addColorStop(.7,'rgba(255,255,255,.5)'); sp.addColorStop(1,'rgba(255,255,255,0)');
+  g.beginPath(); g.arc(0,0,r*.34,0,7); g.fillStyle=sp; g.fill();
+  g.restore();
   // faint reflected light at the bottom
-  cx.save();
-  cx.beginPath(); cx.arc(x, y+r*.42, r*.44, 0, Math.PI, false);
-  cx.strokeStyle='rgba(255,255,255,.18)'; cx.lineWidth=r*.13; cx.lineCap='round';
-  cx.stroke();
-  cx.restore();
+  g.beginPath(); g.arc(x, y+r*.42, r*.44, 0, Math.PI, false);
+  g.strokeStyle='rgba(255,255,255,.18)'; g.lineWidth=r*.13; g.lineCap='round';
+  g.stroke();
 }
-function drawBubble(x,y,kind,r=R){
+function paintSprite(g, x, y, kind, r){
   if(kind===BOMB){
-    drawOrb(x,y,'#3a3152',r);
-    // gold star
-    cx.save(); cx.fillStyle='#f0b35e'; cx.translate(x,y); cx.beginPath();
+    drawOrbInto(g,x,y,'#3a3152',r);
+    g.save(); g.fillStyle='#f0b35e'; g.translate(x,y); g.beginPath();
     for(let i=0;i<5;i++){
       const a1=-Math.PI/2 + i*2*Math.PI/5, a2=a1+Math.PI/5;
-      cx.lineTo(Math.cos(a1)*r*.52, Math.sin(a1)*r*.52);
-      cx.lineTo(Math.cos(a2)*r*.22, Math.sin(a2)*r*.22);
+      g.lineTo(Math.cos(a1)*r*.52, Math.sin(a1)*r*.52);
+      g.lineTo(Math.cos(a2)*r*.22, Math.sin(a2)*r*.22);
     }
-    cx.closePath(); cx.fill(); cx.restore();
+    g.closePath(); g.fill(); g.restore();
     return;
   }
   if(kind===WILD){
-    // rainbow wedges under a glass dome
-    cx.save(); cx.translate(x,y);
+    g.save(); g.translate(x,y);
     for(let i=0;i<6;i++){
-      cx.beginPath(); cx.moveTo(0,0);
-      cx.arc(0,0,r-1, i*Math.PI/3 - Math.PI/2, (i+1)*Math.PI/3 - Math.PI/2);
-      cx.closePath(); cx.fillStyle=COLOR[i]; cx.fill();
+      g.beginPath(); g.moveTo(0,0);
+      g.arc(0,0,r-1, i*Math.PI/3 - Math.PI/2, (i+1)*Math.PI/3 - Math.PI/2);
+      g.closePath(); g.fillStyle=COLOR[i]; g.fill();
     }
-    cx.restore();
-    const g=cx.createRadialGradient(x-r*.34,y-r*.42,r*.05,x,y,r);
-    g.addColorStop(0,'rgba(255,255,255,.75)'); g.addColorStop(.45,'rgba(255,255,255,.1)'); g.addColorStop(1,'rgba(0,0,0,.25)');
-    cx.beginPath(); cx.arc(x,y,r-1,0,7); cx.fillStyle=g; cx.fill();
+    g.restore();
+    const gg=g.createRadialGradient(x-r*.34,y-r*.42,r*.05,x,y,r);
+    gg.addColorStop(0,'rgba(255,255,255,.75)'); gg.addColorStop(.45,'rgba(255,255,255,.1)'); gg.addColorStop(1,'rgba(0,0,0,.25)');
+    g.beginPath(); g.arc(x,y,r-1,0,7); g.fillStyle=gg; g.fill();
     return;
   }
   if(kind===ZAP){
-    drawOrb(x,y,'#c98f2e',r);
-    cx.save(); cx.fillStyle='#fff';
-    cx.beginPath();
-    cx.moveTo(x+r*.16, y-r*.55); cx.lineTo(x-r*.28, y+r*.1); cx.lineTo(x-.5, y+r*.1);
-    cx.lineTo(x-r*.16, y+r*.55); cx.lineTo(x+r*.28, y-r*.1); cx.lineTo(x+.5, y-r*.1);
-    cx.closePath(); cx.fill(); cx.restore();
+    drawOrbInto(g,x,y,'#c98f2e',r);
+    g.save(); g.fillStyle='#fff';
+    g.beginPath();
+    g.moveTo(x+r*.16, y-r*.55); g.lineTo(x-r*.28, y+r*.1); g.lineTo(x-.5, y+r*.1);
+    g.lineTo(x-r*.16, y+r*.55); g.lineTo(x+r*.28, y-r*.1); g.lineTo(x+.5, y-r*.1);
+    g.closePath(); g.fill(); g.restore();
     return;
   }
   if(kind===BEAM){
-    drawOrb(x,y,'#8f86c9',r);
-    cx.save();
-    cx.strokeStyle='#fff'; cx.lineWidth=r*.2; cx.lineCap='round';
-    cx.beginPath(); cx.moveTo(x, y+r*.45); cx.lineTo(x, y-r*.42); cx.stroke();
-    cx.beginPath(); cx.moveTo(x-r*.3, y-r*.1); cx.lineTo(x, y-r*.45); cx.lineTo(x+r*.3, y-r*.1); cx.stroke();
-    cx.restore();
+    drawOrbInto(g,x,y,'#8f86c9',r);
+    g.save();
+    g.strokeStyle='#fff'; g.lineWidth=r*.2; g.lineCap='round';
+    g.beginPath(); g.moveTo(x, y+r*.45); g.lineTo(x, y-r*.42); g.stroke();
+    g.beginPath(); g.moveTo(x-r*.3, y-r*.1); g.lineTo(x, y-r*.45); g.lineTo(x+r*.3, y-r*.1); g.stroke();
+    g.restore();
     return;
   }
   if(kind===PAINT){
-    drawOrb(x,y,'#efe3c4',r);
-    cx.save();
+    drawOrbInto(g,x,y,'#efe3c4',r);
     const dots=[['#ff6f69',-.32,-.18],['#5fc97e',.28,-.26],['#5b8def',-.05,.3],['#c07ce8',.3,.22]];
     for(const [dc,ox,oy] of dots){
-      cx.beginPath(); cx.arc(x+ox*r, y+oy*r, r*.2, 0, 7);
-      cx.fillStyle=dc; cx.fill();
+      g.beginPath(); g.arc(x+ox*r, y+oy*r, r*.2, 0, 7);
+      g.fillStyle=dc; g.fill();
     }
-    cx.restore();
     return;
   }
   if(kind===FROST){
-    drawOrb(x,y,'#7fb4d8',r);
-    cx.save();
-    cx.strokeStyle='#fff'; cx.lineWidth=r*.13; cx.lineCap='round';
+    drawOrbInto(g,x,y,'#7fb4d8',r);
+    g.save();
+    g.strokeStyle='#fff'; g.lineWidth=r*.13; g.lineCap='round';
     for(let i=0;i<6;i++){
       const a=i*Math.PI/3;
-      cx.beginPath(); cx.moveTo(x,y);
-      cx.lineTo(x+Math.cos(a)*r*.5, y+Math.sin(a)*r*.5); cx.stroke();
+      g.beginPath(); g.moveTo(x,y);
+      g.lineTo(x+Math.cos(a)*r*.5, y+Math.sin(a)*r*.5); g.stroke();
     }
-    cx.restore();
+    g.restore();
     return;
   }
-  drawOrb(x,y,COLOR[kind]||'#888',r);
+  drawOrbInto(g,x,y,COLOR[kind]||'#888',r);
+}
+function orbSprite(kind, r){
+  const key = kind+'|'+Math.round(r*10);
+  let c = SPRITES.get(key);
+  if(c) return c;
+  const size = Math.ceil(r*2.6);                 // room for shadow spill
+  c = document.createElement('canvas');
+  const dpr = Math.min(2.5, window.devicePixelRatio||1);
+  c.width = c.height = Math.max(8, Math.ceil(size*dpr));
+  const g = c.getContext('2d');
+  g.scale(c.width/size, c.height/size);
+  paintSprite(g, size/2, size/2, kind, r);
+  c._size = size;
+  SPRITES.set(key, c);
+  return c;
+}
+function drawBubble(x,y,kind,r=R){
+  const s = orbSprite(kind, r);
+  cx.drawImage(s, x-s._size/2, y-s._size/2, s._size, s._size);
 }
 function draw(){
   cx.clearRect(0,0,LW,LH);
@@ -974,6 +993,7 @@ function sizeCanvas(){
   const dpr = Math.min(2.5, window.devicePixelRatio||1);
   cv.width = Math.round(w*dpr); cv.height = Math.round(h*dpr);
   cx.setTransform(cv.width/LW, 0, 0, cv.height/LH, 0, 0);
+  SPRITES.clear();               // dpr/zoom may have changed — re-render orbs crisp
 }
 
 /* ---------- pointer input ---------- */
